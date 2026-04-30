@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'standalone',
+  serverExternalPackages: ['unpdf', 'pdfjs-dist'],
 };
 
 export default nextConfig;
