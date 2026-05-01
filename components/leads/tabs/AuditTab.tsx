@@ -11,6 +11,13 @@ import {
   Sparkles, Send, Bell, Save, Upload, RefreshCw, Image,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ComposeModal } from '@/components/email/ComposeModal'
+import { EmailHistory } from '@/components/email/EmailHistory'
+
+function extractStorageFolder(pdfUrl: string): string {
+  const match = pdfUrl.match(/crm-files\/(.+?)\/[^/]+$/)
+  return match ? match[1] : ''
+}
 
 interface AuditTabProps {
   leadId: string
@@ -20,6 +27,8 @@ interface AuditTabProps {
   websiteUrl?: string
   businessName?: string
   city?: string
+  leadEmail?: string
+  leadName?: string
 }
 
 interface ScrapeResult {
@@ -168,7 +177,7 @@ function Tag({ children, color = 'slate' }: { children: React.ReactNode; color?:
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, city }: AuditTabProps) {
+export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, city, leadEmail, leadName }: AuditTabProps) {
   const supabase = createClient()
 
   // Current audit (latest record for this lead)
@@ -200,12 +209,9 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiScore, setAiScore] = useState<number | null>(null)
 
-  // Send to client
-  const [showSendModal, setShowSendModal] = useState(false)
-  const [clientEmail, setClientEmail] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  // Compose email modal
+  const [showComposeModal, setShowComposeModal] = useState(false)
+  const [emailHistoryKey, setEmailHistoryKey]   = useState(0)
 
   const canEdit = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
   const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'developer'
@@ -403,30 +409,6 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     }
   }
 
-  async function handleSendToClient() {
-    if (!clientEmail.trim() || !audit?.audit_short_pdf_url) return
-    setSending(true)
-    setSendResult(null)
-    try {
-      const res = await fetch('/api/send-audit-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: clientEmail.trim(), clientName: clientName.trim() || 'there', businessName: businessName || 'your business', shortUrl: audit.audit_short_pdf_url }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setSendResult({ ok: true, msg: `Report sent to ${clientEmail.trim()}` })
-        await supabase.from('activity_logs').insert({ lead_id: leadId, user_id: userId, action: 'Audit Sent to Client', details: `Summary report emailed to ${clientEmail.trim()}` })
-      } else {
-        setSendResult({ ok: false, msg: data.error || 'Failed to send email' })
-      }
-    } catch (e: any) {
-      setSendResult({ ok: false, msg: e.message })
-    } finally {
-      setSending(false)
-    }
-  }
-
   const shortStatus: 'uploaded' | 'in_progress' | 'not_started' =
     audit?.audit_short_pdf_url ? 'uploaded' : audit ? 'in_progress' : 'not_started'
   const longStatus: 'uploaded' | 'in_progress' | 'not_started' =
@@ -551,7 +533,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                     View
                   </a>
                   {canEdit && (
-                    <button onClick={() => { setShowSendModal(true); setClientEmail(''); setClientName(''); setSendResult(null) }}
+                    <button onClick={() => setShowComposeModal(true)}
                       className="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 px-3 py-1.5 rounded-lg border border-emerald-800/40 transition-colors">
                       Send to Client
                     </button>
@@ -676,36 +658,29 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       </div>
 
       {/* ── Send to Client Modal ─────────────────────────────────────────── */}
-      {showSendModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowSendModal(false)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-semibold text-slate-100">Send Summary Report to Client</p>
-            {sendResult ? (
-              <div className={cn('flex items-start gap-2 text-sm rounded-lg px-3 py-2.5',
-                sendResult.ok ? 'bg-green-900/30 text-green-300 border border-green-800/40' : 'bg-red-900/30 text-red-300 border border-red-800/40')}>
-                {sendResult.ok ? <CheckCircle size={15} className="mt-0.5 flex-shrink-0" /> : <XCircle size={15} className="mt-0.5 flex-shrink-0" />}
-                {sendResult.msg}
-              </div>
-            ) : (
-              <>
-                <input type="text" placeholder="Client name" value={clientName} onChange={e => setClientName(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500" />
-                <input type="email" placeholder="Client email *" value={clientEmail} onChange={e => setClientEmail(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500" />
-              </>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => { setShowSendModal(false); setSendResult(null) }}>
-                {sendResult?.ok ? 'Close' : 'Cancel'}
-              </Button>
-              {!sendResult && (
-                <Button size="sm" onClick={handleSendToClient} loading={sending} disabled={!clientEmail.trim()}>
-                  <Send size={13} /> Send Report
-                </Button>
-              )}
-            </div>
-          </div>
+      {/* Email History */}
+      {(userRole === 'admin' || userRole === 'sales_agent' || userRole === 'agent') && (
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Mail size={13} /> Email History
+          </p>
+          <EmailHistory leadId={leadId} refreshKey={emailHistoryKey} />
         </div>
+      )}
+
+      {showComposeModal && (
+        <ComposeModal
+          leadId={leadId}
+          leadEmail={leadEmail}
+          leadName={leadName}
+          businessName={businessName}
+          auditPdfUrl={audit?.audit_short_pdf_url}
+          auditPdfName={audit?.file_names?.short || 'summary-report.pdf'}
+          storageFolder={audit?.audit_short_pdf_url ? extractStorageFolder(audit.audit_short_pdf_url) : undefined}
+          userId={userId}
+          onClose={() => setShowComposeModal(false)}
+          onSent={() => setEmailHistoryKey(k => k + 1)}
+        />
       )}
     </div>
   )

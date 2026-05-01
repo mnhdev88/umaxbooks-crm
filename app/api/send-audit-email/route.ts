@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sendEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
-    return NextResponse.json({ error: 'RESEND_API_KEY not set in .env.local' }, { status: 500 })
-  }
-
   const { to, clientName, businessName, shortUrl } = await req.json()
   if (!to || !shortUrl) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'reports@yourdomain.com'
   const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'UMAX CRM'
 
   const html = `
@@ -60,24 +55,12 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${resendKey}`,
-    },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: [to],
-      subject: `Your SEO Audit Report — ${businessName}`,
-      html,
-    }),
+  const { data, error } = await sendEmail({
+    to,
+    subject: `Your SEO Audit Report — ${businessName}`,
+    html,
   })
 
-  const data = await res.json()
-  if (!res.ok) {
-    return NextResponse.json({ error: data.message || data.error || 'Resend API error' }, { status: 400 })
-  }
-
-  return NextResponse.json({ success: true, id: data.id })
+  if (error) return NextResponse.json({ error }, { status: 400 })
+  return NextResponse.json({ success: true, id: data?.id })
 }

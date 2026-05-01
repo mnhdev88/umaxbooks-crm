@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Profile } from '@/types'
 import { UserManagement } from '@/components/settings/UserManagement'
+import { EmailProviders } from '@/components/settings/EmailProviders'
+import { EmailTemplates } from '@/components/settings/EmailTemplates'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -23,6 +25,8 @@ export default async function SettingsPage() {
       <Header title="Settings" profile={profile as Profile} />
       <div className="p-6 max-w-3xl space-y-6">
         <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
+        <EmailProviders />
+        <EmailTemplates />
       </div>
     </>
   )

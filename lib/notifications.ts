@@ -1,24 +1,4 @@
-import { Resend } from 'resend'
-
-interface NotifyOptions {
-  to: string
-  subject: string
-  html: string
-}
-
-export async function sendEmail({ to, subject, html }: NotifyOptions) {
-  if (!process.env.RESEND_API_KEY) return { error: 'No email API key configured' }
-
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const { data, error } = await resend.emails.send({
-    from: 'UMAX CRM <noreply@yourdomain.com>',
-    to,
-    subject,
-    html,
-  })
-
-  return { data, error }
-}
+export { sendEmail } from '@/lib/email'
 
 export function buildDemoScheduledEmail(leadName: string, companyName: string, developerName: string) {
   return {
