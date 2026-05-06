@@ -197,6 +197,8 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   // File uploads
   const [uploadingShort, setUploadingShort] = useState(false)
   const [uploadingLong, setUploadingLong] = useState(false)
+  const [removingShort, setRemovingShort] = useState(false)
+  const [removingLong, setRemovingLong] = useState(false)
 
   // Developer notes
   const [devNotesShort, setDevNotesShort] = useState('')
@@ -375,6 +377,46 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     }
   }
 
+  async function removePdf(type: 'short' | 'long') {
+    const label = type === 'short' ? 'summary' : 'detailed'
+    if (!confirm(`Remove the ${label} audit PDF? This cannot be undone.`)) return
+    if (!audit) return
+
+    const url = type === 'short' ? audit.audit_short_pdf_url : audit.audit_long_pdf_url
+    const setRemoving = type === 'short' ? setRemovingShort : setRemovingLong
+    setRemoving(true)
+    try {
+      if (url) {
+        const match = url.match(/crm-files\/(.+)$/)
+        if (match) await supabase.storage.from('crm-files').remove([match[1]])
+      }
+
+      const update: Record<string, any> = {
+        file_names: { ...(audit.file_names || {}), [type]: null },
+      }
+      if (type === 'short') {
+        update.audit_short_pdf_url = null
+        update.short_uploaded_by = null
+        update.short_file_size = null
+        update.short_uploaded_at = null
+      } else {
+        update.audit_long_pdf_url = null
+        update.long_uploaded_by = null
+        update.long_file_size = null
+        update.long_uploaded_at = null
+      }
+      await supabase.from('audits').update(update).eq('id', audit.id)
+      await supabase.from('activity_logs').insert({
+        lead_id: leadId, user_id: userId,
+        action: type === 'short' ? 'Summary Audit Removed' : 'Detailed Audit Removed',
+        details: 'PDF deleted from storage',
+      })
+      await fetchAudit()
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   async function handleSaveDevNotes(type: 'short' | 'long') {
     const setSaving = type === 'short' ? setSavingDevNotesShort : setSavingDevNotesLong
     setSaving(true)
@@ -532,6 +574,12 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                     className="text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
                     View
                   </a>
+                  {canUpload && (
+                    <button onClick={() => removePdf('short')} disabled={removingShort}
+                      className="text-xs text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/30 px-3 py-1.5 rounded-lg border border-red-800/40 transition-colors disabled:opacity-50">
+                      {removingShort ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
                   {canEdit && (
                     <button onClick={() => setShowComposeModal(true)}
                       className="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 px-3 py-1.5 rounded-lg border border-emerald-800/40 transition-colors">
@@ -627,10 +675,18 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                     {audit.long_file_size ? ` · ${(audit.long_file_size / 1024).toFixed(0)} KB` : ''}
                   </p>
                 </div>
-                <a href={audit.audit_long_pdf_url} target="_blank" rel="noreferrer"
-                  className="text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
-                  View
-                </a>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href={audit.audit_long_pdf_url} target="_blank" rel="noreferrer"
+                    className="text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors">
+                    View
+                  </a>
+                  {canUpload && (
+                    <button onClick={() => removePdf('long')} disabled={removingLong}
+                      className="text-xs text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/30 px-3 py-1.5 rounded-lg border border-red-800/40 transition-colors disabled:opacity-50">
+                      {removingLong ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
