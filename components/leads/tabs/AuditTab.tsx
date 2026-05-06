@@ -578,11 +578,21 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
               </div>
             </>
           ) : canUpload ? (
-            <DropZone
-              label="Drop summary audit PDF here, or click to upload"
-              loading={uploadingShort}
-              onFile={f => uploadFile('short', f)}
-            />
+            <>
+              <DropZone
+                label="Drop summary audit PDF here, or click to upload"
+                loading={uploadingShort}
+                onFile={f => uploadFile('short', f)}
+              />
+              {canEdit && (
+                <button
+                  onClick={() => setShowComposeModal(true)}
+                  className="w-full text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 px-3 py-2 rounded-lg border border-emerald-800/40 transition-colors"
+                >
+                  Send to Client
+                </button>
+              )}
+            </>
           ) : (
             <p className="text-xs text-slate-500 text-center py-4">Waiting for summary report upload.</p>
           )}
