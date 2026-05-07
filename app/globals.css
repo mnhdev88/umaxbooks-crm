@@ -75,6 +75,74 @@ html.light ::-webkit-scrollbar-track { background: #e2e8f0; }
 html.light ::-webkit-scrollbar-thumb { background: #94a3b8; }
 html.light ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
+/* Colored text — darken for light backgrounds */
+html.light .text-indigo-300  { color: #4338ca !important; }
+html.light .text-indigo-400  { color: #4338ca !important; }
+html.light .text-amber-300   { color: #b45309 !important; }
+html.light .text-amber-400   { color: #b45309 !important; }
+html.light .text-blue-300    { color: #1d4ed8 !important; }
+html.light .text-blue-400    { color: #1d4ed8 !important; }
+html.light .text-green-300   { color: #15803d !important; }
+html.light .text-green-400   { color: #15803d !important; }
+html.light .text-purple-300  { color: #7e22ce !important; }
+html.light .text-purple-400  { color: #7e22ce !important; }
+html.light .text-pink-300    { color: #be185d !important; }
+html.light .text-pink-400    { color: #be185d !important; }
+html.light .text-teal-300    { color: #0f766e !important; }
+html.light .text-teal-400    { color: #0f766e !important; }
+html.light .text-emerald-300 { color: #047857 !important; }
+html.light .text-emerald-400 { color: #047857 !important; }
+html.light .text-sky-300     { color: #0369a1 !important; }
+html.light .text-sky-400     { color: #0369a1 !important; }
+html.light .text-red-300     { color: #b91c1c !important; }
+html.light .text-red-400     { color: #b91c1c !important; }
+html.light .text-orange-300  { color: #c2410c !important; }
+html.light .text-yellow-400  { color: #a16207 !important; }
+
+/* Status/source badge backgrounds — keep subtle tint on light bg */
+html.light .bg-indigo-900\/40  { background-color: #e0e7ff !important; }
+html.light .bg-amber-900\/40   { background-color: #fef3c7 !important; }
+html.light .bg-blue-900\/40    { background-color: #dbeafe !important; }
+html.light .bg-green-900\/40   { background-color: #dcfce7 !important; }
+html.light .bg-purple-900\/40  { background-color: #f3e8ff !important; }
+html.light .bg-pink-900\/40    { background-color: #fce7f3 !important; }
+html.light .bg-teal-900\/40    { background-color: #ccfbf1 !important; }
+html.light .bg-emerald-900\/40 { background-color: #d1fae5 !important; }
+html.light .bg-sky-900\/40     { background-color: #e0f2fe !important; }
+html.light .bg-red-900\/40     { background-color: #fee2e2 !important; }
+html.light .bg-orange-900\/40  { background-color: #ffedd5 !important; }
+html.light .bg-orange-900\/20  { background-color: #fff7ed !important; }
+html.light .bg-orange-900\/30  { background-color: #ffedd5 !important; }
+html.light .bg-green-900\/20   { background-color: #f0fdf4 !important; }
+html.light .bg-green-900\/30   { background-color: #dcfce7 !important; }
+html.light .bg-red-900\/20     { background-color: #fff1f2 !important; }
+html.light .bg-red-900\/30     { background-color: #fee2e2 !important; }
+html.light .bg-blue-900\/20    { background-color: #eff6ff !important; }
+html.light .bg-blue-900\/30    { background-color: #dbeafe !important; }
+html.light .bg-purple-900\/30  { background-color: #faf5ff !important; }
+html.light .bg-amber-900\/20   { background-color: #fffbeb !important; }
+html.light .bg-amber-900\/30   { background-color: #fef3c7 !important; }
+
+/* Badge borders */
+html.light .border-indigo-800\/40  { border-color: #a5b4fc !important; }
+html.light .border-amber-800\/40   { border-color: #fcd34d !important; }
+html.light .border-blue-800\/40    { border-color: #93c5fd !important; }
+html.light .border-green-800\/40   { border-color: #86efac !important; }
+html.light .border-purple-800\/40  { border-color: #d8b4fe !important; }
+html.light .border-pink-800\/40    { border-color: #f9a8d4 !important; }
+html.light .border-teal-800\/40    { border-color: #5eead4 !important; }
+html.light .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
+html.light .border-red-800\/40     { border-color: #fca5a5 !important; }
+html.light .border-orange-800\/40  { border-color: #fdba74 !important; }
+html.light .border-orange-800      { border-color: #fb923c !important; }
+html.light .border-green-800       { border-color: #4ade80 !important; }
+html.light .border-red-700         { border-color: #f87171 !important; }
+
+/* Gradient backgrounds used in audit/AI sections */
+html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
+html.light .to-orange-950\/20      { --tw-gradient-to: #fff7ed !important; }
+html.light .border-orange-900\/30  { border-color: #fed7aa !important; }
+
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zoom-in-95 { from { transform: translate(-50%, -50%) scale(0.95); } to { transform: translate(-50%, -50%) scale(1); } }
 
