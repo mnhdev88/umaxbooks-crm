@@ -380,7 +380,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
                     </td>
                   )}
                   <td className="px-3 py-3">
-                    <p className="font-semibold text-slate-100 text-sm">{lead.name}</p>
+                    <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
                     <p className="text-xs text-slate-500 mt-0.5">{lead.company_name}</p>
                     {lead.priority && lead.priority !== 'Normal' && (
                       <span className={cn('text-xs font-semibold', PRIORITY_CLS[lead.priority])}>
