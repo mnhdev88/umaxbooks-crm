@@ -274,10 +274,10 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
 
   // ── Render ─────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-5">
 
       {/* Stats row */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Total Leads',       val: stats.total,  sub: '+' + Math.min(stats.total, 6) + ' this week', accent: true },
           { label: 'New (Uncontacted)', val: stats.newCt,  sub: 'Needs follow-up',    color: 'text-indigo-400' },
@@ -297,7 +297,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-full overflow-x-auto md:w-fit">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={cn(

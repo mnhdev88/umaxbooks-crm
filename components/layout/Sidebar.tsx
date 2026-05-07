@@ -14,13 +14,13 @@ import {
   Activity,
   MonitorPlay,
   ClipboardList,
+  X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
 
-// Agent: add leads + upload SEO reports only (no Demo & Close)
 const agentNav = [
   { href: '/',        label: 'Pipeline',          icon: LayoutDashboard },
   { href: '/leads',   label: 'All Leads',          icon: Users },
@@ -28,7 +28,6 @@ const agentNav = [
   { href: '/reports', label: 'Reports',            icon: BarChart3 },
 ]
 
-// Sales Agent: full agent workflow including Demo & Close
 const salesAgentNav = [
   { href: '/',             label: 'Pipeline',          icon: LayoutDashboard },
   { href: '/leads',        label: 'All Leads',          icon: Users },
@@ -54,9 +53,11 @@ const adminNav = [
 
 interface SidebarProps {
   profile: Profile
+  isOpen: boolean
+  onClose: () => void
 }
 
-export function Sidebar({ profile }: SidebarProps) {
+export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -71,7 +72,6 @@ export function Sidebar({ profile }: SidebarProps) {
   useEffect(() => {
     if (profile.role !== 'admin') return
     fetchPendingCount()
-    // Poll every 30 s so badge stays live without full reload
     const id = setInterval(fetchPendingCount, 30000)
     return () => clearInterval(id)
   }, [profile.role])
@@ -90,15 +90,26 @@ export function Sidebar({ profile }: SidebarProps) {
   }
 
   return (
-    <aside className="w-60 min-h-screen bg-[#0a1628] border-r border-slate-800 flex flex-col">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-slate-800">
+    <aside className={cn(
+      'w-60 bg-[#0a1628] border-r border-slate-800 flex flex-col',
+      'fixed inset-y-0 left-0 z-50 transition-transform duration-300',
+      'md:relative md:translate-x-0 md:z-auto md:min-h-screen',
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    )}>
+      {/* Logo + close button */}
+      <div className="px-5 py-5 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center">
             <Zap size={16} className="text-white" />
           </div>
           <span className="font-bold text-white tracking-tight">UMAX CRM</span>
         </div>
+        <button
+          onClick={onClose}
+          className="md:hidden text-slate-400 hover:text-white p-1 rounded transition-colors"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* User info */}
@@ -123,6 +134,7 @@ export function Sidebar({ profile }: SidebarProps) {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
                 active

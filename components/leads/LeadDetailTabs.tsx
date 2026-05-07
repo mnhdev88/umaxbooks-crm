@@ -45,29 +45,49 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
       {/* Tab nav */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 overflow-x-auto">
-        <div className="flex">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap',
-                activeTab === tab.id
-                  ? 'border-orange-500 text-orange-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="border-b border-slate-800 px-4">
+        {/* Mobile: dropdown */}
+        <div className="flex items-center gap-2 py-2 md:hidden">
+          <select
+            value={activeTab}
+            onChange={e => setActiveTab(e.target.value)}
+            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500"
+          >
+            {TABS.map(tab => (
+              <option key={tab.id} value={tab.id}>{tab.label}</option>
+            ))}
+          </select>
+          {profile.role !== 'developer' && (
+            <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)} className="flex-shrink-0">
+              <Edit2 size={13} /> Edit
+            </Button>
+          )}
         </div>
 
-        {profile.role !== 'developer' && (
-          <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)} className="ml-2 flex-shrink-0">
-            <Edit2 size={13} /> Edit Lead
-          </Button>
-        )}
+        {/* Desktop: tab buttons */}
+        <div className="hidden md:flex items-center justify-between overflow-x-auto">
+          <div className="flex">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap',
+                  activeTab === tab.id
+                    ? 'border-orange-500 text-orange-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-300'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {profile.role !== 'developer' && (
+            <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)} className="ml-2 flex-shrink-0">
+              <Edit2 size={13} /> Edit Lead
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tab content */}
