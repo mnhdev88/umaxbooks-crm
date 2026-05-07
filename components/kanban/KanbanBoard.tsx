@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -17,6 +17,7 @@ import { Lead, PipelineStatus, PIPELINE_STAGES } from '@/types'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { createClient } from '@/lib/supabase/client'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface KanbanBoardProps {
   initialLeads: Lead[]
@@ -27,7 +28,12 @@ interface KanbanBoardProps {
 export function KanbanBoard({ initialLeads, userRole, userId }: KanbanBoardProps) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+
+  function scrollBoard(direction: 'left' | 'right') {
+    scrollRef.current?.scrollBy({ left: direction === 'left' ? -300 : 300, behavior: 'smooth' })
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -100,14 +106,34 @@ export function KanbanBoard({ initialLeads, userRole, userId }: KanbanBoardProps
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-4 px-6 pt-4">
-        {PIPELINE_STAGES.map((stage) => (
-          <KanbanColumn
-            key={stage}
-            status={stage}
-            leads={columns[stage] || []}
-          />
-        ))}
+      <div className="relative">
+        {/* Left scroll arrow */}
+        <button
+          onClick={() => scrollBoard('left')}
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft size={16} />
+        </button>
+
+        <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-4 px-10 pt-4 scroll-smooth">
+          {PIPELINE_STAGES.map((stage) => (
+            <KanbanColumn
+              key={stage}
+              status={stage}
+              leads={columns[stage] || []}
+            />
+          ))}
+        </div>
+
+        {/* Right scroll arrow */}
+        <button
+          onClick={() => scrollBoard('right')}
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+          aria-label="Scroll right"
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
 
       <DragOverlay>

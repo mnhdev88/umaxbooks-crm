@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Lead, PipelineStatus } from '@/types'
 import { LeadCard } from './LeadCard'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/utils'
+
+const PAGE_SIZE = 8
 
 interface KanbanColumnProps {
   status: PipelineStatus
@@ -27,6 +30,10 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
 
 export function KanbanColumn({ status, leads }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  const visibleLeads = leads.slice(0, visibleCount)
+  const hasMore = leads.length > visibleCount
 
   return (
     <div className={cn(
@@ -48,12 +55,12 @@ export function KanbanColumn({ status, leads }: KanbanColumnProps) {
       </div>
 
       {/* Cards */}
-      <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={visibleLeads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
         <div
           ref={setNodeRef}
-          className="flex-1 px-2 pb-3 space-y-2 min-h-[120px]"
+          className="flex-1 px-2 pb-2 space-y-2 min-h-[120px]"
         >
-          {leads.map((lead) => (
+          {visibleLeads.map((lead) => (
             <LeadCard key={lead.id} lead={lead} />
           ))}
           {leads.length === 0 && (
@@ -66,6 +73,19 @@ export function KanbanColumn({ status, leads }: KanbanColumnProps) {
           )}
         </div>
       </SortableContext>
+
+      {/* Load more */}
+      {hasMore && (
+        <div className="px-2 pb-3">
+          <button
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="w-full text-[11px] text-slate-500 hover:text-orange-400 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors border border-dashed border-slate-700/50 hover:border-orange-500/30"
+          >
+            Load {Math.min(PAGE_SIZE, leads.length - visibleCount)} more
+            <span className="ml-1 text-slate-600">({leads.length - visibleCount} remaining)</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

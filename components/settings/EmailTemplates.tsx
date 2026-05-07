@@ -65,7 +65,7 @@ export function EmailTemplates() {
     <div className="bg-[#0d1f3c] border border-white/10 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-white font-semibold text-lg">Email Templates</h2>
+          <h2 className="text-slate-100 font-semibold text-lg">Email Templates</h2>
           <p className="text-slate-400 text-sm mt-1">Create HTML email templates for agents to use when sending reports</p>
         </div>
         <button
@@ -140,7 +140,7 @@ export function EmailTemplates() {
             <div key={t.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-white text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-slate-100 text-sm font-medium truncate">{t.name}</p>
                   {t.subject && <p className="text-slate-400 text-xs truncate mt-0.5">Subject: {t.subject}</p>}
                 </div>
                 <div className="flex items-center gap-1 ml-3 shrink-0">

@@ -16,6 +16,16 @@
   box-sizing: border-box;
 }
 
+/* Force dark background on native select option popups */
+html:not(.light) select option {
+  background-color: #0d1f3c;
+  color: #f1f5f9;
+}
+html.light select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 html {
   color-scheme: dark;
 }
@@ -47,12 +57,15 @@ html.light .bg-slate-900 { background-color: #ffffff !important; }
 html.light .bg-slate-800 { background-color: #f1f5f9 !important; }
 html.light .bg-slate-700 { background-color: #e2e8f0 !important; }
 html.light .bg-slate-800\/60 { background-color: rgba(241,245,249,0.6) !important; }
+html.light .bg-slate-800\/50 { background-color: #f1f5f9 !important; }
 html.light .bg-slate-800\/40 { background-color: rgba(241,245,249,0.4) !important; }
 html.light .bg-slate-900\/50 { background-color: rgba(255,255,255,0.5) !important; }
 html.light .bg-slate-900\/60 { background-color: rgba(255,255,255,0.6) !important; }
 html.light .bg-slate-900\/40 { background-color: rgba(255,255,255,0.4) !important; }
 html.light .border-slate-800 { border-color: #e2e8f0 !important; }
 html.light .border-slate-700 { border-color: #cbd5e1 !important; }
+html.light .border-slate-700\/50 { border-color: #e2e8f0 !important; }
+html.light .border-slate-700\/30 { border-color: #e2e8f0 !important; }
 html.light .border-slate-600 { border-color: #94a3b8 !important; }
 html.light .text-slate-100 { color: #0f172a !important; }
 html.light .text-slate-200 { color: #1e293b !important; }
@@ -137,6 +150,15 @@ html.light .border-orange-800\/40  { border-color: #fdba74 !important; }
 html.light .border-orange-800      { border-color: #fb923c !important; }
 html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
+
+/* text-white / hover:text-white — override for light mode */
+html.light .text-white          { color: #0f172a !important; }
+html.light .hover\:text-white:hover { color: #0f172a !important; }
+
+/* white/5 and white/10 backgrounds used in settings form inputs */
+html.light .bg-white\/5  { background-color: #f8fafc !important; }
+html.light .bg-white\/10 { background-color: #f1f5f9 !important; }
+html.light .border-white\/10 { border-color: #cbd5e1 !important; }
 
 /* Gradient backgrounds used in audit/AI sections */
 html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Trash2, Star, Wifi, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, X, Trash2, Star, Wifi, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
 
 type ProviderType = 'gmail' | 'aws_ses' | 'resend' | 'custom'
 
@@ -45,6 +45,7 @@ const EMPTY: Omit<EmailProvider, 'id' | 'is_active'> = {
 export function EmailProviders() {
   const [providers, setProviders]   = useState<EmailProvider[]>([])
   const [showForm, setShowForm]     = useState(false)
+  const [editId, setEditId]         = useState<string | null>(null)
   const [form, setForm]             = useState({ ...EMPTY })
   const [saving, setSaving]         = useState(false)
   const [testing, setTesting]       = useState<string | null>(null)
@@ -93,18 +94,44 @@ export function EmailProviders() {
     return !!(form.host && form.username && form.password)
   }
 
+  function startEdit(p: EmailProvider) {
+    setEditId(p.id)
+    setForm({
+      name: p.name, provider: p.provider,
+      host: p.host ?? '', port: p.port ?? 587, secure: p.secure,
+      username: p.username ?? '', password: p.password ?? '',
+      api_key: p.api_key ?? '',
+      from_email: p.from_email, from_name: p.from_name,
+      is_default: p.is_default,
+    })
+    setFormTestResult(null)
+    setShowForm(true)
+  }
+
+  function cancelForm() {
+    setShowForm(false)
+    setEditId(null)
+    setForm({ ...EMPTY })
+    setFormTestResult(null)
+  }
+
   async function save() {
     setSaving(true)
     const payload = form.provider === 'resend'
       ? { ...form, host: null, port: null, secure: false, username: null, password: null }
       : { ...form, api_key: null }
 
-    const { error } = await supabase.from('email_providers').insert(payload)
-    setSaving(false)
-    if (error) { alert(error.message); return }
+    if (editId) {
+      const { error } = await supabase.from('email_providers').update(payload).eq('id', editId)
+      setSaving(false)
+      if (error) { alert(error.message); return }
+    } else {
+      const { error } = await supabase.from('email_providers').insert(payload)
+      setSaving(false)
+      if (error) { alert(error.message); return }
+    }
     load()
-    setShowForm(false)
-    setForm({ ...EMPTY })
+    cancelForm()
   }
 
   async function setDefault(id: string) {
@@ -136,11 +163,11 @@ export function EmailProviders() {
     <div className="bg-[#0d1f3c] border border-white/10 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-white font-semibold text-lg">Email Providers</h2>
+          <h2 className="text-slate-100 font-semibold text-lg">Email Providers</h2>
           <p className="text-slate-400 text-sm mt-1">Configure SMTP servers for sending emails to clients</p>
         </div>
         <button
-          onClick={() => { setShowForm(v => !v); setForm({ ...EMPTY }) }}
+          onClick={() => showForm ? cancelForm() : setShowForm(true)}
           className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -150,7 +177,7 @@ export function EmailProviders() {
 
       {showForm && (
         <div className="bg-[#0a1628] border border-white/10 rounded-xl p-5 mb-6 space-y-4">
-          <h3 className="text-white font-medium text-sm">New Email Provider</h3>
+          <h3 className="text-slate-100 font-medium text-sm">{editId ? 'Edit Email Provider' : 'New Email Provider'}</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -309,7 +336,7 @@ export function EmailProviders() {
                 disabled={saving || !isValid()}
                 className="bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {saving ? 'Saving…' : 'Save Provider'}
+                {saving ? 'Saving…' : editId ? 'Update Provider' : 'Save Provider'}
               </button>
             </div>
           </div>
@@ -331,7 +358,7 @@ export function EmailProviders() {
                 <div className={`w-2 h-2 shrink-0 rounded-full ${p.is_active ? 'bg-green-400' : 'bg-slate-500'}`} />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-white text-sm font-medium truncate">{p.name}</span>
+                    <span className="text-slate-100 text-sm font-medium truncate">{p.name}</span>
                     {p.is_default && (
                       <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                         <Star className="w-3 h-3" /> Default
@@ -369,6 +396,13 @@ export function EmailProviders() {
                     <Star className="w-3.5 h-3.5" />
                   </button>
                 )}
+                <button
+                  onClick={() => startEdit(p)}
+                  title="Edit provider"
+                  className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-400/10 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
                 <button
                   onClick={() => remove(p.id)}
                   title="Delete provider"
