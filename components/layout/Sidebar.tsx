@@ -154,8 +154,21 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="px-3 pb-4">
+      {/* My Profile + Logout */}
+      <div className="px-3 pb-4 space-y-0.5">
+        <Link
+          href="/profile"
+          onClick={onClose}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
+            pathname === '/profile'
+              ? 'bg-orange-500/15 text-orange-400 font-medium'
+              : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+          )}
+        >
+          <Settings size={16} />
+          My Profile
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-all duration-150"
