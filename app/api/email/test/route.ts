@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
 
   // Gmail SMTP ignores custom from address — must match authenticated account
   const effectiveFrom = provider === 'gmail'
-    ? `${from_name || 'UMAX CRM'} <${username}>`
-    : `${from_name || 'UMAX CRM'} <${from_email}>`
+    ? `${from_name || 'Noveliotech CRM'} <${username}>`
+    : `${from_name || 'Noveliotech CRM'} <${from_email}>`
 
   try {
     if (provider === 'resend') {
@@ -27,11 +27,11 @@ export async function POST(req: NextRequest) {
       const { error } = await resend.emails.send({
         from: effectiveFrom,
         to,
-        subject: 'UMAX CRM — Email Provider Test',
+        subject: 'Noveliotech CRM — Email Provider Test',
         html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
           <h2 style="color:#f97316;">Email Test Successful</h2>
           <p>Your <strong>Resend</strong> provider is connected and working.</p>
-          <p style="color:#94a3b8;font-size:13px;">Sent via UMAX CRM Settings</p>
+          <p style="color:#94a3b8;font-size:13px;">Sent via Noveliotech CRM Settings</p>
         </div>`,
       })
       if (error) throw new Error(error.message)
@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: effectiveFrom,
         to,
-        subject: 'UMAX CRM — Email Provider Test',
+        subject: 'Noveliotech CRM — Email Provider Test',
         html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
           <h2 style="color:#f97316;">Email Test Successful</h2>
           <p>Your <strong>${provider === 'gmail' ? 'Gmail' : provider === 'aws_ses' ? 'AWS SES' : 'SMTP'}</strong> provider is connected and working.</p>
           <p style="color:#64748b;font-size:13px;">Sent from: ${effectiveFrom}</p>
-          <p style="color:#94a3b8;font-size:13px;">Sent via UMAX CRM Settings</p>
+          <p style="color:#94a3b8;font-size:13px;">Sent via Noveliotech CRM Settings</p>
         </div>`,
       })
     }

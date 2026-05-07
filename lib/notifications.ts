@@ -2,13 +2,13 @@ export { sendEmail } from '@/lib/email'
 
 export function buildDemoScheduledEmail(leadName: string, companyName: string, developerName: string) {
   return {
-    subject: `[UMAX CRM] New Demo Scheduled — ${companyName}`,
+    subject: `[Noveliotech CRM] New Demo Scheduled — ${companyName}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f97316;">Demo Scheduled</h2>
         <p>Hi ${developerName},</p>
         <p>A new demo has been scheduled for <strong>${companyName}</strong> (Contact: ${leadName}).</p>
-        <p>Please log in to UMAX CRM to view the lead details and prepare the demo.</p>
+        <p>Please log in to Noveliotech CRM to view the lead details and prepare the demo.</p>
         <a href="${process.env.NEXT_PUBLIC_APP_URL}" style="background:#f97316;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;">
           Open CRM
         </a>
@@ -19,7 +19,7 @@ export function buildDemoScheduledEmail(leadName: string, companyName: string, d
 
 export function buildRevisionEmail(leadName: string, companyName: string, developerName: string, notes: string) {
   return {
-    subject: `[UMAX CRM] Revision Requested — ${companyName}`,
+    subject: `[Noveliotech CRM] Revision Requested — ${companyName}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #f97316;">Revision Requested</h2>
@@ -37,7 +37,7 @@ export function buildRevisionEmail(leadName: string, companyName: string, develo
 
 export function buildPaymentReceivedEmail(leadName: string, companyName: string, amount: number) {
   return {
-    subject: `[UMAX CRM] Payment Received — ${companyName}`,
+    subject: `[Noveliotech CRM] Payment Received — ${companyName}`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #22c55e;">Payment Received</h2>

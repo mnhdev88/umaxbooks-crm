@@ -38,7 +38,7 @@ const EMPTY: Omit<EmailProvider, 'id' | 'is_active'> = {
   name: '', provider: 'gmail',
   host: 'smtp.gmail.com', port: 587, secure: false,
   username: '', password: '', api_key: '',
-  from_email: '', from_name: 'UMAX CRM',
+  from_email: '', from_name: 'Noveliotech CRM',
   is_default: false,
 }
 
@@ -279,7 +279,7 @@ export function EmailProviders() {
               <input
                 value={form.from_name}
                 onChange={e => field('from_name', e.target.value)}
-                placeholder="UMAX CRM"
+                placeholder="Noveliotech CRM"
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
               />
             </div>

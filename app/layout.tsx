@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UMAX CRM",
+  title: "Noveliotech CRM",
   description: "Digital Agency CRM Platform",
 };
 

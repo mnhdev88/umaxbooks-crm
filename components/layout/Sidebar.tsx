@@ -102,7 +102,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
           <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center">
             <Zap size={16} className="text-white" />
           </div>
-          <span className="font-bold text-white tracking-tight">UMAX CRM</span>
+          <span className="font-bold text-white tracking-tight">Noveliotech CRM</span>
         </div>
         <button
           onClick={onClose}

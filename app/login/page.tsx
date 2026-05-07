@@ -39,7 +39,7 @@ export default function LoginPage() {
           <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30">
             <Zap size={28} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">UMAX CRM</h1>
+          <h1 className="text-2xl font-bold text-white">Noveliotech CRM</h1>
           <p className="text-slate-400 text-sm mt-1">Sign in to your account</p>
         </div>
 

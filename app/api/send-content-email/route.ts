@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'UMAX CRM'
+  const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'
 
   const linksHtml = links
     .filter(l => l.url)
