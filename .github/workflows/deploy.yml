@@ -16,8 +16,10 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            sudo git config --global --add safe.directory /var/www/umaxbooks-crm
+            sudo chown -R ubuntu:ubuntu /var/www/umaxbooks-crm
             cd /var/www/umaxbooks-crm
             git pull origin main
             npm install --legacy-peer-deps
             npm run build
-            pm2 restart umaxbooks
+            sudo pm2 restart umaxbooks || sudo pm2 start npm --name umaxbooks -- start
