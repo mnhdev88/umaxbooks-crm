@@ -46,11 +46,11 @@ export function DemoTab({ leadId, userId, userRole, developers }: DemoTabProps) 
     })
 
     if (form.temp_url) {
-      await supabase
-        .from('leads')
-        .update({ status: 'Audit Ready' })
-        .eq('id', leadId)
-        .eq('status', 'Contacted')
+      await fetch('/api/demo-status-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      })
     }
 
     await supabase.from('activity_logs').insert({
