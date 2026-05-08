@@ -380,7 +380,14 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
                     </td>
                   )}
                   <td className="px-3 py-3">
-                    <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
+                      {lead.lead_number && (
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap">
+                          NVL-{String(lead.lead_number).padStart(3, '0')}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 mt-0.5">{lead.company_name}</p>
                     {lead.priority && lead.priority !== 'Normal' && (
                       <span className={cn('text-xs font-semibold', PRIORITY_CLS[lead.priority])}>

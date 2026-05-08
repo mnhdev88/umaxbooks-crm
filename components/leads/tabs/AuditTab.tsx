@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ComposeModal } from '@/components/email/ComposeModal'
 import { EmailHistory } from '@/components/email/EmailHistory'
+import { generateColdEmailSubject, generateColdEmailBody, type PageSpeedResult } from '@/lib/coldEmailTemplate'
 
 function extractStorageFolder(pdfUrl: string): string {
   const match = pdfUrl.match(/crm-files\/(.+?)\/[^/]+$/)
@@ -215,11 +216,17 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [showComposeModal, setShowComposeModal] = useState(false)
   const [emailHistoryKey, setEmailHistoryKey]   = useState(0)
 
+  // Cold email via PageSpeed
+  const [coldEmailLoading, setColdEmailLoading]     = useState(false)
+  const [coldEmailError, setColdEmailError]         = useState<string | null>(null)
+  const [coldEmailInitial, setColdEmailInitial]     = useState<{ subject: string; body: string } | null>(null)
+  const [demoUrl, setDemoUrl]                       = useState<string | null>(null)
+
   const canEdit = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
   const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'developer'
   const isDev = userRole === 'developer'
 
-  useEffect(() => { fetchAudit() }, [leadId])
+  useEffect(() => { fetchAudit(); fetchDemoUrl() }, [leadId])
 
   async function fetchAudit() {
     setLoading(true)
@@ -242,6 +249,43 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       setDevNotesLong(data.developer_notes_long || '')
     }
     setLoading(false)
+  }
+
+  async function handleGetColdEmail() {
+    if (!websiteUrl) return
+    setColdEmailLoading(true)
+    setColdEmailError(null)
+    try {
+      const res = await fetch('/api/pagespeed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: websiteUrl }),
+      })
+      const data: PageSpeedResult & { error?: string } = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME ?? 'Our Agency'
+      const subject = generateColdEmailSubject(businessName || '', data.scores)
+      const body    = generateColdEmailBody(data, businessName || '', agencyName, demoUrl ?? undefined)
+      setColdEmailInitial({ subject, body })
+      setShowComposeModal(true)
+    } catch (err: any) {
+      setColdEmailError(err.message ?? 'Failed to fetch PageSpeed data')
+    } finally {
+      setColdEmailLoading(false)
+    }
+  }
+
+  async function fetchDemoUrl() {
+    const { data } = await supabase
+      .from('demos')
+      .select('temp_url')
+      .eq('lead_id', leadId)
+      .not('temp_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data?.temp_url) setDemoUrl(data.temp_url)
   }
 
   async function ensureAudit(): Promise<string> {
@@ -586,6 +630,15 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                       Send to Client
                     </button>
                   )}
+                  {canEdit && websiteUrl && (
+                    <button
+                      onClick={handleGetColdEmail}
+                      disabled={coldEmailLoading}
+                      className="text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 px-3 py-1.5 rounded-lg border border-orange-800/40 transition-colors disabled:opacity-50"
+                    >
+                      {coldEmailLoading ? 'Analyzing…' : 'Cold Email'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -633,12 +686,23 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                 onFile={f => uploadFile('short', f)}
               />
               {canEdit && (
-                <button
-                  onClick={() => setShowComposeModal(true)}
-                  className="w-full text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 px-3 py-2 rounded-lg border border-emerald-800/40 transition-colors"
-                >
-                  Send to Client
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowComposeModal(true)}
+                    className="flex-1 text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 px-3 py-2 rounded-lg border border-emerald-800/40 transition-colors"
+                  >
+                    Send to Client
+                  </button>
+                  {websiteUrl && (
+                    <button
+                      onClick={handleGetColdEmail}
+                      disabled={coldEmailLoading}
+                      className="flex-1 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 px-3 py-2 rounded-lg border border-orange-800/40 transition-colors disabled:opacity-50"
+                    >
+                      {coldEmailLoading ? 'Analyzing…' : 'Cold Email'}
+                    </button>
+                  )}
+                </div>
               )}
             </>
           ) : (
@@ -734,6 +798,12 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
         </div>
       )}
 
+      {coldEmailError && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-3 text-sm text-red-400">
+          PageSpeed error: {coldEmailError}
+        </div>
+      )}
+
       {showComposeModal && (
         <ComposeModal
           leadId={leadId}
@@ -744,7 +814,9 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           auditPdfName={audit?.file_names?.short || 'summary-report.pdf'}
           storageFolder={audit?.audit_short_pdf_url ? extractStorageFolder(audit.audit_short_pdf_url) : undefined}
           userId={userId}
-          onClose={() => setShowComposeModal(false)}
+          initialSubject={coldEmailInitial?.subject}
+          initialBody={coldEmailInitial?.body}
+          onClose={() => { setShowComposeModal(false); setColdEmailInitial(null) }}
           onSent={() => setEmailHistoryKey(k => k + 1)}
         />
       )}

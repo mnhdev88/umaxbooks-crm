@@ -22,11 +22,14 @@ interface Props {
   userId: string
   onClose: () => void
   onSent?: () => void
+  initialSubject?: string
+  initialBody?: string
 }
 
 export function ComposeModal({
   leadId, leadEmail = '', leadName = '', businessName = '' ,
   auditPdfUrl, auditPdfName, storageFolder, userId, onClose, onSent,
+  initialSubject, initialBody,
 }: Props) {
   const supabase = createClient()
 
@@ -37,9 +40,9 @@ export function ComposeModal({
   const [to, setTo]                   = useState(leadEmail ?? '')
   const [cc, setCc]                   = useState('')
   const [bcc, setBcc]                 = useState('')
-  const [subject, setSubject]         = useState(`Your SEO Audit Report — ${businessName ?? ''}`)
+  const [subject, setSubject]         = useState(initialSubject ?? `Your SEO Audit Report — ${businessName ?? ''}`)
   const [htmlMode, setHtmlMode]       = useState(false)
-  const [htmlBody, setHtmlBody]       = useState('')
+  const [htmlBody, setHtmlBody]       = useState(initialBody ?? '')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [scheduledAt, setScheduledAt] = useState('')
   const [showSchedule, setShowSchedule] = useState(false)
@@ -60,10 +63,13 @@ export function ComposeModal({
   useEffect(() => {
     loadProviders()
     loadTemplates()
-    loadDraft()
+    if (!initialBody) loadDraft()
     if (auditPdfUrl) {
       const name = auditPdfName || auditPdfUrl.split('/').pop() || 'audit-report.pdf'
       setAttachments([{ name, url: auditPdfUrl }])
+    }
+    if (initialBody && editorRef.current) {
+      editorRef.current.innerHTML = initialBody
     }
   }, [])
 

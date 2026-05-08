@@ -96,6 +96,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h2 className="text-xl font-bold text-slate-100">{lead.company_name}</h2>
+                {lead.lead_number && (
+                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-400 border border-slate-600/40">
+                    NVL-{String(lead.lead_number).padStart(3, '0')}
+                  </span>
+                )}
                 <StatusBadge status={lead.status} />
                 {lead.priority && lead.priority !== 'Normal' && (
                   <span className={`text-xs font-semibold ${PRIORITY_CLS[lead.priority] || 'text-slate-400'}`}>

@@ -55,6 +55,11 @@ export function LeadCard({ lead, overlay }: LeadCardProps) {
               <p className="text-sm font-semibold text-slate-100 hover:text-orange-400 transition-colors truncate">
                 {lead.company_name}
               </p>
+              {lead.lead_number && (
+                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap flex-shrink-0">
+                  NVL-{String(lead.lead_number).padStart(3, '0')}
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-slate-400 truncate mb-2">{lead.name}</p>

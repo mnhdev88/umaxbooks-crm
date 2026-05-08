@@ -58,7 +58,7 @@ html.light .bg-slate-800 { background-color: #f1f5f9 !important; }
 html.light .bg-slate-700 { background-color: #e2e8f0 !important; }
 html.light .bg-slate-800\/60 { background-color: rgba(241,245,249,0.6) !important; }
 html.light .bg-slate-800\/50 { background-color: #f1f5f9 !important; }
-html.light .bg-slate-800\/40 { background-color: rgba(241,245,249,0.4) !important; }
+html.light .bg-slate-800\/40 { background-color: #e9eef5 !important; }
 html.light .bg-slate-900\/50 { background-color: rgba(255,255,255,0.5) !important; }
 html.light .bg-slate-900\/60 { background-color: rgba(255,255,255,0.6) !important; }
 html.light .bg-slate-900\/40 { background-color: rgba(255,255,255,0.4) !important; }
@@ -75,8 +75,16 @@ html.light .text-slate-500 { color: #64748b !important; }
 html.light .text-slate-600 { color: #64748b !important; }
 html.light .hover\:bg-slate-800:hover { background-color: #f1f5f9 !important; }
 html.light .hover\:bg-slate-700:hover { background-color: #e2e8f0 !important; }
+html.light .hover\:bg-slate-600:hover { background-color: #cbd5e1 !important; }
 html.light .hover\:text-slate-100:hover { color: #0f172a !important; }
 html.light .hover\:text-slate-300:hover { color: #334155 !important; }
+html.light .hover\:border-slate-500:hover { border-color: #94a3b8 !important; }
+html.light .hover\:bg-emerald-900\/30:hover { background-color: #a7f3d0 !important; }
+html.light .hover\:bg-orange-900\/30:hover  { background-color: #fed7aa !important; }
+html.light .hover\:bg-red-900\/30:hover     { background-color: #fecaca !important; }
+html.light .hover\:text-emerald-300:hover   { color: #065f46 !important; }
+html.light .hover\:text-orange-300:hover    { color: #c2410c !important; }
+html.light .hover\:text-red-300:hover       { color: #b91c1c !important; }
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light textarea,
 html.light select {
@@ -121,11 +129,14 @@ html.light .bg-purple-900\/40  { background-color: #f3e8ff !important; }
 html.light .bg-pink-900\/40    { background-color: #fce7f3 !important; }
 html.light .bg-teal-900\/40    { background-color: #ccfbf1 !important; }
 html.light .bg-emerald-900\/40 { background-color: #d1fae5 !important; }
+html.light .bg-emerald-900\/20 { background-color: #ecfdf5 !important; }
+html.light .bg-emerald-900\/30 { background-color: #d1fae5 !important; }
 html.light .bg-sky-900\/40     { background-color: #e0f2fe !important; }
 html.light .bg-red-900\/40     { background-color: #fee2e2 !important; }
 html.light .bg-orange-900\/40  { background-color: #ffedd5 !important; }
 html.light .bg-orange-900\/20  { background-color: #fff7ed !important; }
 html.light .bg-orange-900\/30  { background-color: #ffedd5 !important; }
+html.light .bg-orange-900\/10  { background-color: #fff7ed !important; }
 html.light .bg-green-900\/20   { background-color: #f0fdf4 !important; }
 html.light .bg-green-900\/30   { background-color: #dcfce7 !important; }
 html.light .bg-red-900\/20     { background-color: #fff1f2 !important; }
@@ -145,6 +156,7 @@ html.light .border-purple-800\/40  { border-color: #d8b4fe !important; }
 html.light .border-pink-800\/40    { border-color: #f9a8d4 !important; }
 html.light .border-teal-800\/40    { border-color: #5eead4 !important; }
 html.light .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
+html.light .border-emerald-800     { border-color: #34d399 !important; }
 html.light .border-red-800\/40     { border-color: #fca5a5 !important; }
 html.light .border-orange-800\/40  { border-color: #fdba74 !important; }
 html.light .border-orange-800      { border-color: #fb923c !important; }
@@ -164,6 +176,13 @@ html.light .border-white\/10 { border-color: #cbd5e1 !important; }
 html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
 html.light .to-orange-950\/20      { --tw-gradient-to: #fff7ed !important; }
 html.light .border-orange-900\/30  { border-color: #fed7aa !important; }
+
+/* Card depth in light mode */
+html.light .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04); }
+
+/* orange-500/10 icon backgrounds */
+html.light .bg-orange-500\/10 { background-color: #fff7ed !important; }
+html.light .bg-purple-500\/10 { background-color: #faf5ff !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zoom-in-95 { from { transform: translate(-50%, -50%) scale(0.95); } to { transform: translate(-50%, -50%) scale(1); } }

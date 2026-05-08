@@ -114,6 +114,7 @@ export interface Lead {
   created_at: string
   updated_at: string
   slug: string
+  lead_number?: number
 }
 
 export interface Audit {
