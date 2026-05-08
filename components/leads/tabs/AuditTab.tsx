@@ -258,7 +258,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     setLoading(false)
   }
 
-  async function handleSaveDevNotes() {
+  async function handleSaveLeadNotes() {
     setSavingDevNotes(true)
     await supabase.from('leads').update({ notes: devNotes }).eq('id', leadId)
     setSavingDevNotes(false)
@@ -547,7 +547,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
             className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
           />
           <div className="flex items-center gap-2 mt-2.5">
-            <Button size="sm" onClick={handleSaveDevNotes} loading={savingDevNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
+            <Button size="sm" onClick={handleSaveLeadNotes} loading={savingDevNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
               <Save size={13} /> Save Notes
             </Button>
             {devNotesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12} /> Saved</span>}
