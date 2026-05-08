@@ -45,6 +45,14 @@ export function DemoTab({ leadId, userId, userRole, developers }: DemoTabProps) 
       upload_date: form.upload_date || null,
     })
 
+    if (form.temp_url) {
+      await supabase
+        .from('leads')
+        .update({ status: 'Audit Ready' })
+        .eq('id', leadId)
+        .eq('status', 'Contacted')
+    }
+
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
       user_id: userId,
