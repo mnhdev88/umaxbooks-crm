@@ -21,7 +21,7 @@ const ALL_TABS = [
   { id: 'activity',     label: 'Activity',       roles: ['admin', 'agent', 'sales_agent', 'developer'] },
   { id: 'audits',       label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'developer'] },
   { id: 'appointments', label: 'Calls & Appts',   roles: ['admin', 'sales_agent'] },
-  { id: 'demo',         label: 'Demo',            roles: ['admin', 'sales_agent'] },
+  { id: 'demo',         label: 'Demo',            roles: ['admin', 'sales_agent', 'developer'] },
   { id: 'before-after', label: 'Before / After',  roles: ['admin', 'sales_agent'] },
   { id: 'deal',         label: 'Deal',            roles: ['admin', 'sales_agent'] },
   { id: 'revisions',    label: 'Revisions',       roles: ['admin', 'sales_agent'] },
