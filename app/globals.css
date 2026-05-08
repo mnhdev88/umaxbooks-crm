@@ -185,7 +185,7 @@ html.light .bg-orange-500\/10 { background-color: #fff7ed !important; }
 html.light .bg-purple-500\/10 { background-color: #faf5ff !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes zoom-in-95 { from { transform: translate(-50%, -50%) scale(0.95); } to { transform: translate(-50%, -50%) scale(1); } }
+@keyframes zoom-in-95 { from { transform: scale(0.95); } to { transform: scale(1); } }
 
 .animate-in { animation-duration: 150ms; animation-fill-mode: both; }
 .fade-in { animation-name: fade-in; }

@@ -323,11 +323,11 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className={L}>GMB Rating</label>
-                <div className="flex items-center gap-2">
+                <div className="relative">
                   <input {...register('gmb_review_rating')} type="number" min="1" max="5" step="0.1"
-                    className="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-sm text-slate-100 focus:outline-none focus:border-orange-500"
+                    className={cn(F, 'pr-16')}
                     placeholder="4.5" onChange={e => updateStars(e.target.value)} />
-                  <span className="text-yellow-400 text-sm tracking-tight">{stars}</span>
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-yellow-400 text-xs tracking-tight pointer-events-none">{stars}</span>
                 </div>
               </div>
               <div>

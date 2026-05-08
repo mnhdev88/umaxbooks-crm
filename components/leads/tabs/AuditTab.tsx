@@ -30,6 +30,8 @@ interface AuditTabProps {
   city?: string
   leadEmail?: string
   leadName?: string
+  leadStatus?: string
+  leadNotes?: string
 }
 
 interface ScrapeResult {
@@ -178,7 +180,7 @@ function Tag({ children, color = 'slate' }: { children: React.ReactNode; color?:
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, city, leadEmail, leadName }: AuditTabProps) {
+export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, city, leadEmail, leadName, leadStatus, leadNotes }: AuditTabProps) {
   const supabase = createClient()
 
   // Current audit (latest record for this lead)
@@ -222,6 +224,11 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [coldEmailInitial, setColdEmailInitial]     = useState<{ subject: string; body: string } | null>(null)
   const [demoUrl, setDemoUrl]                       = useState<string | null>(null)
 
+  // Developer notes on Contacted leads
+  const [devNotes, setDevNotes]         = useState(leadNotes ?? '')
+  const [savingDevNotes, setSavingDevNotes] = useState(false)
+  const [devNotesSaved, setDevNotesSaved]   = useState(false)
+
   const canEdit = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
   const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'developer'
   const isDev = userRole === 'developer'
@@ -249,6 +256,14 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       setDevNotesLong(data.developer_notes_long || '')
     }
     setLoading(false)
+  }
+
+  async function handleSaveDevNotes() {
+    setSavingDevNotes(true)
+    await supabase.from('leads').update({ notes: devNotes }).eq('id', leadId)
+    setSavingDevNotes(false)
+    setDevNotesSaved(true)
+    setTimeout(() => setDevNotesSaved(false), 2000)
   }
 
   async function handleGetColdEmail() {
@@ -517,6 +532,28 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
 
   return (
     <div className="space-y-5">
+
+      {/* ── Developer Notes (Contacted leads only) ────────────────────────── */}
+      {isDev && leadStatus === 'Contacted' && (
+        <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <FileText size={13} /> Your Notes
+          </p>
+          <textarea
+            value={devNotes}
+            onChange={e => setDevNotes(e.target.value)}
+            placeholder="Add your notes about this lead…"
+            rows={3}
+            className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
+          />
+          <div className="flex items-center gap-2 mt-2.5">
+            <Button size="sm" onClick={handleSaveDevNotes} loading={savingDevNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
+              <Save size={13} /> Save Notes
+            </Button>
+            {devNotesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12} /> Saved</span>}
+          </div>
+        </div>
+      )}
 
       {/* ── Agent Notes for Developer ─────────────────────────────────────── */}
       {canEdit && (

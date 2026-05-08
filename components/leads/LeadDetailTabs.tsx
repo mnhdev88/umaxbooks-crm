@@ -104,6 +104,8 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
             city={lead.city}
             leadEmail={lead.email ?? ''}
             leadName={lead.name ?? ''}
+            leadStatus={lead.status}
+            leadNotes={lead.notes}
           />
         )}
         {activeTab === 'appointments' && (

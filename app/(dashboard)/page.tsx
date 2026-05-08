@@ -20,7 +20,7 @@ export default function PipelinePage() {
     supabase
       .from('leads')
       .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .then(({ data }) => {
         if (data) setLeads(data as Lead[])
         setLoading(false)
