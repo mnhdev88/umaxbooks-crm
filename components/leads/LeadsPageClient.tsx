@@ -11,6 +11,42 @@ import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
   Eye, Edit2, Download, AlertCircle, CheckCircle,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
+
+// ── Template download helpers ─────────────────────────────────────────────────
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadXlsx(filename: string, rows: string[][]) {
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads')
+  XLSX.writeFile(wb, filename)
+}
+
+function handleTemplateDownload(template: string) {
+  if (template === 'GMB Template (.csv)') {
+    downloadCsv('gmb-template.csv', [
+      ['company_name','name','phone','email','website_url','address','city','country','gmb_review_rating','number_of_reviews','gmb_url','gmb_category'],
+      ['Rick\'s Cleaners','John Smith','+1 512-291-1588','info@rickscleaners.com','rickscleaners.com','8400 Brodie Ln, Austin TX','Austin','US','4.6','396','https://maps.google.com/?cid=123','Dry Cleaning'],
+    ])
+  } else if (template === 'Cold Call Template (.csv)') {
+    downloadCsv('cold-call-template.csv', [
+      ['company_name','name','phone','email','website_url','address','city','country','source'],
+      ['Acme Corp','Jane Doe','+1 555-000-1234','jane@acme.com','acme.com','123 Main St','New York','US','Cold Call'],
+    ])
+  } else if (template === 'Full Template (.xlsx)') {
+    downloadXlsx('full-template.xlsx', [
+      ['company_name','name','phone','email','website_url','social_url','whatsapp_number','address','city','country','source','gmb_review_rating','number_of_reviews','gmb_url','gmb_category','priority','notes'],
+      ['Example Business','Contact Name','+1 555-000-0000','email@example.com','example.com','https://instagram.com/example','+1 555-000-0001','123 Main St','Austin','US','GMB','4.5','120','https://maps.google.com/?cid=123','Restaurant','Normal','Sample note'],
+    ])
+  }
+}
 
 // ── Source styling ─────────────────────────────────────────────────
 const SRC: Record<string, { label: string; cls: string }> = {
@@ -581,7 +617,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Download Templates</p>
                     <div className="flex gap-2">
                       {['GMB Template (.csv)', 'Cold Call Template (.csv)', 'Full Template (.xlsx)'].map(t => (
-                        <button key={t} className="flex items-center gap-1.5 text-xs text-slate-400 border border-slate-700 rounded-lg px-3 py-2 hover:border-slate-500 hover:text-slate-200 transition-colors">
+                        <button key={t} onClick={() => handleTemplateDownload(t)} className="flex items-center gap-1.5 text-xs text-slate-400 border border-slate-700 rounded-lg px-3 py-2 hover:border-slate-500 hover:text-slate-200 transition-colors">
                           <Download size={11} /> {t}
                         </button>
                       ))}
