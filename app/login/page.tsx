@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Zap, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -36,9 +37,14 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30">
-            <Zap size={28} className="text-white" />
-          </div>
+          <Image
+            src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
+            alt="Novelio"
+            width={160}
+            height={48}
+            className="object-contain mb-4"
+            unoptimized
+          />
           <h1 className="text-2xl font-bold text-white">Noveliotech CRM</h1>
           <p className="text-slate-400 text-sm mt-1">Sign in to your account</p>
         </div>
