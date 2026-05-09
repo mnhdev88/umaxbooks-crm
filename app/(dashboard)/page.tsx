@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
-import { Lead } from '@/types'
+import { Lead, PipelineStatus } from '@/types'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -17,14 +17,19 @@ export default function PipelinePage() {
 
   useEffect(() => {
     if (!profile) return
-    supabase
+    const query = supabase
       .from('leads')
       .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
       .order('updated_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setLeads(data as Lead[])
-        setLoading(false)
-      })
+
+    if (profile.role === 'developer') {
+      query.in('status', ['Contacted', 'Audit Ready'])
+    }
+
+    query.then(({ data }) => {
+      if (data) setLeads(data as Lead[])
+      setLoading(false)
+    })
   }, [profile])
 
   return (
@@ -51,6 +56,7 @@ export default function PipelinePage() {
             initialLeads={leads}
             userRole={profile?.role || ''}
             userId={profile?.id || ''}
+            stages={profile?.role === 'developer' ? ['Contacted', 'Audit Ready'] as PipelineStatus[] : undefined}
           />
         )}
       </div>

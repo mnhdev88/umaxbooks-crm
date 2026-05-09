@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   const { data: lead } = await supabase
     .from('leads')
-    .select('status')
+    .select('status, company_name, assigned_agent_id')
     .eq('id', leadId)
     .single()
 
@@ -24,6 +24,32 @@ export async function POST(req: Request) {
     .from('leads')
     .update({ status: 'Audit Ready' })
     .eq('id', leadId)
+
+  // Determine who to notify
+  let recipientIds: string[] = []
+
+  if (lead.assigned_agent_id) {
+    recipientIds = [lead.assigned_agent_id]
+  } else {
+    // No assigned agent — notify all sales agents and admins
+    const { data: staff } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('role', ['sales_agent', 'admin'])
+    recipientIds = (staff || []).map((s: any) => s.id)
+  }
+
+  if (recipientIds.length > 0) {
+    await supabase.from('notifications').insert(
+      recipientIds.map((uid) => ({
+        user_id: uid,
+        lead_id: leadId,
+        title: 'Demo Ready — Schedule Client Call',
+        message: `The demo for "${lead.company_name}" has been uploaded. Schedule the client demo call now.`,
+        type: 'info',
+      }))
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

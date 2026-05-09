@@ -1,19 +1,18 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   DndContext,
   DragEndEvent,
-  DragOverEvent,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragOverlay,
   closestCorners,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
-import { Lead, PipelineStatus, PIPELINE_STAGES } from '@/types'
+import { Lead, PipelineStatus, PIPELINE_STAGES, Profile } from '@/types'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { createClient } from '@/lib/supabase/client'
@@ -23,23 +22,39 @@ interface KanbanBoardProps {
   initialLeads: Lead[]
   userRole: string
   userId: string
+  stages?: PipelineStatus[]
 }
 
-export function KanbanBoard({ initialLeads, userRole, userId }: KanbanBoardProps) {
-  const [leads, setLeads] = useState<Lead[]>(initialLeads)
+export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBoardProps) {
+  const [leads, setLeads]   = useState<Lead[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [agents, setAgents] = useState<Profile[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
+
   const supabase = createClient()
+
+  useEffect(() => {
+    if (userRole !== 'admin') return
+    supabase
+      .from('profiles')
+      .select('*')
+      .in('role', ['agent', 'sales_agent'])
+      .order('full_name')
+      .then(({ data }) => { if (data) setAgents(data as Profile[]) })
+  }, [userRole])
 
   function scrollBoard(direction: 'left' | 'right') {
     scrollRef.current?.scrollBy({ left: direction === 'left' ? -300 : 300, behavior: 'smooth' })
   }
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   )
 
-  const columns = PIPELINE_STAGES.reduce<Record<PipelineStatus, Lead[]>>((acc, stage) => {
+  const visibleStages = stages ?? PIPELINE_STAGES
+
+  const columns = visibleStages.reduce<Record<PipelineStatus, Lead[]>>((acc, stage) => {
     acc[stage] = leads.filter((l) => l.status === stage)
     return acc
   }, {} as Record<PipelineStatus, Lead[]>)
@@ -48,6 +63,30 @@ export function KanbanBoard({ initialLeads, userRole, userId }: KanbanBoardProps
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id))
+  }
+
+  async function handleReassign(leadId: string, agentId: string) {
+    const agent = agents.find((a) => a.id === agentId)
+    const lead  = leads.find((l) => l.id === leadId)
+    if (!agent || !lead) return
+
+    setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, assigned_agent_id: agentId } : l))
+
+    await supabase.from('leads').update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() }).eq('id', leadId)
+
+    await supabase.from('activity_logs').insert({
+      lead_id: leadId, user_id: userId,
+      action: 'Lead Reassigned',
+      details: `Reassigned from ${(lead as any).assigned_agent?.full_name ?? 'unassigned'} to ${agent.full_name}`,
+    })
+
+    await supabase.from('notifications').insert({
+      user_id: agentId,
+      lead_id: leadId,
+      title: 'Lead Assigned to You',
+      message: `"${lead.company_name}" has been assigned to you.`,
+      type: 'info',
+    })
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -117,11 +156,14 @@ export function KanbanBoard({ initialLeads, userRole, userId }: KanbanBoardProps
         </button>
 
         <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-4 px-10 pt-4 scroll-smooth">
-          {PIPELINE_STAGES.map((stage) => (
+          {visibleStages.map((stage) => (
             <KanbanColumn
               key={stage}
               status={stage}
               leads={columns[stage] || []}
+              userRole={userRole}
+              agents={agents}
+              onReassign={handleReassign}
             />
           ))}
         </div>

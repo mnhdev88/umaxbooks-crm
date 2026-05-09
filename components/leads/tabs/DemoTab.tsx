@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import { Plus, ExternalLink, Monitor } from 'lucide-react'
+import { CopyButton } from '@/components/ui/CopyButton'
 
 interface DemoTabProps {
   leadId: string
@@ -21,7 +22,8 @@ export function DemoTab({ leadId, userId, userRole, developers }: DemoTabProps) 
   const [demos, setDemos] = useState<Demo[]>([])
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ developer_id: '', temp_url: '', demo_version: '', upload_date: '' })
+  const isDeveloper = userRole === 'developer'
+  const [form, setForm] = useState({ developer_id: isDeveloper ? userId : '', temp_url: '', demo_version: '', upload_date: '' })
   const supabase = createClient()
 
   useEffect(() => { fetchDemos() }, [leadId])
@@ -101,10 +103,13 @@ export function DemoTab({ leadId, userId, userRole, developers }: DemoTabProps) 
                 <p className="text-xs text-slate-400">Upload Date: {formatDate(demo.upload_date)}</p>
               )}
               {demo.temp_url && (
-                <a href={demo.temp_url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300">
-                  <ExternalLink size={13} /> {demo.temp_url}
-                </a>
+                <div className="flex items-center gap-1.5">
+                  <a href={demo.temp_url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 truncate">
+                    <ExternalLink size={13} className="flex-shrink-0" /> {demo.temp_url}
+                  </a>
+                  <CopyButton text={demo.temp_url} />
+                </div>
               )}
             </div>
           ))}
@@ -113,8 +118,10 @@ export function DemoTab({ leadId, userId, userRole, developers }: DemoTabProps) 
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Demo">
         <div className="space-y-4">
-          <Select label="Assigned Developer" options={devOptions} placeholder="— Select developer —"
-            value={form.developer_id} onChange={(e) => setForm((f) => ({ ...f, developer_id: e.target.value }))} />
+          {!isDeveloper && (
+            <Select label="Assigned Developer" options={devOptions} placeholder="— Select developer —"
+              value={form.developer_id} onChange={(e) => setForm((f) => ({ ...f, developer_id: e.target.value }))} />
+          )}
           <Input label="Demo Version" placeholder="e.g. v1.0" value={form.demo_version}
             onChange={(e) => setForm((f) => ({ ...f, demo_version: e.target.value }))} />
           <Input label="Temp URL" type="url" placeholder="https://" value={form.temp_url}

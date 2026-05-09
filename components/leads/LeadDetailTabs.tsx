@@ -9,6 +9,7 @@ import { DealTab } from './tabs/DealTab'
 import { RevisionTab } from './tabs/RevisionTab'
 import { LiveTab } from './tabs/LiveTab'
 import { ActivityTab } from './tabs/ActivityTab'
+import { NotesTab } from './tabs/NotesTab'
 import { SendContentTab } from './tabs/SendContentTab'
 import { BeforeAfterTab } from './tabs/BeforeAfterTab'
 import { cn } from '@/lib/utils'
@@ -18,15 +19,16 @@ import { Button } from '@/components/ui/Button'
 import { Edit2 } from 'lucide-react'
 
 const ALL_TABS = [
+  { id: 'audits',       label: 'Audits',         roles: ['admin', 'agent', 'sales_agent', 'developer'] },
+  { id: 'notes',        label: 'Notes',          roles: ['admin', 'agent', 'sales_agent', 'developer'] },
+  { id: 'demo',         label: 'Demo',           roles: ['admin', 'sales_agent', 'developer'] },
+  { id: 'appointments', label: 'Calls & Appts',  roles: ['admin', 'sales_agent'] },
+  { id: 'deal',         label: 'Deal',           roles: ['admin', 'sales_agent'] },
+  { id: 'revisions',    label: 'Revisions',      roles: ['admin', 'sales_agent'] },
+  { id: 'live',         label: 'Live',           roles: ['admin', 'sales_agent'] },
+  { id: 'before-after', label: 'Before / After', roles: ['admin', 'sales_agent'] },
+  { id: 'send-content', label: 'Send Content',   roles: ['admin', 'sales_agent'] },
   { id: 'activity',     label: 'Activity',       roles: ['admin', 'agent', 'sales_agent', 'developer'] },
-  { id: 'audits',       label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'developer'] },
-  { id: 'appointments', label: 'Calls & Appts',   roles: ['admin', 'sales_agent'] },
-  { id: 'demo',         label: 'Demo',            roles: ['admin', 'sales_agent', 'developer'] },
-  { id: 'before-after', label: 'Before / After',  roles: ['admin', 'sales_agent'] },
-  { id: 'deal',         label: 'Deal',            roles: ['admin', 'sales_agent'] },
-  { id: 'revisions',    label: 'Revisions',       roles: ['admin', 'sales_agent'] },
-  { id: 'live',         label: 'Live',            roles: ['admin', 'sales_agent'] },
-  { id: 'send-content', label: 'Send Content',    roles: ['admin', 'sales_agent'] },
 ]
 
 interface LeadDetailTabsProps {
@@ -93,6 +95,7 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
       {/* Tab content */}
       <div className="p-5">
         {activeTab === 'activity' && <ActivityTab leadId={lead.id} />}
+        {activeTab === 'notes' && <NotesTab leadId={lead.id} userId={userId} userRole={profile.role} />}
         {activeTab === 'audits' && (
           <AuditTab
             leadId={lead.id}

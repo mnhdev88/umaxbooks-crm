@@ -10,6 +10,7 @@ import {
   MessageCircle, Share2, Calendar, Users, Flag,
   FileText, Tag, Lock, ExternalLink, Layers,
 } from 'lucide-react'
+import { CopyButton } from '@/components/ui/CopyButton'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -29,11 +30,14 @@ function InfoRow({ icon: Icon, label, value, href, iconCls = 'text-orange-400' }
       <div className="min-w-0">
         <span className="text-xs text-slate-500 block leading-tight">{label}</span>
         {href ? (
-          <a href={href} target="_blank" rel="noreferrer"
-            className="text-blue-400 hover:text-blue-300 hover:underline break-all flex items-center gap-1">
-            {String(value).replace(/^https?:\/\//, '').replace(/\/$/, '')}
-            <ExternalLink size={10} className="flex-shrink-0" />
-          </a>
+          <div className="flex items-center gap-1.5">
+            <a href={href} target="_blank" rel="noreferrer"
+              className="text-blue-400 hover:text-blue-300 hover:underline break-all flex items-center gap-1">
+              {String(value).replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              <ExternalLink size={10} className="flex-shrink-0" />
+            </a>
+            <CopyButton text={href} />
+          </div>
         ) : (
           <span className="text-slate-200 break-words">{String(value)}</span>
         )}
@@ -129,18 +133,24 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   </a>
                 )}
                 {lead.website_url && (
-                  <a href={lead.website_url} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300">
-                    <Globe size={12} /> {lead.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                    <ExternalLink size={10} />
-                  </a>
+                  <span className="flex items-center gap-1">
+                    <a href={lead.website_url} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300">
+                      <Globe size={12} /> {lead.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      <ExternalLink size={10} />
+                    </a>
+                    <CopyButton text={lead.website_url} />
+                  </span>
                 )}
                 {lead.gmb_url && (
-                  <a href={lead.gmb_url} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-1.5 text-green-400 hover:text-green-300">
-                    <MapPin size={12} /> Google Business
-                    <ExternalLink size={10} />
-                  </a>
+                  <span className="flex items-center gap-1">
+                    <a href={lead.gmb_url} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 text-green-400 hover:text-green-300">
+                      <MapPin size={12} /> Google Business
+                      <ExternalLink size={10} />
+                    </a>
+                    <CopyButton text={lead.gmb_url} />
+                  </span>
                 )}
               </div>
             </div>

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import {
   FileText, Globe, Link2, Plus, X, Send, Mail, MessageCircle,
-  Clock, CheckCircle, Upload, Trash2,
+  Clock, CheckCircle, Upload, Trash2, Sparkles, Copy, Check, Eye,
 } from 'lucide-react'
 
 interface SendContentTabProps {
@@ -34,6 +34,8 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [scheduledAt, setScheduledAt] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [emailError, setEmailError] = useState('')
 
   // Add content modal
   const [showAdd, setShowAdd] = useState(false)
@@ -46,9 +48,16 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Email template (per-client HTML)
+  const [emailTemplate, setEmailTemplate] = useState<ContentItem | null>(null)
+  const [htmlCopied, setHtmlCopied] = useState(false)
+  const [uploadingTemplate, setUploadingTemplate] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const htmlFileRef = useRef<HTMLInputElement>(null)
+
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
 
-  useEffect(() => { fetchItems() }, [lead.id])
+  useEffect(() => { fetchItems(); fetchEmailTemplate() }, [lead.id])
 
   async function fetchItems() {
     // Global items (lead_id IS NULL) + lead-specific items
@@ -103,6 +112,60 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     }
 
     setItems([...auto, ...base])
+  }
+
+  async function fetchEmailTemplate() {
+    const { data } = await supabase
+      .from('content_library')
+      .select('*')
+      .eq('lead_id', lead.id)
+      .eq('type', 'email_template')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    setEmailTemplate(data as ContentItem | null)
+  }
+
+  async function handleHtmlUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingTemplate(true)
+    try {
+      const path = `email-templates/${lead.id}_${Date.now()}.html`
+      const { data: up } = await supabase.storage.from('crm-files').upload(path, file, { upsert: true })
+      if (!up) return
+      const { data: urlData } = supabase.storage.from('crm-files').getPublicUrl(up.path)
+      const publicUrl = urlData.publicUrl
+
+      // Remove previous template for this lead if any
+      if (emailTemplate) {
+        await supabase.from('content_library').delete().eq('id', emailTemplate.id)
+      }
+
+      await supabase.from('content_library').insert({
+        type: 'email_template',
+        title: file.name.replace(/\.[^.]+$/, ''),
+        url: publicUrl,
+        file_url: publicUrl,
+        lead_id: lead.id,
+        created_by: userId,
+      })
+
+      await fetchEmailTemplate()
+    } finally {
+      setUploadingTemplate(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleCopyHtml() {
+    if (!emailTemplate?.file_url && !emailTemplate?.url) return
+    const url = (emailTemplate.file_url || emailTemplate.url) as string
+    const res = await fetch(url)
+    const html = await res.text()
+    await navigator.clipboard.writeText(html)
+    setHtmlCopied(true)
+    setTimeout(() => setHtmlCopied(false), 2000)
   }
 
   function toggleSelect(id: string) {
@@ -228,6 +291,28 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     }
   }
 
+  async function generateColdEmail() {
+    setGenerating(true)
+    setEmailError('')
+    try {
+      const res  = await fetch('/api/generate-cold-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead }),
+      })
+      const data = await res.json()
+      if (data.email) {
+        setMessage(data.email)
+      } else {
+        setEmailError(data.error || 'Generation failed — no email returned')
+      }
+    } catch (e: any) {
+      setEmailError(e.message || 'Network error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   async function handleSchedule() {
     if (!scheduledAt || selected.size === 0) return
     const nonAutoIds = Array.from(selected).filter(id => !id.startsWith('__'))
@@ -308,6 +393,124 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
         )}
       </div>
 
+      {/* ── Client Email Template ────────────────────────────────────────── */}
+      <div>
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Client Email Template</p>
+
+        {emailTemplate ? (
+          <div className="bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
+            {/* Scaled preview */}
+            <div className="relative border-b border-slate-700 bg-white h-44 overflow-hidden">
+              <iframe
+                src={(emailTemplate.file_url || emailTemplate.url) as string}
+                sandbox="allow-same-origin"
+                className="absolute top-0 left-0 w-[167%] h-[167%] pointer-events-none"
+                style={{ transform: 'scale(0.6)', transformOrigin: 'top left' }}
+                title="Email Template Preview"
+              />
+            </div>
+
+            {/* Actions bar */}
+            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+              <p className="text-xs text-slate-400 truncate">{emailTemplate.title}</p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setShowPreview(true)}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                >
+                  <Eye size={11} /> Preview
+                </button>
+                <button
+                  onClick={handleCopyHtml}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-orange-400 px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                >
+                  {htmlCopied ? <><Check size={11} className="text-green-400" /> Copied!</> : <><Copy size={11} /> Copy HTML</>}
+                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => htmlFileRef.current?.click()}
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  >
+                    <Upload size={11} /> Replace
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : canEdit ? (
+          <button
+            onClick={() => htmlFileRef.current?.click()}
+            disabled={uploadingTemplate}
+            className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 border border-dashed border-slate-700 hover:border-slate-500 rounded-xl px-4 py-3 w-full justify-center transition-colors disabled:opacity-50"
+          >
+            <Upload size={14} />
+            {uploadingTemplate ? 'Uploading…' : 'Upload HTML Email Template'}
+          </button>
+        ) : (
+          <p className="text-xs text-slate-600 text-center py-4">No email template uploaded yet.</p>
+        )}
+
+        <input
+          ref={htmlFileRef}
+          type="file"
+          accept=".html,.htm"
+          className="hidden"
+          onChange={handleHtmlUpload}
+        />
+      </div>
+
+      {/* Full-screen preview modal */}
+      {showPreview && emailTemplate && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col" onClick={() => setShowPreview(false)}>
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-700 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-semibold text-slate-200">{emailTemplate.title}</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyHtml}
+                className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-orange-400 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
+              >
+                {htmlCopied ? <><Check size={11} className="text-green-400" /> Copied!</> : <><Copy size={11} /> Copy HTML</>}
+              </button>
+              <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-white p-1">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-white overflow-auto" onClick={e => e.stopPropagation()}>
+            <iframe
+              src={(emailTemplate.file_url || emailTemplate.url) as string}
+              sandbox="allow-same-origin"
+              className="w-full h-full min-h-screen"
+              title="Email Template Full Preview"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Cold Email Generator ──────────────────────────────────────── */}
+      <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-300">AI Cold Email Generator</p>
+            <p className="text-xs text-slate-500 mt-0.5">Generate a personalized outreach email based on this lead's pain points</p>
+          </div>
+          <Button size="sm" onClick={generateColdEmail} loading={generating}>
+            <Sparkles size={11} /> Generate
+          </Button>
+        </div>
+        {emailError && (
+          <p className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">{emailError}</p>
+        )}
+        {message.length > 0 && (
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            rows={8}
+            className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500 resize-none"
+          />
+        )}
+      </div>
+
       {selected.size === 0 && (
         <p className="text-xs text-slate-500 text-center">Select one or more items above to send.</p>
       )}
@@ -339,12 +542,12 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-1.5">Message / caption <span className="text-slate-600">(optional)</span></p>
+            <p className="text-xs text-slate-500 mb-1.5">Message / caption <span className="text-slate-600">(optional — or use AI generator above)</span></p>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
               placeholder={`Hi ${lead.name?.split(' ')[0] || 'there'}, sharing some useful resources for ${lead.company_name}…`}
-              rows={3}
+              rows={message.length > 200 ? 8 : 3}
               className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
             />
           </div>

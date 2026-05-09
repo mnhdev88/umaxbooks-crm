@@ -57,9 +57,19 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
   const [form, setForm] = useState({
     call_date: '',
     outcome_notes: '',
-    appointment_datetime: '',
+    appointment_date: '',
+    appointment_time: '',
     zoom_link: '',
     client_requirements: '',
+  })
+
+  // 30-minute time slots for the select dropdown
+  const timeSlots = Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2)
+    const m = i % 2 === 0 ? '00' : '30'
+    const label = `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${m} ${h < 12 ? 'AM' : 'PM'}`
+    const value = `${String(h).padStart(2, '0')}:${m}`
+    return { value, label }
   })
   const supabase = createClient()
 
@@ -67,13 +77,18 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
   const selectedTz = tzFromZip?.tz ?? manualTz
   const tzInfo = tzFromZip ?? US_TIMEZONES.find(t => t.tz === manualTz) ?? US_TIMEZONES[0]
 
+  // Combined datetime string from split date + time fields
+  const appointmentDatetime = form.appointment_date && form.appointment_time
+    ? `${form.appointment_date}T${form.appointment_time}`
+    : ''
+
   // Live dual-time preview while agent is typing
   const livePreview = useMemo(() => {
-    if (!form.appointment_datetime || !selectedTz) return null
-    const utcISO = localToUTC(form.appointment_datetime, selectedTz)
+    if (!appointmentDatetime || !selectedTz) return null
+    const utcISO = localToUTC(appointmentDatetime, selectedTz)
     if (!utcISO) return null
     return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
-  }, [form.appointment_datetime, selectedTz, tzInfo.abbr])
+  }, [appointmentDatetime, selectedTz, tzInfo.abbr])
 
   useEffect(() => { fetchAppointments() }, [leadId])
 
@@ -90,9 +105,9 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     setLoading(true)
 
     // Convert the entered US local time to UTC before storing
-    const appointmentDatetimeUTC = form.appointment_datetime && selectedTz
-      ? localToUTC(form.appointment_datetime, selectedTz)
-      : form.appointment_datetime || null
+    const appointmentDatetimeUTC = appointmentDatetime && selectedTz
+      ? localToUTC(appointmentDatetime, selectedTz)
+      : appointmentDatetime || null
 
     await supabase.from('appointments').insert({
       lead_id: leadId,
@@ -102,7 +117,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       appointment_datetime: appointmentDatetimeUTC,
       zoom_link: form.zoom_link || null,
       client_requirements: form.client_requirements || null,
-      timezone: form.appointment_datetime ? selectedTz : null,
+      timezone: appointmentDatetime ? selectedTz : null,
     })
 
     // Move lead to Demo Scheduled so it appears in developer queue
@@ -129,12 +144,12 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       lead_id: leadId,
       user_id: userId,
       action: 'Demo Scheduled',
-      details: form.appointment_datetime
+      details: appointmentDatetime
         ? `Appointment scheduled — ${livePreview?.us ?? ''}`
         : 'Appointment logged — demo queued for developers',
     })
 
-    setForm({ call_date: '', outcome_notes: '', appointment_datetime: '', zoom_link: '', client_requirements: '' })
+    setForm({ call_date: '', outcome_notes: '', appointment_date: '', appointment_time: '', zoom_link: '', client_requirements: '' })
     setShowModal(false)
     setLoading(false)
     fetchAppointments()
@@ -204,7 +219,14 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log Call / Appointment">
         <div className="space-y-4">
           <Input label="Call Date" type="date" value={form.call_date}
-            onChange={(e) => setForm((f) => ({ ...f, call_date: e.target.value }))} />
+            onChange={(e) => {
+              const date = e.target.value
+              setForm((f) => ({
+                ...f,
+                call_date: date,
+                appointment_date: date || f.appointment_date,
+              }))
+            }} />
 
           <TextArea label="Outcome / Notes" value={form.outcome_notes} rows={3}
             onChange={(e) => setForm((f) => ({ ...f, outcome_notes: e.target.value }))}
@@ -228,14 +250,25 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
             />
           )}
 
-          {/* Appointment datetime in US time */}
+          {/* Appointment datetime in US time — split into date + 30-min time select */}
           <div className="space-y-2">
-            <Input
-              label={`Demo Appointment (${tzInfo.abbr} — US client time)`}
-              type="datetime-local"
-              value={form.appointment_datetime}
-              onChange={(e) => setForm((f) => ({ ...f, appointment_datetime: e.target.value }))}
-            />
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              Demo Appointment ({tzInfo.abbr} — US client time)
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={form.appointment_date}
+                onChange={(e) => setForm((f) => ({ ...f, appointment_date: e.target.value }))}
+                className="flex-1"
+              />
+              <Select
+                options={timeSlots}
+                placeholder="-- Time --"
+                value={form.appointment_time}
+                onChange={(e) => setForm((f) => ({ ...f, appointment_time: e.target.value }))}
+              />
+            </div>
 
             {/* Live dual-time preview */}
             {livePreview && (
@@ -260,7 +293,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
             )}
           </div>
 
-          <Input label="Zoom Link" type="url" placeholder="https://zoom.us/j/..." value={form.zoom_link}
+          <Input label="Zoom Link / Google Meet Link" type="url" placeholder="https://zoom.us/j/... or https://meet.google.com/..." value={form.zoom_link}
             onChange={(e) => setForm((f) => ({ ...f, zoom_link: e.target.value }))} />
 
           <TextArea

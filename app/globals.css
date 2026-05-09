@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #080f1e;
+  --background: #060d1f;
   --foreground: #f1f5f9;
+  /* Novelio brand blue replaces orange throughout */
+  --brand: #1B65E4;
+  --brand-light: #4080EC;
+  --brand-dark: #1558C9;
 }
 
 @theme inline {
@@ -10,6 +14,19 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Remap orange palette → Novelio blue (no component changes needed) */
+  --color-orange-50:  #eff6ff;
+  --color-orange-100: #dbeafe;
+  --color-orange-200: #bfdbfe;
+  --color-orange-300: #93c5fd;
+  --color-orange-400: #4080EC;
+  --color-orange-500: #1B65E4;
+  --color-orange-600: #1558C9;
+  --color-orange-700: #1047A8;
+  --color-orange-800: #0c3787;
+  --color-orange-900: #082460;
+  --color-orange-950: #041540;
 }
 
 * {
@@ -36,9 +53,9 @@ body {
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #0f172a; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #475569; }
+::-webkit-scrollbar-track { background: #060d1f; }
+::-webkit-scrollbar-thumb { background: #1B65E4; border-radius: 99px; opacity: 0.5; }
+::-webkit-scrollbar-thumb:hover { background: #4080EC; }
 
 /* ── Light theme overrides ───────────────────────────────────────────────── */
 html.light {
@@ -80,10 +97,10 @@ html.light .hover\:text-slate-100:hover { color: #0f172a !important; }
 html.light .hover\:text-slate-300:hover { color: #334155 !important; }
 html.light .hover\:border-slate-500:hover { border-color: #94a3b8 !important; }
 html.light .hover\:bg-emerald-900\/30:hover { background-color: #a7f3d0 !important; }
-html.light .hover\:bg-orange-900\/30:hover  { background-color: #fed7aa !important; }
+html.light .hover\:bg-orange-900\/30:hover  { background-color: #dbeafe !important; }
 html.light .hover\:bg-red-900\/30:hover     { background-color: #fecaca !important; }
 html.light .hover\:text-emerald-300:hover   { color: #065f46 !important; }
-html.light .hover\:text-orange-300:hover    { color: #c2410c !important; }
+html.light .hover\:text-orange-300:hover    { color: #1558C9 !important; }
 html.light .hover\:text-red-300:hover       { color: #b91c1c !important; }
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light textarea,
@@ -117,7 +134,7 @@ html.light .text-sky-300     { color: #0369a1 !important; }
 html.light .text-sky-400     { color: #0369a1 !important; }
 html.light .text-red-300     { color: #b91c1c !important; }
 html.light .text-red-400     { color: #b91c1c !important; }
-html.light .text-orange-300  { color: #c2410c !important; }
+html.light .text-orange-300  { color: #1558C9 !important; }
 html.light .text-yellow-400  { color: #a16207 !important; }
 
 /* Status/source badge backgrounds — keep subtle tint on light bg */
@@ -133,10 +150,10 @@ html.light .bg-emerald-900\/20 { background-color: #ecfdf5 !important; }
 html.light .bg-emerald-900\/30 { background-color: #d1fae5 !important; }
 html.light .bg-sky-900\/40     { background-color: #e0f2fe !important; }
 html.light .bg-red-900\/40     { background-color: #fee2e2 !important; }
-html.light .bg-orange-900\/40  { background-color: #ffedd5 !important; }
-html.light .bg-orange-900\/20  { background-color: #fff7ed !important; }
-html.light .bg-orange-900\/30  { background-color: #ffedd5 !important; }
-html.light .bg-orange-900\/10  { background-color: #fff7ed !important; }
+html.light .bg-orange-900\/40  { background-color: #dbeafe !important; }
+html.light .bg-orange-900\/20  { background-color: #eff6ff !important; }
+html.light .bg-orange-900\/30  { background-color: #dbeafe !important; }
+html.light .bg-orange-900\/10  { background-color: #eff6ff !important; }
 html.light .bg-green-900\/20   { background-color: #f0fdf4 !important; }
 html.light .bg-green-900\/30   { background-color: #dcfce7 !important; }
 html.light .bg-red-900\/20     { background-color: #fff1f2 !important; }
@@ -158,8 +175,8 @@ html.light .border-teal-800\/40    { border-color: #5eead4 !important; }
 html.light .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
 html.light .border-emerald-800     { border-color: #34d399 !important; }
 html.light .border-red-800\/40     { border-color: #fca5a5 !important; }
-html.light .border-orange-800\/40  { border-color: #fdba74 !important; }
-html.light .border-orange-800      { border-color: #fb923c !important; }
+html.light .border-orange-800\/40  { border-color: #93c5fd !important; }
+html.light .border-orange-800      { border-color: #60a5fa !important; }
 html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
 
@@ -174,14 +191,14 @@ html.light .border-white\/10 { border-color: #cbd5e1 !important; }
 
 /* Gradient backgrounds used in audit/AI sections */
 html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
-html.light .to-orange-950\/20      { --tw-gradient-to: #fff7ed !important; }
-html.light .border-orange-900\/30  { border-color: #fed7aa !important; }
+html.light .to-orange-950\/20      { --tw-gradient-to: #dbeafe !important; }
+html.light .border-orange-900\/30  { border-color: #93c5fd !important; }
 
 /* Card depth in light mode */
 html.light .rounded-xl { box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04); }
 
 /* orange-500/10 icon backgrounds */
-html.light .bg-orange-500\/10 { background-color: #fff7ed !important; }
+html.light .bg-orange-500\/10 { background-color: #dbeafe !important; }
 html.light .bg-purple-500\/10 { background-color: #faf5ff !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

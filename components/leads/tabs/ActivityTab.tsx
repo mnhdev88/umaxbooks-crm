@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ActivityLog } from '@/types'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDateTime } from '@/lib/utils'
 import { Activity, User } from 'lucide-react'
 
 interface ActivityTabProps {
@@ -76,7 +76,10 @@ export function ActivityTab({ leadId }: ActivityTabProps) {
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-600 flex-shrink-0">{timeAgo(log.created_at)}</span>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] text-slate-400">{formatDateTime(log.created_at)}</p>
+                      <p className="text-[10px] text-slate-600">{timeAgo(log.created_at)}</p>
+                    </div>
                   </div>
                   {log.details && (
                     <p className="text-xs text-slate-400 mt-1">{log.details}</p>

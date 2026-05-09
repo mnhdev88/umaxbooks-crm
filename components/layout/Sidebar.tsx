@@ -37,7 +37,10 @@ const salesAgentNav = [
 ]
 
 const developerNav = [
-  { href: '/developer-queue', label: 'Dev Queue', icon: Code2 },
+  { href: '/',                label: 'Pipeline',          icon: LayoutDashboard },
+  { href: '/leads',           label: 'All Leads',          icon: Users },
+  { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
+  { href: '/developer-queue', label: 'Dev Queue',          icon: Code2 },
 ]
 
 const adminNav = [

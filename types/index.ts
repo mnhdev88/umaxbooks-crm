@@ -336,6 +336,16 @@ export interface DealClosing {
   updated_at: string
 }
 
+export interface LeadContactNote {
+  id: string
+  lead_id: string
+  user_id: string
+  author?: Pick<Profile, 'full_name' | 'role'>
+  contact_date: string
+  note: string
+  created_at: string
+}
+
 export interface DemoApproval {
   id: string
   lead_id: string

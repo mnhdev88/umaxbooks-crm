@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { slugify, cn } from '@/lib/utils'
 import { Lead, LeadSource, Profile, PIPELINE_STAGES } from '@/types'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Loader2, CheckCircle2, Sparkles } from 'lucide-react'
+import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react'
 
 const SOURCES = [
   { id: 'GMB',          label: 'GMB',          icon: '📍' },
@@ -75,6 +75,7 @@ interface LeadFormProps {
 export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }: LeadFormProps) {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState<string | null>(null)
+  const [dupLead, setDupLead]           = useState<{ id: string; company_name: string; field: string } | null>(null)
   const [source, setSource]             = useState<LeadSource>(lead?.source || 'GMB')
   const [stars, setStars]               = useState(() => {
     const n = lead?.gmb_review_rating || 0
@@ -121,14 +122,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     },
   })
 
-  const watchedCompany = watch('company_name')
-  const watchedGmbUrl  = watch('gmb_url')
-
-  const duplicate = !lead && watchedCompany?.length > 2
-    ? existingLeads.find(l =>
-        l.company_name.toLowerCase().includes(watchedCompany.toLowerCase())
-      )
-    : null
+  const watchedGmbUrl = watch('gmb_url')
 
   function updateStars(val: string) {
     const n = parseFloat(val)
@@ -211,6 +205,34 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
   async function onSubmit(data: FormData) {
     setLoading(true)
     setError(null)
+    setDupLead(null)
+
+    // Duplicate check — only on new leads
+    if (!lead) {
+      const orFilters: string[] = []
+      if (data.phone?.trim())        orFilters.push(`phone.eq.${data.phone.trim()}`)
+      if (data.email?.trim())        orFilters.push(`email.eq.${data.email.trim()}`)
+      if (data.company_name?.trim()) orFilters.push(`company_name.ilike.${data.company_name.trim()}`)
+
+      if (orFilters.length > 0) {
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id, company_name, phone, email')
+          .or(orFilters.join(','))
+          .limit(1)
+          .single()
+
+        if (existing) {
+          const matchedField =
+            existing.phone === data.phone?.trim()   ? 'phone number' :
+            existing.email === data.email?.trim()   ? 'email address' :
+            'company name'
+          setDupLead({ id: existing.id, company_name: existing.company_name, field: matchedField })
+          setLoading(false)
+          return
+        }
+      }
+    }
     const payload = {
       ...data,
       source,
@@ -357,11 +379,22 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
         </div>
       )}
 
-      {/* ── Duplicate warning ───────────────────────────────── */}
-      {duplicate && (
-        <div className="flex items-center gap-2 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2.5 text-xs text-amber-300 mt-3">
-          <AlertCircle size={13} className="flex-shrink-0" />
-          Possible duplicate: <strong className="ml-1">{duplicate.company_name}</strong> already exists — check before saving.
+      {/* ── Duplicate blocked ───────────────────────────────── */}
+      {dupLead && (
+        <div className="flex items-start gap-2 bg-red-900/20 border border-red-700/50 rounded-lg px-3 py-3 text-xs text-red-300 mt-3">
+          <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
+          <span>
+            Duplicate detected — a lead with this <strong>{dupLead.field}</strong> already exists:{' '}
+            <a
+              href={`/leads/${dupLead.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline font-semibold text-red-200 hover:text-white inline-flex items-center gap-1"
+            >
+              {dupLead.company_name} <ExternalLink size={10} />
+            </a>
+            . Save blocked to prevent duplicate.
+          </span>
         </div>
       )}
 

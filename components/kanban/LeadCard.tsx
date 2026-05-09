@@ -1,20 +1,33 @@
 'use client'
 
+import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Lead } from '@/types'
-import { StatusBadge } from '@/components/ui/Badge'
-import { Building2, Phone, Star, GripVertical } from 'lucide-react'
-import Link from 'next/link'
+import { Lead, Profile } from '@/types'
+import { Star, UserCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { formatDate } from '@/lib/utils'
 
 interface LeadCardProps {
   lead: Lead
   overlay?: boolean
+  userRole?: string
+  agents?: Profile[]
+  onReassign?: (leadId: string, agentId: string) => void
 }
 
-export function LeadCard({ lead, overlay }: LeadCardProps) {
+function getStaleDays(updatedAt: string): number {
+  const updated = new Date(updatedAt)
+  updated.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((today.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+export function LeadCard({ lead, overlay, userRole, agents = [], onReassign }: LeadCardProps) {
+  const router = useRouter()
+  const [showReassign, setShowReassign] = useState(false)
+
   const {
     attributes,
     listeners,
@@ -29,75 +42,89 @@ export function LeadCard({ lead, overlay }: LeadCardProps) {
     transition,
   }
 
+  const staleDays = lead.updated_at ? getStaleDays(lead.updated_at) : 0
+  const isAmber   = staleDays >= 2 && staleDays < 5
+  const isRed     = staleDays >= 5
+  const isStale   = isAmber || isRed
+  const isAdmin   = userRole === 'admin'
+
+  function handleReassignSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const agentId = e.target.value
+    if (!agentId) return
+    onReassign?.(lead.id, agentId)
+    setShowReassign(false)
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => router.push(`/leads/${lead.id}`)}
       className={cn(
-        'bg-slate-800 border border-slate-700 rounded-xl p-3.5 group',
+        'bg-slate-800 border border-slate-700 rounded-xl p-2.5 group',
         'hover:border-orange-500/40 transition-all duration-150',
+        'cursor-grab active:cursor-grabbing select-none',
+        isRed   && 'border-red-600/50 hover:border-red-500/60',
+        isAmber && !isRed && 'border-amber-600/50 hover:border-amber-500/60',
         isDragging && 'opacity-40',
         overlay && 'shadow-2xl border-orange-500/50 rotate-1'
       )}
     >
-      <div className="flex items-start gap-2">
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 p-0.5 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <GripVertical size={14} />
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <Link href={`/leads/${lead.id}`} className="block">
-            <div className="flex items-start justify-between gap-2 mb-1">
-              <p className="text-sm font-semibold text-slate-100 hover:text-orange-400 transition-colors truncate">
-                {lead.company_name}
-              </p>
-              {lead.lead_number && (
-                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap flex-shrink-0">
-                  NVL-{String(lead.lead_number).padStart(3, '0')}
-                </span>
-              )}
-            </div>
-
-            <p className="text-xs text-slate-400 truncate mb-2">{lead.name}</p>
-
-            <div className="flex flex-wrap gap-1.5 text-xs text-slate-500">
-              {lead.phone && (
-                <span className="flex items-center gap-1">
-                  <Phone size={10} />
-                  {lead.phone}
-                </span>
-              )}
-              {lead.gmb_review_rating && (
-                <span className="flex items-center gap-1 text-yellow-400">
-                  <Star size={10} />
-                  {lead.gmb_review_rating}
-                </span>
-              )}
-              {lead.city && (
-                <span className="flex items-center gap-1">
-                  <Building2 size={10} />
-                  {lead.city}
-                </span>
-              )}
-            </div>
-
-            {lead.assigned_agent && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-orange-500/30 flex items-center justify-center text-[9px] text-orange-400 font-bold">
-                  {lead.assigned_agent.full_name.charAt(0)}
-                </div>
-                <span className="text-[10px] text-slate-500 truncate">{lead.assigned_agent.full_name}</span>
-              </div>
-            )}
-
-            <p className="text-[10px] text-slate-600 mt-1.5">{formatDate(lead.created_at)}</p>
-          </Link>
-        </div>
+      {/* Company + NVL badge */}
+      <div className="flex items-center justify-between gap-2 mb-0.5">
+        <p className="text-sm font-semibold text-slate-100 truncate">
+          {lead.company_name}
+        </p>
+        {lead.lead_number && (
+          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap flex-shrink-0">
+            NVL-{String(lead.lead_number).padStart(3, '0')}
+          </span>
+        )}
       </div>
+
+      {/* Contact name + GMB rating */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-400 truncate">{lead.name}</p>
+        {lead.gmb_review_rating && (
+          <span className="flex items-center gap-0.5 text-yellow-400 flex-shrink-0">
+            <Star size={10} fill="currentColor" />
+            <span className="text-[10px] font-medium">{lead.gmb_review_rating}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Reassign button — admin only, stale leads */}
+      {isStale && isAdmin && (
+        <div
+          className="flex justify-end mt-1.5"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {!showReassign ? (
+            <button
+              onClick={() => setShowReassign(true)}
+              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-orange-400 bg-slate-700/60 hover:bg-slate-700 px-1.5 py-0.5 rounded-full border border-slate-600/40 transition-colors"
+            >
+              <UserCheck size={9} /> Reassign
+            </button>
+          ) : (
+            <select
+              autoFocus
+              onChange={handleReassignSelect}
+              onBlur={() => setShowReassign(false)}
+              className="text-[10px] bg-slate-700 border border-slate-600 text-slate-200 rounded px-1.5 py-0.5 focus:outline-none focus:border-orange-500 w-full"
+              defaultValue=""
+            >
+              <option value="" disabled>Select agent…</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.full_name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   )
 }

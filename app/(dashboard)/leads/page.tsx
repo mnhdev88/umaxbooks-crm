@@ -12,10 +12,14 @@ export default async function LeadsPage() {
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
 
-  const { data: leads } = await supabase
+  const leadsQuery = supabase
     .from('leads')
     .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)')
     .order('created_at', { ascending: false })
+
+  if (profile?.role === 'developer') leadsQuery.eq('status', 'Contacted')
+
+  const { data: leads } = await leadsQuery
 
   const { data: agents } = await supabase
     .from('profiles')

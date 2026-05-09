@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Lead, PipelineStatus } from '@/types'
+import { Lead, PipelineStatus, Profile } from '@/types'
 import { LeadCard } from './LeadCard'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/utils'
@@ -13,6 +13,9 @@ const PAGE_SIZE = 8
 interface KanbanColumnProps {
   status: PipelineStatus
   leads: Lead[]
+  userRole?: string
+  agents?: Profile[]
+  onReassign?: (leadId: string, agentId: string) => void
 }
 
 const STATUS_COLUMN_COLORS: Record<string, string> = {
@@ -28,7 +31,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   Lost: 'border-red-700',
 }
 
-export function KanbanColumn({ status, leads }: KanbanColumnProps) {
+export function KanbanColumn({ status, leads, userRole, agents, onReassign }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
@@ -61,7 +64,7 @@ export function KanbanColumn({ status, leads }: KanbanColumnProps) {
           className="flex-1 px-2 pb-2 space-y-2 min-h-[120px]"
         >
           {visibleLeads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} />
+            <LeadCard key={lead.id} lead={lead} userRole={userRole} agents={agents} onReassign={onReassign} />
           ))}
           {leads.length === 0 && (
             <div className={cn(

@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { Lead } from '@/types'
+import { Lead, PipelineStatus } from '@/types'
 
 const KanbanBoard = dynamic(
   () => import('./KanbanBoard').then(m => m.KanbanBoard),
@@ -23,6 +23,7 @@ interface Props {
   initialLeads: Lead[]
   userRole: string
   userId: string
+  stages?: PipelineStatus[]
 }
 
 export function KanbanBoardClient(props: Props) {
