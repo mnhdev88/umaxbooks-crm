@@ -37,15 +37,16 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <Image
-            src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
-            alt="Novelio"
-            width={160}
-            height={48}
-            className="object-contain mb-4"
-            unoptimized
-          />
-          <h1 className="text-2xl font-bold text-white">Noveliotech CRM</h1>
+          <div className="bg-white rounded-2xl px-6 py-3 mb-5 shadow-lg">
+            <Image
+              src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
+              alt="Novelio"
+              width={180}
+              height={54}
+              className="object-contain"
+              unoptimized
+            />
+          </div>
           <p className="text-slate-400 text-sm mt-1">Sign in to your account</p>
         </div>
 
