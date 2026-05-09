@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import Image from 'next/image'
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +11,6 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Zap,
   Activity,
   MonitorPlay,
   ClipboardList,
@@ -99,10 +99,14 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       {/* Logo + close button */}
       <div className="px-5 py-5 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center">
-            <Zap size={16} className="text-white" />
-          </div>
-          <span className="font-bold text-white tracking-tight">Noveliotech CRM</span>
+          <Image
+            src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
+            alt="Novelio"
+            width={120}
+            height={32}
+            className="object-contain"
+            unoptimized
+          />
         </div>
         <button
           onClick={onClose}
