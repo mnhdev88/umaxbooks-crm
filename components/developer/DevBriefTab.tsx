@@ -146,19 +146,25 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
         )}
       </div>
 
-      {/* Locked agent notes for developer — shown prominently */}
-      {audit?.agent_notes_locked && audit?.agent_notes && (
-        <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Bell size={12} /> Agent Instructions for You
-            </p>
-            <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-900/20 border border-green-800/30 px-2 py-0.5 rounded-full">
-              <Lock size={8} /> Locked
-              {audit.agent_notes_notified_at && ` · ${new Date(audit.agent_notes_notified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-            </span>
+      {/* Agent notes thread */}
+      {lead.audit_notes_list?.length > 0 && (
+        <div className="bg-amber-900/15 border border-amber-700/30 rounded-xl p-4">
+          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <Bell size={12} /> Agent Instructions ({lead.audit_notes_list.length})
+          </p>
+          <div className="space-y-2.5">
+            {lead.audit_notes_list.map((n: any) => (
+              <div key={n.id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-orange-400">{n.author?.full_name ?? 'Agent'}</span>
+                  <span className="text-[10px] text-slate-500">
+                    {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{n.note}</p>
+              </div>
+            ))}
           </div>
-          <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{audit.agent_notes}</p>
         </div>
       )}
 

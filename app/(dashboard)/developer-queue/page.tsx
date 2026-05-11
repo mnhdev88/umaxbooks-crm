@@ -21,15 +21,6 @@ export default async function DeveloperQueuePage() {
     appointments(id, appointment_datetime, zoom_link, outcome_notes, client_requirements, created_at)
   `
 
-  // Extended select that includes new lock columns — used only after migration 022 is applied
-  const LEAD_SELECT_WITH_LOCK = `
-    *,
-    assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name),
-    audits(id, created_at, audit_short_pdf_url, audit_long_pdf_url, sitemap_pdf_url, tat_days, short_uploaded_at, agent_notes, agent_notes_locked, agent_notes_notified_at, developer_notes_short, developer_notes_long),
-    demos(id, developer_id, temp_url, demo_version, upload_date, created_at, developer:profiles(full_name)),
-    appointments(id, appointment_datetime, zoom_link, outcome_notes, client_requirements, created_at)
-  `
-
   const { data: leads } = await supabase
     .from('leads')
     .select(LEAD_SELECT)
@@ -83,30 +74,47 @@ export default async function DeveloperQueuePage() {
     .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready')
     .map((l: any) => l.id)
 
-  // Leads with locked agent notes — only works after migration 022 is applied
+  // Leads with agent notes (from audit_notes thread table — migration 023)
   let agentNotesLeads: any[] = []
   let agentNotesLeadIds: string[] = []
   try {
-    const { data: lockedNoteAudits, error: lockErr } = await supabase
-      .from('audits')
-      .select('lead_id')
-      .eq('agent_notes_locked', true)
+    const { data: noteLeads, error: noteErr } = await supabase
+      .from('audit_notes')
+      .select('lead_id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
+      .order('created_at', { ascending: true })
 
-    if (!lockErr && lockedNoteAudits?.length) {
-      const lockedNoteLeadIds = [...new Set(lockedNoteAudits.map((a: any) => a.lead_id))]
+    if (!noteErr && noteLeads?.length) {
+      // Group notes by lead_id
+      const notesByLead = new Map<string, any[]>()
+      for (const n of noteLeads) {
+        if (!notesByLead.has(n.lead_id)) notesByLead.set(n.lead_id, [])
+        notesByLead.get(n.lead_id)!.push(n)
+      }
+
+      const notedLeadIds = [...notesByLead.keys()]
         .filter(id => !allLeads.some((l: any) => l.id === id))
 
-      if (lockedNoteLeadIds.length > 0) {
-        const { data: lockedLeads } = await supabase
+      if (notedLeadIds.length > 0) {
+        const { data: notedLeadData } = await supabase
           .from('leads')
-          .select(LEAD_SELECT_WITH_LOCK)
-          .in('id', lockedNoteLeadIds)
+          .select(LEAD_SELECT)
+          .in('id', notedLeadIds)
           .order('updated_at', { ascending: false })
-        agentNotesLeads = processLeads(lockedLeads || [])
+        agentNotesLeads = processLeads(notedLeadData || []).map((l: any) => ({
+          ...l,
+          audit_notes_list: notesByLead.get(l.id) || [],
+        }))
         agentNotesLeadIds = agentNotesLeads.map((l: any) => l.id)
       }
+
+      // Attach notes to existing leads too
+      for (const lead of allLeads) {
+        if (notesByLead.has((lead as any).id)) {
+          (lead as any).audit_notes_list = notesByLead.get((lead as any).id) || []
+        }
+      }
     }
-  } catch { /* migration 022 not yet applied — silently skip */ }
+  } catch { /* migration 023 not yet applied — silently skip */ }
 
   const allQueueLeads = [...allLeads, ...agentNotesLeads]
 

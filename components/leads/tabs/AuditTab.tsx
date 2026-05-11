@@ -8,7 +8,7 @@ import { formatDate, getClientFolder, getFileName } from '@/lib/utils'
 import {
   FileText, ExternalLink, Globe, Star, MapPin, Phone, Mail, Clock,
   CheckCircle, XCircle, AlertCircle, BarChart2, Code2, Link2,
-  Sparkles, Send, Bell, Save, Upload, RefreshCw, Image, Lock,
+  Sparkles, Send, Bell, Save, Upload, RefreshCw, Image, Lock, MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ComposeModal } from '@/components/email/ComposeModal'
@@ -192,10 +192,9 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [scrapeData, setScrapeData] = useState<ScrapeResult | null>(null)
   const [gmbSaved, setGmbSaved] = useState(false)
 
-  // Agent notes
-  const [agentNotes, setAgentNotes] = useState('')
-  const [notesLocked, setNotesLocked] = useState(false)
-  const [notesNotifiedAt, setNotesNotifiedAt] = useState<string | null>(null)
+  // Agent notes thread
+  const [auditNotes, setAuditNotes] = useState<{ id: string; note: string; created_at: string; author: { full_name: string } | null }[]>([])
+  const [newNoteText, setNewNoteText] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
 
@@ -232,11 +231,21 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [savingDevNotes, setSavingDevNotes] = useState(false)
   const [devNotesSaved, setDevNotesSaved]   = useState(false)
 
-  const canEdit = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
+  const canEdit   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
+  const canNote   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
   const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'developer'
   const isDev = userRole === 'developer'
 
-  useEffect(() => { fetchAudit(); fetchDemoUrl() }, [leadId])
+  useEffect(() => { fetchAudit(); fetchDemoUrl(); fetchAuditNotes() }, [leadId])
+
+  async function fetchAuditNotes() {
+    const { data } = await supabase
+      .from('audit_notes')
+      .select('id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: true })
+    if (data) setAuditNotes(data as any)
+  }
 
   async function fetchAudit() {
     setLoading(true)
@@ -254,9 +263,6 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
 
     if (data) {
       setAudit(data as Audit)
-      setAgentNotes(data.agent_notes || '')
-      setNotesLocked(data.agent_notes_locked || false)
-      setNotesNotifiedAt(data.agent_notes_notified_at || null)
       setDevNotesShort(data.developer_notes_short || '')
       setDevNotesLong(data.developer_notes_long || '')
     }
@@ -352,43 +358,40 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     }
   }
 
-  async function handleSaveNotes() {
+  async function handleSaveNote() {
+    if (!newNoteText.trim()) return
     setSavingNotes(true)
-    setNotesSaved(false)
     try {
-      const auditId = await ensureAudit()
-      const now = new Date().toISOString()
-      await supabase.from('audits').update({
-        agent_notes: agentNotes,
-        agent_notes_locked: true,
-        agent_notes_notified_at: now,
-      }).eq('id', auditId)
+      await supabase.from('audit_notes').insert({
+        lead_id: leadId,
+        user_id: userId,
+        note: newNoteText.trim(),
+      })
 
-      // Notify all developers with lead name + note preview
-      const preview = agentNotes.slice(0, 120) + (agentNotes.length > 120 ? '…' : '')
+      // Notify all developers
+      const preview = newNoteText.trim().slice(0, 120) + (newNoteText.length > 120 ? '…' : '')
       const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
       if (devs?.length) {
         await supabase.from('notifications').insert(
           devs.map(d => ({
             user_id: d.id,
             lead_id: leadId,
-            title: `Agent Notes — ${businessName || 'Lead'}`,
-            message: preview || 'New agent notes added. Check the Developer Queue.',
+            title: `Agent Note — ${businessName || 'Lead'}`,
+            message: preview,
             type: 'info',
           }))
         )
       }
       await supabase.from('activity_logs').insert({
         lead_id: leadId, user_id: userId,
-        action: 'Audit Notes Saved',
-        details: 'Agent notes locked and developers notified.',
+        action: 'Audit Note Added',
+        details: newNoteText.trim().slice(0, 100),
       })
 
-      setNotesLocked(true)
-      setNotesNotifiedAt(now)
+      setNewNoteText('')
       setNotesSaved(true)
-      setTimeout(() => setNotesSaved(false), 3000)
-      await fetchAudit()
+      setTimeout(() => setNotesSaved(false), 2000)
+      await fetchAuditNotes()
     } finally {
       setSavingNotes(false)
     }
@@ -568,56 +571,62 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       )}
 
       {/* ── Agent Notes for Developer ─────────────────────────────────────── */}
-      {canEdit && (
-        <div className={`bg-slate-800/60 border rounded-xl p-4 ${notesLocked ? 'border-green-800/40' : 'border-slate-700'}`}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agent Notes for Developer</p>
-            {notesLocked && (
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-green-400 bg-green-900/20 border border-green-800/40 px-2 py-0.5 rounded-full">
-                <Lock size={9} /> Locked
-              </span>
+      {(canNote || isDev) && (
+        <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <MessageSquare size={13} /> Notes for Developer
+            {auditNotes.length > 0 && (
+              <span className="text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full">{auditNotes.length}</span>
             )}
-          </div>
+          </p>
 
-          {notesLocked ? (
-            <div className="bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 min-h-[72px]">
-              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-                {agentNotes || <span className="text-slate-600 italic">No notes added.</span>}
-              </p>
+          {/* Saved notes list */}
+          {auditNotes.length > 0 && (
+            <div className="space-y-2.5">
+              {auditNotes.map(n => (
+                <div key={n.id} className="bg-slate-900/60 border border-slate-700/60 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-orange-400">{n.author?.full_name ?? 'Agent'}</span>
+                    <span className="text-[10px] text-slate-500">
+                      {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {' · '}
+                      {new Date(n.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{n.note}</p>
+                </div>
+              ))}
             </div>
-          ) : (
-            <textarea
-              value={agentNotes}
-              onChange={e => setAgentNotes(e.target.value)}
-              placeholder="Add instructions for the developer — focus areas, competitor info, client priorities…"
-              rows={3}
-              className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
-            />
           )}
 
-          <div className="flex items-center gap-2 mt-2.5">
-            {notesLocked ? (
-              <p className="text-xs text-green-400 flex items-center gap-1.5">
-                <CheckCircle size={12} />
-                Developer notified{notesNotifiedAt ? ` · ${new Date(notesNotifiedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
-              </p>
-            ) : (
-              <>
-                <Button size="sm" onClick={handleSaveNotes} loading={savingNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
+          {/* Input — only for non-developers */}
+          {canNote && (
+            <>
+              <textarea
+                value={newNoteText}
+                onChange={e => setNewNoteText(e.target.value)}
+                placeholder="Add instructions for the developer — focus areas, competitor info, client priorities…"
+                rows={3}
+                className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveNote}
+                  loading={savingNotes}
+                  disabled={!newNoteText.trim()}
+                  className="bg-orange-500 hover:bg-orange-600 text-white border-0"
+                >
                   <Bell size={13} /> Save & Notify Developer
                 </Button>
-                {notesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12} /> Saved</span>}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Developer reads agent notes */}
-      {isDev && audit?.agent_notes && (
-        <div className="bg-slate-800/60 border border-orange-900/30 rounded-xl p-4">
-          <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2">Agent Notes for You</p>
-          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{audit.agent_notes}</p>
+                {notesSaved && (
+                  <span className="text-xs text-green-400 flex items-center gap-1">
+                    <CheckCircle size={12} /> Saved &amp; notified
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
