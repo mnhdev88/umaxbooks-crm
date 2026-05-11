@@ -18,6 +18,7 @@ export default function PipelinePage() {
 
   useEffect(() => {
     if (!profile) return
+    const currentProfile = profile
 
     async function fetchLeads() {
       const query = supabase
@@ -25,7 +26,7 @@ export default function PipelinePage() {
         .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
         .order('updated_at', { ascending: false })
 
-      if (profile.role === 'developer') {
+      if (currentProfile.role === 'developer') {
         query.in('status', ['Contacted', 'Audit Ready'])
       }
 
