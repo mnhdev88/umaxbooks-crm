@@ -140,11 +140,15 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     }
 
     const newStatus = callForm.follow_up_date ? 'Callback Booked' : 'Contacted'
-    await fetch('/api/leads/update-status', {
+    const statusRes = await fetch('/api/leads/update-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lead_id: leadId, status: newStatus }),
     })
+    if (!statusRes.ok) {
+      const err = await statusRes.json().catch(() => ({}))
+      alert(`Failed to update lead status: ${err.error || statusRes.statusText}`)
+    }
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
@@ -177,11 +181,15 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       timezone: appointmentDatetime ? selectedTz : null,
     })
 
-    await fetch('/api/leads/update-status', {
+    const demoStatusRes = await fetch('/api/leads/update-status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lead_id: leadId, status: 'Demo Scheduled' }),
     })
+    if (!demoStatusRes.ok) {
+      const err = await demoStatusRes.json().catch(() => ({}))
+      alert(`Failed to update lead status: ${err.error || demoStatusRes.statusText}`)
+    }
 
     // Notify developers
     const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')

@@ -18,19 +18,33 @@ export default function PipelinePage() {
 
   useEffect(() => {
     if (!profile) return
-    const query = supabase
-      .from('leads')
-      .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
-      .order('updated_at', { ascending: false })
 
-    if (profile.role === 'developer') {
-      query.in('status', ['Contacted', 'Audit Ready'])
-    }
+    async function fetchLeads() {
+      const query = supabase
+        .from('leads')
+        .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
+        .order('updated_at', { ascending: false })
 
-    query.then(({ data }) => {
+      if (profile.role === 'developer') {
+        query.in('status', ['Contacted', 'Audit Ready'])
+      }
+
+      const { data } = await query
       if (data) setLeads(data as Lead[])
       setLoading(false)
-    })
+    }
+
+    fetchLeads()
+
+    // Refetch when user returns to this tab (covers bfcache restore + tab switching)
+    const onFocus = () => fetchLeads()
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) fetchLeads() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pageshow', onPageShow)
+    }
   }, [profile])
 
   return (
