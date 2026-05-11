@@ -8,7 +8,7 @@ import { formatDate, getClientFolder, getFileName } from '@/lib/utils'
 import {
   FileText, ExternalLink, Globe, Star, MapPin, Phone, Mail, Clock,
   CheckCircle, XCircle, AlertCircle, BarChart2, Code2, Link2,
-  Sparkles, Send, Bell, Save, Upload, RefreshCw, Image,
+  Sparkles, Send, Bell, Save, Upload, RefreshCw, Image, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ComposeModal } from '@/components/email/ComposeModal'
@@ -194,6 +194,8 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
 
   // Agent notes
   const [agentNotes, setAgentNotes] = useState('')
+  const [notesLocked, setNotesLocked] = useState(false)
+  const [notesNotifiedAt, setNotesNotifiedAt] = useState<string | null>(null)
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
 
@@ -253,6 +255,8 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     if (data) {
       setAudit(data as Audit)
       setAgentNotes(data.agent_notes || '')
+      setNotesLocked(data.agent_notes_locked || false)
+      setNotesNotifiedAt(data.agent_notes_notified_at || null)
       setDevNotesShort(data.developer_notes_short || '')
       setDevNotesLong(data.developer_notes_long || '')
     }
@@ -348,33 +352,40 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     }
   }
 
-  async function handleSaveNotes(notify: boolean) {
+  async function handleSaveNotes() {
     setSavingNotes(true)
     setNotesSaved(false)
     try {
       const auditId = await ensureAudit()
-      await supabase.from('audits').update({ agent_notes: agentNotes }).eq('id', auditId)
+      const now = new Date().toISOString()
+      await supabase.from('audits').update({
+        agent_notes: agentNotes,
+        agent_notes_locked: true,
+        agent_notes_notified_at: now,
+      }).eq('id', auditId)
 
-      if (notify) {
-        // Notify all developers
-        const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
-        if (devs?.length) {
-          await supabase.from('notifications').insert(
-            devs.map(d => ({
-              user_id: d.id,
-              lead_id: leadId,
-              title: 'Audit Notes Updated',
-              message: `Agent notes updated for ${businessName || 'a lead'}. Check the Audit tab for instructions.`,
-              type: 'info',
-            }))
-          )
-        }
-        await supabase.from('activity_logs').insert({
-          lead_id: leadId, user_id: userId,
-          action: 'Audit Notes Saved',
-          details: 'Agent notes saved and developers notified.',
-        })
+      // Notify all developers with lead name + note preview
+      const preview = agentNotes.slice(0, 120) + (agentNotes.length > 120 ? '…' : '')
+      const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
+      if (devs?.length) {
+        await supabase.from('notifications').insert(
+          devs.map(d => ({
+            user_id: d.id,
+            lead_id: leadId,
+            title: `Agent Notes — ${businessName || 'Lead'}`,
+            message: preview || 'New agent notes added. Check the Developer Queue.',
+            type: 'info',
+          }))
+        )
       }
+      await supabase.from('activity_logs').insert({
+        lead_id: leadId, user_id: userId,
+        action: 'Audit Notes Saved',
+        details: 'Agent notes locked and developers notified.',
+      })
+
+      setNotesLocked(true)
+      setNotesNotifiedAt(now)
       setNotesSaved(true)
       setTimeout(() => setNotesSaved(false), 3000)
       await fetchAudit()
@@ -558,23 +569,46 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
 
       {/* ── Agent Notes for Developer ─────────────────────────────────────── */}
       {canEdit && (
-        <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Agent Notes for Developer</p>
-          <textarea
-            value={agentNotes}
-            onChange={e => setAgentNotes(e.target.value)}
-            placeholder="Add instructions for the developer — focus areas, competitor info, client priorities…"
-            rows={3}
-            className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
-          />
+        <div className={`bg-slate-800/60 border rounded-xl p-4 ${notesLocked ? 'border-green-800/40' : 'border-slate-700'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agent Notes for Developer</p>
+            {notesLocked && (
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-green-400 bg-green-900/20 border border-green-800/40 px-2 py-0.5 rounded-full">
+                <Lock size={9} /> Locked
+              </span>
+            )}
+          </div>
+
+          {notesLocked ? (
+            <div className="bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 min-h-[72px]">
+              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                {agentNotes || <span className="text-slate-600 italic">No notes added.</span>}
+              </p>
+            </div>
+          ) : (
+            <textarea
+              value={agentNotes}
+              onChange={e => setAgentNotes(e.target.value)}
+              placeholder="Add instructions for the developer — focus areas, competitor info, client priorities…"
+              rows={3}
+              className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
+            />
+          )}
+
           <div className="flex items-center gap-2 mt-2.5">
-            <Button size="sm" onClick={() => handleSaveNotes(true)} loading={savingNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
-              <Bell size={13} /> Save & Notify Developer
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => handleSaveNotes(false)} loading={savingNotes}>
-              <Save size={13} /> Save Draft
-            </Button>
-            {notesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12} /> Saved</span>}
+            {notesLocked ? (
+              <p className="text-xs text-green-400 flex items-center gap-1.5">
+                <CheckCircle size={12} />
+                Developer notified{notesNotifiedAt ? ` · ${new Date(notesNotifiedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+              </p>
+            ) : (
+              <>
+                <Button size="sm" onClick={handleSaveNotes} loading={savingNotes} className="bg-orange-500 hover:bg-orange-600 text-white border-0">
+                  <Bell size={13} /> Save & Notify Developer
+                </Button>
+                {notesSaved && <span className="text-xs text-green-400 flex items-center gap-1"><CheckCircle size={12} /> Saved</span>}
+              </>
+            )}
           </div>
         </div>
       )}

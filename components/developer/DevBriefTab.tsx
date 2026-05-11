@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, Star, Globe, MapPin, FileText, User, Calendar } from 'lucide-react'
+import { ExternalLink, Star, Globe, MapPin, FileText, User, Calendar, Bell, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { US_TIMEZONES, formatDualTime } from '@/lib/timezone'
 
@@ -146,7 +146,23 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
         )}
       </div>
 
-      {/* Agent notes (read-only) */}
+      {/* Locked agent notes for developer — shown prominently */}
+      {audit?.agent_notes_locked && audit?.agent_notes && (
+        <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Bell size={12} /> Agent Instructions for You
+            </p>
+            <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-900/20 border border-green-800/30 px-2 py-0.5 rounded-full">
+              <Lock size={8} /> Locked
+              {audit.agent_notes_notified_at && ` · ${new Date(audit.agent_notes_notified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+            </span>
+          </div>
+          <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{audit.agent_notes}</p>
+        </div>
+      )}
+
+      {/* General lead notes (read-only) */}
       {lead.notes && (
         <div className="bg-orange-900/15 border border-orange-700/30 rounded-xl p-4">
           <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">

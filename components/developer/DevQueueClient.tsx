@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button'
 import {
   Search, ExternalLink, Code2, Plus,
   FileText, Monitor, BarChart2, CheckSquare, Activity,
-  Star,
+  Star, Bell,
 } from 'lucide-react'
 
 // ── Status display ──────────────────────────────────────────────────
@@ -57,20 +57,22 @@ function TatPill({ lead }: { lead: any }) {
 }
 
 // ── Queue type filter ───────────────────────────────────────────────
-type Filter = 'all' | 'to-build' | 'submitted' | 'declined'
+type Filter = 'all' | 'to-build' | 'submitted' | 'declined' | 'notes'
 
 const FILTER_LABELS: Record<Filter, string> = {
-  all:       'All',
+  all:        'All',
   'to-build': 'To Build',
-  submitted: 'Submitted',
-  declined:  'Declined',
+  submitted:  'Submitted',
+  declined:   'Declined',
+  notes:      'Agent Notes',
 }
 
-function matchesFilter(lead: any, f: Filter, declinedIds: string[]) {
+function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[]) {
   if (f === 'all') return true
   if (f === 'to-build') return lead.status === 'Demo Scheduled'
   if (f === 'submitted') return lead.status === 'Demo Done'
   if (f === 'declined') return declinedIds.includes(lead.id)
+  if (f === 'notes') return notesIds.includes(lead.id)
   return true
 }
 
@@ -90,16 +92,17 @@ interface Props {
   profile: Profile
   userId: string
   declinedLeadIds?: string[]
+  agentNotesLeadIds?: string[]
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [] }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [] }: Props) {
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<Filter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
 
   const filtered = useMemo(() => {
-    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds))
+    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds))
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(l =>
@@ -109,14 +112,15 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       )
     }
     return list
-  }, [initialLeads, search, filter, declinedLeadIds])
+  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds])
 
   const counts = useMemo(() => ({
     all:        initialLeads.length,
-    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds)).length,
-    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds)).length,
+    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds, agentNotesLeadIds)).length,
+    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds, agentNotesLeadIds)).length,
     declined:   declinedLeadIds.length,
-  }), [initialLeads, declinedLeadIds])
+    notes:      agentNotesLeadIds.length,
+  }), [initialLeads, declinedLeadIds, agentNotesLeadIds])
 
   const selectedLead = selectedId ? initialLeads.find(l => l.id === selectedId) as any : null
 
@@ -200,6 +204,11 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                   ) : (
                     <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', STATUS_CLS[lead.status] || 'bg-slate-700 text-slate-400')}>
                       {lead.status}
+                    </span>
+                  )}
+                  {agentNotesLeadIds.includes(lead.id) && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-amber-900/40 text-amber-300 flex items-center gap-1">
+                      <Bell size={8} /> Agent Notes
                     </span>
                   )}
                   {priority && priority !== 'Normal' && (

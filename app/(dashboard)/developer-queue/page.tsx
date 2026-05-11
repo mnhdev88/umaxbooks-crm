@@ -16,7 +16,7 @@ export default async function DeveloperQueuePage() {
   const LEAD_SELECT = `
     *,
     assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name),
-    audits(id, created_at, audit_short_pdf_url, audit_long_pdf_url, sitemap_pdf_url, tat_days, short_uploaded_at, agent_notes, developer_notes_short, developer_notes_long),
+    audits(id, created_at, audit_short_pdf_url, audit_long_pdf_url, sitemap_pdf_url, tat_days, short_uploaded_at, agent_notes, agent_notes_locked, agent_notes_notified_at, developer_notes_short, developer_notes_long),
     demos(id, developer_id, temp_url, demo_version, upload_date, created_at, developer:profiles(full_name)),
     appointments(id, appointment_datetime, zoom_link, outcome_notes, client_requirements, created_at)
   `
@@ -74,15 +74,38 @@ export default async function DeveloperQueuePage() {
     .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready')
     .map((l: any) => l.id)
 
+  // Leads with locked agent notes not already in the queue
+  const { data: lockedNoteAudits } = await supabase
+    .from('audits')
+    .select('lead_id')
+    .eq('agent_notes_locked', true)
+
+  const lockedNoteLeadIds = [...new Set((lockedNoteAudits || []).map((a: any) => a.lead_id))]
+    .filter(id => !allLeads.some((l: any) => l.id === id))
+
+  let agentNotesLeads: any[] = []
+  if (lockedNoteLeadIds.length > 0) {
+    const { data } = await supabase
+      .from('leads')
+      .select(LEAD_SELECT)
+      .in('id', lockedNoteLeadIds)
+      .order('updated_at', { ascending: false })
+    agentNotesLeads = processLeads(data || [])
+  }
+
+  const agentNotesLeadIds = agentNotesLeads.map((l: any) => l.id)
+  const allQueueLeads = [...allLeads, ...agentNotesLeads]
+
   return (
     <>
       <Header title="Developer Queue" profile={profile as Profile} />
       <DevQueueClient
-        initialLeads={allLeads as Lead[]}
+        initialLeads={allQueueLeads as Lead[]}
         agents={(agents || []) as Profile[]}
         profile={profile as Profile}
         userId={user.id}
         declinedLeadIds={declinedLeadIds}
+        agentNotesLeadIds={agentNotesLeadIds}
       />
     </>
   )
