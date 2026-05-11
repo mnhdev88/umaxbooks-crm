@@ -16,6 +16,15 @@ export default async function DeveloperQueuePage() {
   const LEAD_SELECT = `
     *,
     assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name),
+    audits(id, created_at, audit_short_pdf_url, audit_long_pdf_url, sitemap_pdf_url, tat_days, short_uploaded_at, agent_notes, developer_notes_short, developer_notes_long),
+    demos(id, developer_id, temp_url, demo_version, upload_date, created_at, developer:profiles(full_name)),
+    appointments(id, appointment_datetime, zoom_link, outcome_notes, client_requirements, created_at)
+  `
+
+  // Extended select that includes new lock columns — used only after migration 022 is applied
+  const LEAD_SELECT_WITH_LOCK = `
+    *,
+    assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name),
     audits(id, created_at, audit_short_pdf_url, audit_long_pdf_url, sitemap_pdf_url, tat_days, short_uploaded_at, agent_notes, agent_notes_locked, agent_notes_notified_at, developer_notes_short, developer_notes_long),
     demos(id, developer_id, temp_url, demo_version, upload_date, created_at, developer:profiles(full_name)),
     appointments(id, appointment_datetime, zoom_link, outcome_notes, client_requirements, created_at)
@@ -74,26 +83,31 @@ export default async function DeveloperQueuePage() {
     .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready')
     .map((l: any) => l.id)
 
-  // Leads with locked agent notes not already in the queue
-  const { data: lockedNoteAudits } = await supabase
-    .from('audits')
-    .select('lead_id')
-    .eq('agent_notes_locked', true)
-
-  const lockedNoteLeadIds = [...new Set((lockedNoteAudits || []).map((a: any) => a.lead_id))]
-    .filter(id => !allLeads.some((l: any) => l.id === id))
-
+  // Leads with locked agent notes — only works after migration 022 is applied
   let agentNotesLeads: any[] = []
-  if (lockedNoteLeadIds.length > 0) {
-    const { data } = await supabase
-      .from('leads')
-      .select(LEAD_SELECT)
-      .in('id', lockedNoteLeadIds)
-      .order('updated_at', { ascending: false })
-    agentNotesLeads = processLeads(data || [])
-  }
+  let agentNotesLeadIds: string[] = []
+  try {
+    const { data: lockedNoteAudits, error: lockErr } = await supabase
+      .from('audits')
+      .select('lead_id')
+      .eq('agent_notes_locked', true)
 
-  const agentNotesLeadIds = agentNotesLeads.map((l: any) => l.id)
+    if (!lockErr && lockedNoteAudits?.length) {
+      const lockedNoteLeadIds = [...new Set(lockedNoteAudits.map((a: any) => a.lead_id))]
+        .filter(id => !allLeads.some((l: any) => l.id === id))
+
+      if (lockedNoteLeadIds.length > 0) {
+        const { data: lockedLeads } = await supabase
+          .from('leads')
+          .select(LEAD_SELECT_WITH_LOCK)
+          .in('id', lockedNoteLeadIds)
+          .order('updated_at', { ascending: false })
+        agentNotesLeads = processLeads(lockedLeads || [])
+        agentNotesLeadIds = agentNotesLeads.map((l: any) => l.id)
+      }
+    }
+  } catch { /* migration 022 not yet applied — silently skip */ }
+
   const allQueueLeads = [...allLeads, ...agentNotesLeads]
 
   return (
