@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ComposeModal } from '@/components/email/ComposeModal'
-import { EmailHistory } from '@/components/email/EmailHistory'
+import { EmailHistory, type EmailDraft } from '@/components/email/EmailHistory'
 import { generateColdEmailSubject, generateColdEmailBody, type PageSpeedResult } from '@/lib/coldEmailTemplate'
 
 function extractStorageFolder(pdfUrl: string): string {
@@ -217,6 +217,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   // Compose email modal
   const [showComposeModal, setShowComposeModal] = useState(false)
   const [emailHistoryKey, setEmailHistoryKey]   = useState(0)
+  const [draftForModal, setDraftForModal]       = useState<EmailDraft | null>(null)
 
   // Cold email via PageSpeed
   const [coldEmailLoading, setColdEmailLoading]     = useState(false)
@@ -813,7 +814,11 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Mail size={13} /> Email History
           </p>
-          <EmailHistory leadId={leadId} refreshKey={emailHistoryKey} />
+          <EmailHistory
+            leadId={leadId}
+            refreshKey={emailHistoryKey}
+            onOpenDraft={draft => { setDraftForModal(draft); setShowComposeModal(true) }}
+          />
         </div>
       )}
 
@@ -835,8 +840,9 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           userId={userId}
           initialSubject={coldEmailInitial?.subject}
           initialBody={coldEmailInitial?.body}
-          onClose={() => { setShowComposeModal(false); setColdEmailInitial(null) }}
-          onSent={() => setEmailHistoryKey(k => k + 1)}
+          initialDraft={draftForModal ?? undefined}
+          onClose={() => { setShowComposeModal(false); setColdEmailInitial(null); setDraftForModal(null) }}
+          onSent={() => { setEmailHistoryKey(k => k + 1); setDraftForModal(null) }}
         />
       )}
     </div>

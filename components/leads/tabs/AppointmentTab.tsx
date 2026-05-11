@@ -140,10 +140,11 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     }
 
     const newStatus = callForm.follow_up_date ? 'Callback Booked' : 'Contacted'
-    await supabase
-      .from('leads')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', leadId)
+    await fetch('/api/leads/update-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: leadId, status: newStatus }),
+    })
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
@@ -176,10 +177,11 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       timezone: appointmentDatetime ? selectedTz : null,
     })
 
-    await supabase
-      .from('leads')
-      .update({ status: 'Demo Scheduled', updated_at: new Date().toISOString() })
-      .eq('id', leadId)
+    await fetch('/api/leads/update-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: leadId, status: 'Demo Scheduled' }),
+    })
 
     // Notify developers
     const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
@@ -331,7 +333,11 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
             )}
           </div>
 
-          <p className="text-xs text-slate-500">Saving will move the lead status to <span className="text-orange-400 font-medium">Contacted</span>.</p>
+          <p className="text-xs text-slate-500">Saving will move the lead status to{' '}
+            <span className="text-orange-400 font-medium">
+              {callForm.follow_up_date ? 'Callback Booked' : 'Contacted'}
+            </span>.
+          </p>
           <div className="flex justify-end gap-3 pt-1">
             <Button variant="ghost" onClick={() => setShowCallModal(false)}>Cancel</Button>
             <Button onClick={handleSaveCall} loading={loadingCall} disabled={!callForm.call_date}>

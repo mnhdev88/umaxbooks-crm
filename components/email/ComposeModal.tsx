@@ -11,6 +11,16 @@ interface EmailProvider { id: string; name: string; provider: string; from_email
 interface EmailTemplate { id: string; name: string; subject: string; html_body: string }
 interface Attachment { name: string; url: string }
 
+interface DraftData {
+  provider_id?: string
+  to_email?: string
+  cc?: string
+  bcc?: string
+  subject?: string
+  html_body?: string
+  attachments?: Attachment[]
+}
+
 interface Props {
   leadId: string
   leadEmail?: string
@@ -24,25 +34,26 @@ interface Props {
   onSent?: () => void
   initialSubject?: string
   initialBody?: string
+  initialDraft?: DraftData
 }
 
 export function ComposeModal({
   leadId, leadEmail = '', leadName = '', businessName = '' ,
   auditPdfUrl, auditPdfName, storageFolder, userId, onClose, onSent,
-  initialSubject, initialBody,
+  initialSubject, initialBody, initialDraft,
 }: Props) {
   const supabase = createClient()
 
   // Form state
   const [providers, setProviders]     = useState<EmailProvider[]>([])
   const [templates, setTemplates]     = useState<EmailTemplate[]>([])
-  const [providerId, setProviderId]   = useState('')
-  const [to, setTo]                   = useState(leadEmail ?? '')
-  const [cc, setCc]                   = useState('')
-  const [bcc, setBcc]                 = useState('')
-  const [subject, setSubject]         = useState(initialSubject ?? `Your SEO Audit Report — ${businessName ?? ''}`)
+  const [providerId, setProviderId]   = useState(initialDraft?.provider_id ?? '')
+  const [to, setTo]                   = useState(initialDraft?.to_email ?? leadEmail ?? '')
+  const [cc, setCc]                   = useState(initialDraft?.cc ?? '')
+  const [bcc, setBcc]                 = useState(initialDraft?.bcc ?? '')
+  const [subject, setSubject]         = useState(initialDraft?.subject ?? initialSubject ?? `Your SEO Audit Report — ${businessName ?? ''}`)
   const [htmlMode, setHtmlMode]       = useState(false)
-  const [htmlBody, setHtmlBody]       = useState(initialBody ?? '')
+  const [htmlBody, setHtmlBody]       = useState(initialDraft?.html_body ?? initialBody ?? '')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [scheduledAt, setScheduledAt] = useState('')
   const [showSchedule, setShowSchedule] = useState(false)
@@ -71,7 +82,13 @@ export function ComposeModal({
   useEffect(() => {
     loadProviders()
     loadTemplates()
-    if (initialBody) {
+    if (initialDraft) {
+      // Pre-filled from draft click — show CC/BCC if populated, set body version
+      if (initialDraft.cc || initialDraft.bcc) setShowCcBcc(true)
+      if (initialDraft.attachments?.length) setAttachments(initialDraft.attachments)
+      if (initialDraft.html_body) setHtmlBodyVersion(v => v + 1)
+      setDraftLoaded(true)
+    } else if (initialBody) {
       setHtmlBody(initialBody)
       setHtmlBodyVersion(v => v + 1)
     } else {
@@ -81,15 +98,17 @@ export function ComposeModal({
     }
     if (auditPdfUrl) {
       const name = auditPdfName || auditPdfUrl.split('/').pop() || 'audit-report.pdf'
-      setAttachments([{ name, url: auditPdfUrl }])
+      setAttachments(prev => prev.length ? prev : [{ name, url: auditPdfUrl }])
     }
   }, [])
 
   async function loadProviders() {
     const { data } = await supabase.from('email_providers').select('*').eq('is_active', true).order('is_default', { ascending: false })
     setProviders(data || [])
-    const def = (data || []).find((p: any) => p.is_default)
-    if (def) setProviderId(def.id)
+    if (!initialDraft?.provider_id) {
+      const def = (data || []).find((p: any) => p.is_default)
+      if (def) setProviderId(def.id)
+    }
   }
 
   async function loadTemplates() {

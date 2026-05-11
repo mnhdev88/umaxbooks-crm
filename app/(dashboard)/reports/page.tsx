@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header'
 import { Profile, PIPELINE_STAGES } from '@/types'
 import { STATUS_COLORS } from '@/lib/utils'
 import { TrendingUp, Users, DollarSign, CheckCircle } from 'lucide-react'
+import { UserKpiSection } from '@/components/reports/UserKpiSection'
 
 export default async function ReportsPage() {
   const supabase = await createClient()
@@ -42,6 +43,9 @@ export default async function ReportsPage() {
       <Header title="Reports" profile={profile as Profile} />
 
       <div className="p-6 space-y-6">
+        {/* Per-user KPI cards */}
+        <UserKpiSection isAdmin={profile.role === 'admin'} />
+
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[

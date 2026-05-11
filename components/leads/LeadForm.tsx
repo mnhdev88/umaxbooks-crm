@@ -241,6 +241,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       competitor_count:   data.competitor_count   ? parseInt(data.competitor_count)     : null,
       assigned_agent_id:  data.assigned_agent_id  || null,
       slug: lead?.slug || slugify(data.company_name) + '-' + Date.now(),
+      ...(!lead && { created_by: userId }),
     }
     try {
       if (lead) {
