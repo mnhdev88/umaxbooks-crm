@@ -667,15 +667,6 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                       Send to Client
                     </button>
                   )}
-                  {canEdit && websiteUrl && (
-                    <button
-                      onClick={handleGetColdEmail}
-                      disabled={coldEmailLoading}
-                      className="text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 px-3 py-1.5 rounded-lg border border-orange-800/40 transition-colors disabled:opacity-50"
-                    >
-                      {coldEmailLoading ? 'Analyzing…' : 'Cold Email'}
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -730,15 +721,6 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                   >
                     Send to Client
                   </button>
-                  {websiteUrl && (
-                    <button
-                      onClick={handleGetColdEmail}
-                      disabled={coldEmailLoading}
-                      className="flex-1 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 px-3 py-2 rounded-lg border border-orange-800/40 transition-colors disabled:opacity-50"
-                    >
-                      {coldEmailLoading ? 'Analyzing…' : 'Cold Email'}
-                    </button>
-                  )}
                 </div>
               )}
             </>

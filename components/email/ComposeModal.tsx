@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   X, Send, Save, Eye, Paperclip, Bold, Italic, Underline,
@@ -55,21 +55,33 @@ export function ComposeModal({
   const [savingDraft, setSavingDraft] = useState(false)
   const [result, setResult]           = useState<{ ok: boolean; msg: string } | null>(null)
   const [draftLoaded, setDraftLoaded] = useState(false)
+  const [htmlBodyVersion, setHtmlBodyVersion] = useState(0)
 
   const editorRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync loaded HTML into the contentEditable div synchronously before paint
+  useLayoutEffect(() => {
+    if (editorRef.current && !htmlMode) {
+      editorRef.current.innerHTML = htmlBody
+    }
+  }, [htmlBodyVersion])
 
   // Boot
   useEffect(() => {
     loadProviders()
     loadTemplates()
-    if (!initialBody) loadDraft()
+    if (initialBody) {
+      setHtmlBody(initialBody)
+      setHtmlBodyVersion(v => v + 1)
+    } else {
+      loadClientTemplate().then(hasTemplate => {
+        if (!hasTemplate) loadDraft()
+      })
+    }
     if (auditPdfUrl) {
       const name = auditPdfName || auditPdfUrl.split('/').pop() || 'audit-report.pdf'
       setAttachments([{ name, url: auditPdfUrl }])
-    }
-    if (initialBody && editorRef.current) {
-      editorRef.current.innerHTML = initialBody
     }
   }, [])
 
@@ -85,7 +97,7 @@ export function ComposeModal({
     setTemplates(data || [])
   }
 
-  async function loadDraft() {
+  async function loadDraft(): Promise<boolean> {
     const res = await fetch(`/api/email/draft?lead_id=${leadId}`)
     const { draft } = await res.json()
     if (draft) {
@@ -96,11 +108,42 @@ export function ComposeModal({
       if (draft.subject) setSubject(draft.subject)
       if (draft.html_body) {
         setHtmlBody(draft.html_body)
-        if (editorRef.current) editorRef.current.innerHTML = draft.html_body
+        setHtmlBodyVersion(v => v + 1)
       }
       if (draft.attachments?.length) setAttachments(draft.attachments)
     }
     setDraftLoaded(true)
+    return !!draft?.html_body
+  }
+
+  async function loadClientTemplate(): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('content_library')
+      .select('*')
+      .eq('lead_id', leadId)
+      .eq('type', 'email_template')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) console.warn('[ComposeModal] template query error:', error)
+
+    const templateUrl = data?.file_url || data?.url
+    if (!templateUrl) return false
+
+    try {
+      const res = await fetch(templateUrl, { cache: 'no-store' })
+      if (!res.ok) return false
+      const html = await res.text()
+      if (html?.trim()) {
+        setHtmlBody(html)
+        setHtmlBodyVersion(v => v + 1)
+        return true
+      }
+    } catch {
+      // fall through to draft
+    }
+    return false
   }
 
   // Sync editor ↔ htmlBody state
@@ -115,9 +158,7 @@ export function ComposeModal({
 
   function switchToVisual() {
     setHtmlMode(false)
-    setTimeout(() => {
-      if (editorRef.current) editorRef.current.innerHTML = htmlBody
-    }, 0)
+    setHtmlBodyVersion(v => v + 1)
   }
 
   // Toolbar commands
@@ -139,7 +180,7 @@ export function ComposeModal({
       .replace(/\{\{business_name\}\}/g, businessName || 'your business')
       .replace(/\{\{report_url\}\}/g, auditPdfUrl || '')
     setHtmlBody(body)
-    if (editorRef.current) editorRef.current.innerHTML = body
+    setHtmlBodyVersion(v => v + 1)
     if (t.subject) {
       setSubject(t.subject
         .replace(/\{\{business_name\}\}/g, businessName || 'your business')

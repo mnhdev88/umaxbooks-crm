@@ -57,18 +57,20 @@ function TatPill({ lead }: { lead: any }) {
 }
 
 // ── Queue type filter ───────────────────────────────────────────────
-type Filter = 'all' | 'to-build' | 'submitted'
+type Filter = 'all' | 'to-build' | 'submitted' | 'declined'
 
 const FILTER_LABELS: Record<Filter, string> = {
   all:       'All',
   'to-build': 'To Build',
   submitted: 'Submitted',
+  declined:  'Declined',
 }
 
-function matchesFilter(lead: any, f: Filter) {
+function matchesFilter(lead: any, f: Filter, declinedIds: string[]) {
   if (f === 'all') return true
   if (f === 'to-build') return lead.status === 'Demo Scheduled'
   if (f === 'submitted') return lead.status === 'Demo Done'
+  if (f === 'declined') return declinedIds.includes(lead.id)
   return true
 }
 
@@ -87,16 +89,17 @@ interface Props {
   agents: Profile[]
   profile: Profile
   userId: string
+  declinedLeadIds?: string[]
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [] }: Props) {
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<Filter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
 
   const filtered = useMemo(() => {
-    let list = initialLeads.filter(l => matchesFilter(l, filter))
+    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds))
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(l =>
@@ -106,19 +109,20 @@ export function DevQueueClient({ initialLeads, agents, profile, userId }: Props)
       )
     }
     return list
-  }, [initialLeads, search, filter])
+  }, [initialLeads, search, filter, declinedLeadIds])
 
   const counts = useMemo(() => ({
     all:        initialLeads.length,
-    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build')).length,
-    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted')).length,
-  }), [initialLeads])
+    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds)).length,
+    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds)).length,
+    declined:   declinedLeadIds.length,
+  }), [initialLeads, declinedLeadIds])
 
   const selectedLead = selectedId ? initialLeads.find(l => l.id === selectedId) as any : null
 
   function selectLead(id: string) {
     setSelectedId(id)
-    setActiveTab('brief')
+    setActiveTab(declinedLeadIds.includes(id) ? 'demo' : 'brief')
   }
 
   return (
@@ -189,9 +193,15 @@ export function DevQueueClient({ initialLeads, agents, profile, userId }: Props)
                 </div>
                 <p className="text-xs text-slate-500 mb-2 truncate">{lead.name} · {lead.city || '—'}</p>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', STATUS_CLS[lead.status] || 'bg-slate-700 text-slate-400')}>
-                    {lead.status}
-                  </span>
+                  {declinedLeadIds.includes(lead.id) ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-900/40 text-red-300">
+                      Declined
+                    </span>
+                  ) : (
+                    <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', STATUS_CLS[lead.status] || 'bg-slate-700 text-slate-400')}>
+                      {lead.status}
+                    </span>
+                  )}
                   {priority && priority !== 'Normal' && (
                     <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', PRIORITY_CLS[priority] || 'bg-slate-700 text-slate-400')}>
                       {priority}

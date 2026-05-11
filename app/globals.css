@@ -33,6 +33,14 @@
   box-sizing: border-box;
 }
 
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Force dark background on native select option popups */
 html:not(.light) select option {
   background-color: #0d1f3c;

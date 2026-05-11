@@ -57,7 +57,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
   const [manualTz, setManualTz] = useState(US_TIMEZONES[0].tz)
 
   const [callForm, setCallForm] = useState({
-    call_date: '',
+    call_date: new Date().toLocaleDateString('en-CA'),
     outcome_notes: '',
     follow_up_date: '',
     follow_up_time: '',
@@ -154,7 +154,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
         : `Call logged on ${callForm.call_date}`,
     })
 
-    setCallForm({ call_date: '', outcome_notes: '', follow_up_date: '', follow_up_time: '', follow_up_notes: '' })
+    setCallForm({ call_date: new Date().toLocaleDateString('en-CA'), outcome_notes: '', follow_up_date: '', follow_up_time: '', follow_up_notes: '' })
     setShowCallModal(false)
     setLoadingCall(false)
     fetchAppointments()
@@ -291,6 +291,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
             label="Call Date"
             type="date"
             value={callForm.call_date}
+            min={new Date().toLocaleDateString('en-CA')}
             onChange={(e) => setCallForm(f => ({ ...f, call_date: e.target.value }))}
           />
           <TextArea
@@ -371,6 +372,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
               <Input
                 type="date"
                 value={demoForm.appointment_date}
+                min={new Date().toLocaleDateString('en-CA')}
                 onChange={(e) => setDemoForm(f => ({ ...f, appointment_date: e.target.value }))}
                 className="flex-1"
               />

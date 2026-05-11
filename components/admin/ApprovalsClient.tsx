@@ -36,7 +36,7 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'declined'>('pending')
   const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({})
-  const [showDeclineFor, setShowDeclineFor] = useState<string | null>(null)
+  const [declineErrors, setDeclineErrors] = useState<Record<string, boolean>>({})
 
   const filtered = filter === 'all' ? approvals : approvals.filter(a => a.status === filter)
   const pendingCount = approvals.filter(a => a.status === 'pending').length
@@ -84,10 +84,10 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
       .update({ status: 'declined', revision_notes: notes || null })
       .eq('id', approval.id)
 
-    // Move lead back to Demo Scheduled so developer sees it again
+    // Move lead to Audit Ready — developer sees it in Dev Queue as "Declined"
     await supabase
       .from('leads')
-      .update({ status: 'Demo Scheduled', updated_at: new Date().toISOString() })
+      .update({ status: 'Audit Ready', updated_at: new Date().toISOString() })
       .eq('id', approval.lead_id)
 
     // Notify the developer who submitted the demo
@@ -107,14 +107,27 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
       lead_id: approval.lead_id,
       user_id: userId,
       action: 'Demo Declined',
-      details: notes ? `Revision notes: ${notes}` : 'Demo declined by admin.',
+      details: `Revision notes: ${notes}`,
     })
+
+    // Email the developer
+    if (approval.developer_id) {
+      await fetch('/api/notifications/demo-declined', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          developerId: approval.developer_id,
+          companyName: approval.lead?.company_name || '',
+          leadName: approval.lead?.name || '',
+          notes,
+        }),
+      })
+    }
 
     setApprovals(prev => prev.map(a => a.id === approval.id
       ? { ...a, status: 'declined', revision_notes: notes }
       : a
     ))
-    setShowDeclineFor(null)
     setActioningId(null)
   }
 
@@ -155,7 +168,6 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
           const lead = approval.lead
           const StatusIcon = STATUS_ICON[approval.status as keyof typeof STATUS_ICON] || Clock
           const isActioning = actioningId === approval.id
-          const isDeclining = showDeclineFor === approval.id
 
           return (
             <div key={approval.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
@@ -250,60 +262,55 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
               {/* Actions */}
               {approval.status === 'pending' && (
                 <div className="space-y-3 pt-1">
-                  {isDeclining ? (
-                    <div className="space-y-3">
-                      <TextArea
-                        label="Revision Notes for Developer"
-                        rows={3}
-                        value={revisionNotes[approval.id] || ''}
-                        onChange={e => setRevisionNotes(prev => ({ ...prev, [approval.id]: e.target.value }))}
-                        placeholder="Describe what needs to be changed or fixed…"
-                      />
-                      <div className="flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          onClick={() => decline(approval)}
-                          loading={isActioning}
-                          disabled={isActioning}
-                          className="bg-red-600 hover:bg-red-500 text-white"
-                        >
-                          <XCircle size={13} /> Confirm Decline
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowDeclineFor(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Button
-                        size="sm"
-                        onClick={() => approve(approval)}
-                        loading={isActioning}
-                        disabled={isActioning}
-                        className="bg-green-600 hover:bg-green-500 text-white"
-                      >
-                        <CheckCircle2 size={13} /> Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowDeclineFor(approval.id)}
-                        disabled={isActioning}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-                      >
-                        <XCircle size={13} /> Decline
-                      </Button>
-                      {lead?.id && (
-                        <a
-                          href={`/leads/${lead.id}`}
-                          className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-orange-400 transition-colors"
-                        >
-                          View Lead <ExternalLink size={11} />
-                        </a>
-                      )}
-                    </div>
+                  <TextArea
+                    label="Decline Notes (required to decline)"
+                    rows={3}
+                    value={revisionNotes[approval.id] || ''}
+                    onChange={e => {
+                      setRevisionNotes(prev => ({ ...prev, [approval.id]: e.target.value }))
+                      if (e.target.value.trim()) setDeclineErrors(prev => ({ ...prev, [approval.id]: false }))
+                    }}
+                    placeholder="Describe what needs to be changed or fixed…"
+                  />
+                  {declineErrors[approval.id] && (
+                    <p className="text-xs text-red-400 -mt-1">Decline notes are required.</p>
                   )}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      onClick={() => approve(approval)}
+                      loading={isActioning}
+                      disabled={isActioning}
+                      className="bg-green-600 hover:bg-green-500 text-white"
+                    >
+                      <CheckCircle2 size={13} /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!revisionNotes[approval.id]?.trim()) {
+                          setDeclineErrors(prev => ({ ...prev, [approval.id]: true }))
+                          return
+                        }
+                        decline(approval)
+                      }}
+                      loading={isActioning}
+                      disabled={isActioning}
+                      className="bg-red-600 hover:bg-red-500 text-white"
+                    >
+                      <XCircle size={13} /> Decline
+                    </Button>
+                    {lead?.id && (
+                      <a
+                        href={`/leads/${lead.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-orange-400 transition-colors"
+                      >
+                        View Lead <ExternalLink size={11} />
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -311,6 +318,8 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                 <div className="pt-1">
                   <a
                     href={`/leads/${lead.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-orange-400 transition-colors w-fit"
                   >
                     View Lead <ExternalLink size={11} />

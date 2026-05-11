@@ -3,16 +3,28 @@ import { sendEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
 
-  const { to, clientName, businessName, message, links } = await req.json() as {
+  const { to, clientName, businessName, message, links, htmlBody } = await req.json() as {
     to: string
     clientName: string
     businessName: string
     message?: string
     links: Array<{ title: string; url?: string }>
+    htmlBody?: string
   }
 
   if (!to || !links?.length) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  // If a full HTML body was provided (client email template), send it directly
+  if (htmlBody) {
+    const { data, error } = await sendEmail({
+      to,
+      subject: `For ${businessName} — ${process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'}`,
+      html: htmlBody,
+    })
+    if (error) return NextResponse.json({ error }, { status: 400 })
+    return NextResponse.json({ success: true, id: data?.id })
   }
 
   const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'

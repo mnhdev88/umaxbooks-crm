@@ -53,6 +53,8 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [htmlCopied, setHtmlCopied] = useState(false)
   const [uploadingTemplate, setUploadingTemplate] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [templateHtml, setTemplateHtml] = useState<string | null>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
   const htmlFileRef = useRef<HTMLInputElement>(null)
 
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
@@ -133,8 +135,8 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     setUploadingTemplate(true)
     try {
       const path = `email-templates/${lead.id}_${Date.now()}.html`
-      const { data: up } = await supabase.storage.from('crm-files').upload(path, file, { upsert: true })
-      if (!up) return
+      const { data: up, error: upErr } = await supabase.storage.from('crm-files').upload(path, file, { upsert: true })
+      if (upErr || !up) { alert('Storage upload failed: ' + (upErr?.message || 'unknown')); return }
       const { data: urlData } = supabase.storage.from('crm-files').getPublicUrl(up.path)
       const publicUrl = urlData.publicUrl
 
@@ -143,7 +145,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
         await supabase.from('content_library').delete().eq('id', emailTemplate.id)
       }
 
-      await supabase.from('content_library').insert({
+      const { error: insertErr } = await supabase.from('content_library').insert({
         type: 'email_template',
         title: file.name.replace(/\.[^.]+$/, ''),
         url: publicUrl,
@@ -151,6 +153,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
         lead_id: lead.id,
         created_by: userId,
       })
+      if (insertErr) { alert('DB insert failed: ' + insertErr.message); return }
 
       await fetchEmailTemplate()
     } finally {
@@ -167,6 +170,22 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     await navigator.clipboard.writeText(html)
     setHtmlCopied(true)
     setTimeout(() => setHtmlCopied(false), 2000)
+  }
+
+  async function handleLoadTemplateAsBody() {
+    if (!emailTemplate?.file_url && !emailTemplate?.url) return
+    setLoadingTemplate(true)
+    try {
+      const url = (emailTemplate.file_url || emailTemplate.url) as string
+      const res = await fetch(`/api/fetch-template?url=${encodeURIComponent(url)}`)
+      const { html } = await res.json()
+      if (html) {
+        setTemplateHtml(html)
+        setChannel('email')
+      }
+    } finally {
+      setLoadingTemplate(false)
+    }
   }
 
   function toggleSelect(id: string) {
@@ -260,6 +279,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             businessName: lead.company_name,
             message: message.trim(),
             links: selectedItems.map(i => ({ title: i.title, url: i.url || i.file_url })),
+            htmlBody: templateHtml || undefined,
           }),
         })
         const data = await res.json()
@@ -287,6 +307,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
 
       setResult({ ok, msg: msg || 'Sent successfully' })
       setSelected(new Set())
+      setTemplateHtml(null)
     } finally {
       setSending(false)
     }
@@ -412,9 +433,9 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             </div>
 
             {/* Actions bar */}
-            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+            <div className="px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs text-slate-400 truncate">{emailTemplate.title}</p>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                 <button
                   onClick={() => setShowPreview(true)}
                   className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors"
@@ -427,6 +448,19 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                 >
                   {htmlCopied ? <><Check size={11} className="text-green-400" /> Copied!</> : <><Copy size={11} /> Copy HTML</>}
                 </button>
+                <button
+                  onClick={handleLoadTemplateAsBody}
+                  disabled={loadingTemplate}
+                  className={cn(
+                    'flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
+                    templateHtml
+                      ? 'bg-green-900/30 text-green-400 border border-green-700/40'
+                      : 'bg-orange-900/20 text-orange-400 hover:text-orange-300 hover:bg-orange-900/30 border border-orange-800/40'
+                  )}
+                >
+                  <Mail size={11} />
+                  {loadingTemplate ? 'Loading…' : templateHtml ? 'Template Active' : 'Use as Email Body'}
+                </button>
                 {canUploadTemplate && (
                   <button
                     onClick={() => htmlFileRef.current?.click()}
@@ -437,6 +471,22 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                 )}
               </div>
             </div>
+            {templateHtml && (
+              <div className="px-3 pb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider">Email body loaded — will be sent as-is</p>
+                  <button onClick={() => setTemplateHtml(null)} className="text-slate-500 hover:text-red-400 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+                <textarea
+                  value={templateHtml}
+                  onChange={e => setTemplateHtml(e.target.value)}
+                  rows={6}
+                  className="w-full bg-slate-900/60 border border-green-800/40 rounded-lg px-3 py-2 text-xs text-slate-400 font-mono focus:outline-none focus:border-green-500 resize-none"
+                />
+              </div>
+            )}
           </div>
         ) : canUploadTemplate ? (
           <button

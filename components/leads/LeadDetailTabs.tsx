@@ -67,7 +67,7 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
         </div>
 
         {/* Desktop: tab buttons */}
-        <div className="hidden md:flex items-center justify-between overflow-x-auto">
+        <div className="hidden md:flex items-center justify-between overflow-x-auto scrollbar-hide">
           <div className="flex">
             {TABS.map((tab) => (
               <button
