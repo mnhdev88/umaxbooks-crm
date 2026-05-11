@@ -22,6 +22,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   New: 'border-slate-600',
   Contacted: 'border-blue-600',
   'Audit Ready': 'border-purple-600',
+  'Callback Booked': 'border-cyan-500',
   'Demo Scheduled': 'border-yellow-600',
   'Demo Done': 'border-orange-600',
   'Closed Won': 'border-green-600',

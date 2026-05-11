@@ -56,6 +56,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const htmlFileRef = useRef<HTMLInputElement>(null)
 
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
+  const canUploadTemplate = canEdit || userRole === 'developer'
 
   useEffect(() => { fetchItems(); fetchEmailTemplate() }, [lead.id])
 
@@ -426,7 +427,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                 >
                   {htmlCopied ? <><Check size={11} className="text-green-400" /> Copied!</> : <><Copy size={11} /> Copy HTML</>}
                 </button>
-                {canEdit && (
+                {canUploadTemplate && (
                   <button
                     onClick={() => htmlFileRef.current?.click()}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -437,7 +438,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
               </div>
             </div>
           </div>
-        ) : canEdit ? (
+        ) : canUploadTemplate ? (
           <button
             onClick={() => htmlFileRef.current?.click()}
             disabled={uploadingTemplate}

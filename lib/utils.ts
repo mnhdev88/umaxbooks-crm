@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function ensureHttps(url: string): string {
+  if (!url) return url
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -60,6 +65,7 @@ export const STATUS_COLORS: Record<string, string> = {
   New: 'bg-slate-600 text-slate-100',
   Contacted: 'bg-blue-600 text-blue-100',
   'Audit Ready': 'bg-purple-600 text-purple-100',
+  'Callback Booked': 'bg-cyan-600 text-cyan-100',
   'Demo Scheduled': 'bg-yellow-600 text-yellow-100',
   'Demo Done': 'bg-orange-600 text-orange-100',
   'Closed Won': 'bg-green-600 text-green-100',

@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, Clock, Globe, MapPin,
   ExternalLink, Building2, Monitor,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, ensureHttps } from '@/lib/utils'
 
 interface ApprovalsClientProps {
   initialApprovals: any[]
@@ -220,7 +220,7 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                   <div className="flex items-center gap-2 min-w-0">
                     <Monitor size={14} className="text-orange-400 flex-shrink-0" />
                     <a
-                      href={approval.demo_url}
+                      href={ensureHttps(approval.demo_url)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-sm text-blue-400 hover:text-blue-300 truncate"
@@ -229,7 +229,7 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                     </a>
                   </div>
                   <a
-                    href={approval.demo_url}
+                    href={ensureHttps(approval.demo_url)}
                     target="_blank"
                     rel="noreferrer"
                     className="flex-shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"

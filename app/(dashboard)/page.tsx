@@ -8,6 +8,7 @@ import { Lead, PipelineStatus } from '@/types'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { FollowUpsWidget } from '@/components/dashboard/FollowUpsWidget'
 
 export default function PipelinePage() {
   const profile = useProfile()
@@ -42,6 +43,9 @@ export default function PipelinePage() {
           </Link>
         )}
       </div>
+      {profile && (profile.role === 'sales_agent' || profile.role === 'admin') && (
+        <FollowUpsWidget userId={profile.id} />
+      )}
       <div className="flex-1 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-24 text-slate-500 text-sm">

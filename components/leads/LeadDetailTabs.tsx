@@ -27,7 +27,7 @@ const ALL_TABS = [
   { id: 'revisions',    label: 'Revisions',      roles: ['admin', 'sales_agent'] },
   { id: 'live',         label: 'Live',           roles: ['admin', 'sales_agent'] },
   { id: 'before-after', label: 'Before / After', roles: ['admin', 'sales_agent'] },
-  { id: 'send-content', label: 'Send Content',   roles: ['admin', 'sales_agent'] },
+  { id: 'send-content', label: 'Send Content',   roles: ['admin', 'sales_agent', 'developer'] },
   { id: 'activity',     label: 'Activity',       roles: ['admin', 'agent', 'sales_agent', 'developer'] },
 ]
 
@@ -47,7 +47,7 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
       {/* Tab nav */}
-      <div className="border-b border-slate-800 px-4">
+      <div className="px-4">
         {/* Mobile: dropdown */}
         <div className="flex items-center gap-2 py-2 md:hidden">
           <select
@@ -115,7 +115,7 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
           <AppointmentTab leadId={lead.id} userId={userId} userRole={profile.role} zipCode={lead.zip_code} />
         )}
         {activeTab === 'demo' && (
-          <DemoTab leadId={lead.id} userId={userId} userRole={profile.role} developers={developers} />
+          <DemoTab leadId={lead.id} leadSlug={lead.slug} companyName={lead.company_name} userId={userId} userRole={profile.role} developers={developers} />
         )}
         {activeTab === 'before-after' && (
           <BeforeAfterTab leadId={lead.id} lead={lead} userId={userId} />

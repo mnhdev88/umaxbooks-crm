@@ -21,6 +21,7 @@ export type PipelineStatus =
   | 'New'
   | 'Contacted'
   | 'Audit Ready'
+  | 'Callback Booked'
   | 'Demo Scheduled'
   | 'Demo Done'
   | 'Closed Won'
@@ -33,6 +34,7 @@ export const PIPELINE_STAGES: PipelineStatus[] = [
   'New',
   'Contacted',
   'Audit Ready',
+  'Callback Booked',
   'Demo Scheduled',
   'Demo Done',
   'Closed Won',

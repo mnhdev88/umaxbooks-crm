@@ -64,6 +64,7 @@ const STATUS_CLS: Record<string, string> = {
   'New':            'bg-indigo-900/40 text-indigo-300 border border-indigo-800/40',
   'Contacted':      'bg-amber-900/40 text-amber-300 border border-amber-800/40',
   'Audit Ready':    'bg-blue-900/40 text-blue-300 border border-blue-800/40',
+  'Callback Booked': 'bg-cyan-900/40 text-cyan-300 border border-cyan-800/40',
   'Demo Scheduled': 'bg-purple-900/40 text-purple-300 border border-purple-800/40',
   'Demo Done':      'bg-orange-900/40 text-orange-300 border border-orange-800/40',
   'Closed Won':     'bg-green-900/40 text-green-300 border border-green-800/40',
@@ -359,7 +360,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
         </div>
         {[
           { val: srcFilter,    set: setSrcFilter,    opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
-          { val: statusFilter, set: setStatusFilter, opts: ['New','Contacted','Audit Ready','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost'], placeholder: 'All Status' },
+          { val: statusFilter, set: setStatusFilter, opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost'], placeholder: 'All Status' },
           { val: agentFilter,  set: setAgentFilter,  opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
           { val: cityFilter,   set: setCityFilter,   opts: cities as string[], placeholder: 'All Cities' },
         ].map((f, i) => (

@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Demo } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
-import { Monitor, ExternalLink, Save, Plus, Folder, Clock, Send, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Monitor, ExternalLink, Folder, Clock, Send, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { ensureHttps } from '@/lib/utils'
 
 interface DevDemoTabProps {
   leadId: string
@@ -19,7 +20,7 @@ const BUILD_STEPS = [
   { n: '02', title: 'Set client folder path', detail: `Create folder: /clients/{slug}/demo-v{n}` },
   { n: '03', title: 'Customize branding', detail: 'Replace logo, colors, fonts per brief. Use GMB photos if available.' },
   { n: '04', title: 'Upload to staging', detail: 'Deploy to staging server, ensure all pages load correctly' },
-  { n: '05', title: 'Submit demo URL', detail: 'Paste the live demo URL below and save to CRM' },
+  { n: '05', title: 'Submit demo URL', detail: 'Paste the live demo URL below and submit for admin approval' },
 ]
 
 export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTabProps) {
@@ -30,7 +31,6 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
   const [newUrl, setNewUrl] = useState('')
   const [newVersion, setNewVersion] = useState('')
   const [saving, setSaving] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => { fetchDemos(); fetchLatestApproval() }, [leadId])
 
@@ -56,38 +56,25 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
     setLatestApproval(data)
   }
 
-  async function saveDemoUrl() {
+  // Save URL to demos table AND immediately create approval record
+  async function saveAndSubmit() {
     if (!newUrl.trim()) return
     setSaving(true)
+    const url = ensureHttps(newUrl.trim())
     const nextVersion = newVersion.trim() || `v${demos.length + 1}`
+
     await supabase.from('demos').insert({
       lead_id: leadId,
       developer_id: userId,
-      temp_url: newUrl.trim(),
+      temp_url: url,
       demo_version: nextVersion,
       upload_date: new Date().toISOString().split('T')[0],
     })
-    await supabase.from('activity_logs').insert({
-      lead_id: leadId,
-      user_id: userId,
-      action: 'Demo URL Saved',
-      details: `${nextVersion} — ${newUrl.trim()}`,
-    })
-    setNewUrl('')
-    setNewVersion('')
-    setSaving(false)
-    fetchDemos()
-  }
-
-  async function submitForApproval() {
-    const latestDemo = demos[0]
-    if (!latestDemo?.temp_url) return
-    setSubmitting(true)
 
     await supabase.from('project_approvals').insert({
       lead_id: leadId,
       developer_id: userId,
-      demo_url: latestDemo.temp_url,
+      demo_url: url,
       status: 'pending',
     })
 
@@ -96,10 +83,11 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       .update({ status: 'Demo Done', updated_at: new Date().toISOString() })
       .eq('id', leadId)
 
+    // In-app notifications to all admins
     const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
     if (admins && admins.length > 0) {
       await supabase.from('notifications').insert(
-        admins.map(a => ({
+        admins.map((a: any) => ({
           user_id: a.id,
           lead_id: leadId,
           title: 'Demo Ready for Review',
@@ -113,15 +101,69 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       lead_id: leadId,
       user_id: userId,
       action: 'Demo Submitted for Approval',
+      details: `${nextVersion} — ${url}`,
+    })
+
+    // Email admins
+    const { data: me } = await supabase.from('profiles').select('full_name').eq('id', userId).single()
+    await fetch('/api/demo-approval-notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId, demoUrl: url, companyName, developerName: me?.full_name || '' }),
+    })
+
+    setNewUrl('')
+    setNewVersion('')
+    setSaving(false)
+    fetchDemos()
+    fetchLatestApproval()
+  }
+
+  // Resubmit existing latest demo after a decline
+  async function resubmit() {
+    const latestDemo = demos[0]
+    if (!latestDemo?.temp_url) return
+    setSaving(true)
+
+    await supabase.from('project_approvals').insert({
+      lead_id: leadId,
+      developer_id: userId,
+      demo_url: latestDemo.temp_url,
+      status: 'pending',
+    })
+
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
+    if (admins && admins.length > 0) {
+      await supabase.from('notifications').insert(
+        admins.map((a: any) => ({
+          user_id: a.id,
+          lead_id: leadId,
+          title: 'Demo Resubmitted for Review',
+          message: `${companyName} — demo resubmitted after revision.`,
+          type: 'info',
+        }))
+      )
+    }
+
+    await supabase.from('activity_logs').insert({
+      lead_id: leadId,
+      user_id: userId,
+      action: 'Demo Resubmitted',
       details: `Demo URL: ${latestDemo.temp_url}`,
     })
 
-    setSubmitting(false)
+    const { data: me } = await supabase.from('profiles').select('full_name').eq('id', userId).single()
+    await fetch('/api/demo-approval-notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId, demoUrl: latestDemo.temp_url, companyName, developerName: me?.full_name || '' }),
+    })
+
+    setSaving(false)
     fetchLatestApproval()
   }
 
   const folderPath = `/clients/${leadSlug}/demo-v${demos.length + 1}`
-
   const isPending = latestApproval?.status === 'pending'
   const isDeclined = latestApproval?.status === 'declined'
   const isApproved = latestApproval?.status === 'approved'
@@ -129,7 +171,7 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
   return (
     <div className="space-y-5">
 
-      {/* Revision notes banner (shown when last submission was declined) */}
+      {/* Status banners */}
       {isDeclined && latestApproval?.revision_notes && (
         <div className="bg-red-900/20 border border-red-700/40 rounded-xl px-4 py-3.5 flex items-start gap-3">
           <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -139,16 +181,12 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
           </div>
         </div>
       )}
-
-      {/* Approved banner */}
       {isApproved && (
         <div className="bg-green-900/20 border border-green-700/40 rounded-xl px-4 py-3.5 flex items-center gap-3">
           <CheckCircle2 size={16} className="text-green-400 flex-shrink-0" />
-          <p className="text-sm font-semibold text-green-300">Demo approved by admin — sales agent has been notified.</p>
+          <p className="text-sm font-semibold text-green-300">Demo approved — sales agent has been notified.</p>
         </div>
       )}
-
-      {/* Pending banner */}
       {isPending && (
         <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl px-4 py-3.5 flex items-center gap-3">
           <Clock size={16} className="text-amber-400 flex-shrink-0" />
@@ -184,41 +222,42 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
         </button>
       </div>
 
-      {/* Submit demo URL */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Submit Demo URL</p>
-        <div className="flex gap-2 mb-2">
-          <input
-            value={newVersion}
-            onChange={e => setNewVersion(e.target.value)}
-            placeholder="Version (e.g. v1)"
-            className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
-          />
-          <input
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
-            placeholder="https://demo.staging.com/client-name"
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button size="sm" onClick={saveDemoUrl} loading={saving} disabled={!newUrl.trim()}>
-            <Save size={13} /> Save to CRM
-          </Button>
-        </div>
-      </div>
-
-      {/* Submit for admin approval */}
-      {demos.length > 0 && !isPending && (
+      {/* Submit demo URL — hidden while pending/approved */}
+      {!isPending && !isApproved && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-            {isDeclined ? 'Resubmit for Approval' : 'Submit for Admin Approval'}
+            {isDeclined ? 'Submit New Version for Approval' : 'Submit Demo for Approval'}
           </p>
+          <p className="text-xs text-slate-500 mb-3">Saves the URL and immediately notifies admin for review.</p>
+          <div className="flex gap-2 mb-3">
+            <input
+              value={newVersion}
+              onChange={e => setNewVersion(e.target.value)}
+              placeholder="Version (e.g. v2)"
+              className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+            />
+            <input
+              value={newUrl}
+              onChange={e => setNewUrl(e.target.value)}
+              placeholder="https://demo.staging.com/client-name"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+            />
+          </div>
+          <Button onClick={saveAndSubmit} loading={saving} disabled={!newUrl.trim()}>
+            <Send size={13} /> Submit for Approval
+          </Button>
+        </div>
+      )}
+
+      {/* Resubmit (same URL) after decline — shortcut if URL hasn't changed */}
+      {isDeclined && demos[0]?.temp_url && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Resubmit Same URL</p>
           <p className="text-xs text-slate-500 mb-3">
-            Uses the latest saved demo URL: <span className="text-blue-400">{demos[0]?.temp_url}</span>
+            Resubmit without changes: <span className="text-blue-400">{demos[0].temp_url}</span>
           </p>
-          <Button onClick={submitForApproval} loading={submitting} disabled={!demos[0]?.temp_url}>
-            <Send size={13} /> {isDeclined ? 'Resubmit Demo' : 'Submit Demo to Admin'}
+          <Button variant="ghost" size="sm" onClick={resubmit} loading={saving}>
+            <Send size={13} /> Resubmit Demo
           </Button>
         </div>
       )}
@@ -237,7 +276,7 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
                     {idx === 0 && <span className="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded">Latest</span>}
                   </div>
                   {demo.temp_url && (
-                    <a href={demo.temp_url} target="_blank" rel="noreferrer"
+                    <a href={ensureHttps(demo.temp_url)} target="_blank" rel="noreferrer"
                       className="text-xs text-blue-400 hover:text-blue-300 truncate block mt-0.5">
                       {demo.temp_url}
                     </a>
@@ -246,7 +285,7 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-slate-500">{formatDate(demo.created_at)}</p>
                   {demo.temp_url && (
-                    <a href={demo.temp_url} target="_blank" rel="noreferrer"
+                    <a href={ensureHttps(demo.temp_url)} target="_blank" rel="noreferrer"
                       className="mt-1 inline-flex text-slate-400 hover:text-orange-400">
                       <ExternalLink size={12} />
                     </a>
