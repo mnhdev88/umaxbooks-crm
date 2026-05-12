@@ -25,30 +25,28 @@ function InfoRow({ icon: Icon, label, value, href, iconCls = 'text-orange-400' }
 }) {
   if (!value && value !== 0) return null
   return (
-    <div className="flex items-start gap-2.5 text-sm">
-      <Icon size={13} className={`flex-shrink-0 mt-0.5 ${iconCls}`} />
-      <div className="min-w-0">
-        <span className="text-xs text-slate-500 block leading-tight">{label}</span>
-        {href ? (
-          <div className="flex items-center gap-1.5">
-            <a href={href} target="_blank" rel="noreferrer"
-              className="text-blue-400 hover:text-blue-300 hover:underline break-all flex items-center gap-1">
-              {String(value).replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              <ExternalLink size={10} className="flex-shrink-0" />
-            </a>
-            <CopyButton text={href} />
-          </div>
-        ) : (
-          <span className="text-slate-200 break-words">{String(value)}</span>
-        )}
-      </div>
+    <div className="flex items-center gap-2 text-xs min-w-0">
+      <Icon size={11} className={`flex-shrink-0 ${iconCls}`} />
+      <span className="text-slate-500 shrink-0">{label}</span>
+      {href ? (
+        <div className="flex items-center gap-1 min-w-0">
+          <a href={href} target="_blank" rel="noreferrer"
+            className="text-blue-400 hover:text-blue-300 hover:underline truncate flex items-center gap-1">
+            {String(value).replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            <ExternalLink size={9} className="flex-shrink-0" />
+          </a>
+          <CopyButton text={href} />
+        </div>
+      ) : (
+        <span className="text-slate-200 truncate">{String(value)}</span>
+      )}
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title}</p>
       {children}
     </div>
@@ -169,7 +167,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
         </div>
 
         {/* ── Info grid ──────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
 
           {/* Contact */}
           <Section title="Contact Information">
@@ -191,16 +189,14 @@ export default async function LeadDetailPage({ params }: PageProps) {
           <Section title="Online Presence">
             <InfoRow icon={Globe}   label="Website"        value={lead.website_url}  href={lead.website_url || undefined} />
             {lead.website_status && (
-              <div className="flex items-start gap-2.5 text-sm">
-                <Globe size={13} className="text-slate-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-xs text-slate-500 block leading-tight">Website Status</span>
-                  <span className={`text-sm font-medium ${
-                    lead.website_status?.includes('No website') ? 'text-red-400' :
-                    lead.website_status?.includes('Outdated') ? 'text-amber-400' :
-                    lead.website_status?.includes('Active') ? 'text-green-400' : 'text-slate-300'
-                  }`}>{lead.website_status}</span>
-                </div>
+              <div className="flex items-center gap-2 text-xs min-w-0">
+                <Globe size={11} className="text-slate-500 flex-shrink-0" />
+                <span className="text-slate-500 shrink-0">Website Status</span>
+                <span className={`font-medium truncate ${
+                  lead.website_status?.includes('No website') ? 'text-red-400' :
+                  lead.website_status?.includes('Outdated') ? 'text-amber-400' :
+                  lead.website_status?.includes('Active') ? 'text-green-400' : 'text-slate-300'
+                }`}>{lead.website_status}</span>
               </div>
             )}
             <InfoRow icon={Share2}  label="Social Profile"  value={lead.social_url}  href={lead.social_url || undefined} iconCls="text-blue-400" />
@@ -212,31 +208,27 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <Section title="GMB & Competitive Data">
               <InfoRow icon={MapPin} label="GMB Profile URL" value={lead.gmb_url || null} href={lead.gmb_url || undefined} iconCls="text-green-400" />
               {lead.gmb_review_rating && (
-                <div className="flex items-start gap-2.5 text-sm">
-                  <Star size={13} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs text-slate-500 block leading-tight">GMB Rating</span>
-                    <span className="text-yellow-400 font-medium">{stars} {lead.gmb_review_rating}</span>
-                    {lead.number_of_reviews && (
-                      <span className="text-slate-500 text-xs ml-1">({lead.number_of_reviews} reviews)</span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 text-xs min-w-0">
+                  <Star size={11} className="text-yellow-400 flex-shrink-0" />
+                  <span className="text-slate-500 shrink-0">GMB Rating</span>
+                  <span className="text-yellow-400 font-medium shrink-0">{stars} {lead.gmb_review_rating}</span>
+                  {lead.number_of_reviews && (
+                    <span className="text-slate-500 shrink-0">({lead.number_of_reviews} reviews)</span>
+                  )}
                 </div>
               )}
               <InfoRow icon={Building2} label="Category"           value={lead.gmb_category} iconCls="text-slate-400" />
               <InfoRow icon={Calendar}  label="Last Seen on GMB"    value={lead.gmb_last_seen ? formatDate(lead.gmb_last_seen) : null} iconCls="text-slate-400" />
               {lead.competitor_count != null && (
-                <div className="flex items-start gap-2.5 text-sm">
-                  <Layers size={13} className={`flex-shrink-0 mt-0.5 ${lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400'}`} />
-                  <div>
-                    <span className="text-xs text-slate-500 block leading-tight">Competitors Nearby</span>
-                    <span className={`font-medium ${lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400'}`}>
-                      {lead.competitor_count}
-                    </span>
-                    {lead.competitor_notes && (
-                      <span className="text-slate-400 text-xs ml-1.5">— {lead.competitor_notes}</span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 text-xs min-w-0">
+                  <Layers size={11} className={`flex-shrink-0 ${lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400'}`} />
+                  <span className="text-slate-500 shrink-0">Competitors Nearby</span>
+                  <span className={`font-medium shrink-0 ${lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400'}`}>
+                    {lead.competitor_count}
+                  </span>
+                  {lead.competitor_notes && (
+                    <span className="text-slate-400 truncate">— {lead.competitor_notes}</span>
+                  )}
                 </div>
               )}
             </Section>
@@ -254,12 +246,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
           {(lead.notes || lead.agent_private_notes || lead.custom_field_1_label || lead.custom_field_2_label) && (
             <Section title="Notes & Custom Fields">
               {lead.notes && (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <FileText size={12} className="text-slate-400" />
-                    <span className="text-xs text-slate-500">Notes</span>
+                    <FileText size={11} className="text-slate-400" />
+                    <span className="text-[10px] text-slate-500">Notes</span>
                   </div>
-                  <p className="text-sm text-slate-300 whitespace-pre-wrap pl-5">{lead.notes}</p>
+                  <p className="text-xs text-slate-300 whitespace-pre-wrap pl-4">{lead.notes}</p>
                 </div>
               )}
               {lead.custom_field_1_label && lead.custom_field_1_value && (
@@ -269,12 +261,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
                 <InfoRow icon={Tag} label={lead.custom_field_2_label} value={lead.custom_field_2_value} iconCls="text-purple-400" />
               )}
               {lead.agent_private_notes && (
-                <div className="mt-2 pt-2 border-t border-slate-800 space-y-1">
+                <div className="mt-1 pt-1.5 border-t border-slate-800 space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <Lock size={12} className="text-amber-400" />
-                    <span className="text-xs text-amber-400 font-medium">Private Notes (Agent Only)</span>
+                    <Lock size={11} className="text-amber-400" />
+                    <span className="text-[10px] text-amber-400 font-medium">Private Notes (Agent Only)</span>
                   </div>
-                  <p className="text-sm text-slate-300 whitespace-pre-wrap pl-5">{lead.agent_private_notes}</p>
+                  <p className="text-xs text-slate-300 whitespace-pre-wrap pl-4">{lead.agent_private_notes}</p>
                 </div>
               )}
             </Section>
