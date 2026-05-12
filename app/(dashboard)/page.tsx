@@ -21,16 +21,21 @@ export default function PipelinePage() {
     const currentProfile = profile
 
     async function fetchLeads() {
-      const query = supabase
-        .from('leads')
-        .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)')
-        .order('updated_at', { ascending: false })
-
-      if (currentProfile.role === 'developer') {
-        query.in('status', ['Contacted', 'Audit Ready'])
+      const buildQuery = (withFollowUps: boolean) => {
+        const select = withFollowUps
+          ? '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)'
+          : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
+        const q = supabase.from('leads').select(select).order('updated_at', { ascending: false })
+        if (currentProfile.role === 'developer') q.in('status', ['Contacted', 'Audit Ready'])
+        return q
       }
 
-      const { data } = await query
+      let { data, error } = await buildQuery(true)
+      if (error) {
+        // follow_ups table may not exist yet — fall back
+        console.warn('follow_ups join failed, retrying without:', error.message)
+        ;({ data, error } = await buildQuery(false))
+      }
       if (data) setLeads(data as Lead[])
       setLoading(false)
     }
