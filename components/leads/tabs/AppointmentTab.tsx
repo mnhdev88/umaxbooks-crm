@@ -94,6 +94,13 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
   }, [appointmentDatetime, selectedTz, tzInfo.abbr])
 
+  const followUpPreview = useMemo(() => {
+    if (!callForm.follow_up_date || !callForm.follow_up_time || !selectedTz) return null
+    const utcISO = localToUTC(`${callForm.follow_up_date}T${callForm.follow_up_time}`, selectedTz)
+    if (!utcISO) return null
+    return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
+  }, [callForm.follow_up_date, callForm.follow_up_time, selectedTz, tzInfo.abbr])
+
   useEffect(() => { fetchAppointments() }, [leadId])
 
   async function fetchAppointments() {
@@ -126,9 +133,10 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
 
     // Schedule new follow-up if requested
     if (callForm.follow_up_date) {
-      const scheduledAt = callForm.follow_up_time
-        ? new Date(`${callForm.follow_up_date}T${callForm.follow_up_time}`).toISOString()
-        : new Date(`${callForm.follow_up_date}T09:00`).toISOString()
+      const timeLocal = callForm.follow_up_time || '09:00'
+      const scheduledAt =
+        localToUTC(`${callForm.follow_up_date}T${timeLocal}`, selectedTz) ||
+        new Date(`${callForm.follow_up_date}T${timeLocal}`).toISOString()
 
       await supabase.from('follow_ups').insert({
         lead_id: leadId,
@@ -338,6 +346,22 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
                 value={callForm.follow_up_notes}
                 onChange={(e) => setCallForm(f => ({ ...f, follow_up_notes: e.target.value }))}
               />
+            )}
+            {followUpPreview && (
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 space-y-1">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Time Preview</p>
+                <div className="flex items-center gap-2 text-xs text-slate-300">
+                  <Globe size={12} className="text-orange-400 flex-shrink-0" />
+                  {followUpPreview.us}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-blue-300">
+                  <MapPin size={12} className="text-blue-400 flex-shrink-0" />
+                  {followUpPreview.ist}
+                  {followUpPreview.nextDayIST && (
+                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">+1 day</span>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

@@ -26,26 +26,27 @@ function getStaleDays(updatedAt: string): number {
 }
 
 function formatCallbackDate(iso: string): { label: string; urgent: boolean; today: boolean } {
+  const IST = 'Asia/Kolkata'
   const date = new Date(iso)
-  const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrowStart = new Date(todayStart.getTime() + 86400000)
-  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
-  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const todayIST     = new Date().toLocaleDateString('en-CA', { timeZone: IST })
+  const tomorrowIST  = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: IST })
+  const dateIST      = date.toLocaleDateString('en-CA', { timeZone: IST })
 
-  if (dateStart.getTime() < todayStart.getTime()) {
+  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })
+  const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: IST })
+
+  if (dateIST < todayIST) {
     return { label: `Overdue · ${dateStr}`, urgent: true, today: false }
   }
-  if (dateStart.getTime() === todayStart.getTime()) {
-    return { label: `Today · ${timeStr}`, urgent: true, today: true }
+  if (dateIST === todayIST) {
+    return { label: `Today · ${timeStr} IST`, urgent: true, today: true }
   }
-  if (dateStart.getTime() === tomorrowStart.getTime()) {
-    return { label: `Tomorrow · ${timeStr}`, urgent: false, today: false }
+  if (dateIST === tomorrowIST) {
+    return { label: `Tomorrow · ${timeStr} IST`, urgent: false, today: false }
   }
   return {
-    label: `${dateStr} · ${timeStr}`,
+    label: `${dateStr} · ${timeStr} IST`,
     urgent: false,
     today: false,
   }
