@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Lead, Profile } from '@/types'
-import { Star, UserCheck } from 'lucide-react'
+import { Star, UserCheck, Phone } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,7 @@ interface LeadCardProps {
   userRole?: string
   agents?: Profile[]
   onReassign?: (leadId: string, agentId: string) => void
+  callbackDate?: string | null
 }
 
 function getStaleDays(updatedAt: string): number {
@@ -24,7 +25,30 @@ function getStaleDays(updatedAt: string): number {
   return Math.round((today.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-export function LeadCard({ lead, overlay, userRole, agents = [], onReassign }: LeadCardProps) {
+function formatCallbackDate(iso: string): { label: string; urgent: boolean; today: boolean } {
+  const date = new Date(iso)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrowStart = new Date(todayStart.getTime() + 86400000)
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  if (dateStart.getTime() < todayStart.getTime()) {
+    return { label: 'Overdue', urgent: true, today: false }
+  }
+  if (dateStart.getTime() === todayStart.getTime()) {
+    return { label: 'Call Today', urgent: true, today: true }
+  }
+  if (dateStart.getTime() === tomorrowStart.getTime()) {
+    return { label: 'Tomorrow', urgent: false, today: false }
+  }
+  return {
+    label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    urgent: false,
+    today: false,
+  }
+}
+
+export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, callbackDate }: LeadCardProps) {
   const router = useRouter()
   const [showReassign, setShowReassign] = useState(false)
 
@@ -94,6 +118,24 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign }: L
           </span>
         )}
       </div>
+
+      {/* Callback date pill */}
+      {callbackDate && (() => {
+        const { label, urgent, today } = formatCallbackDate(callbackDate)
+        return (
+          <div className={cn(
+            'mt-1.5 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit',
+            urgent
+              ? 'bg-red-900/50 text-red-300 border border-red-700/50'
+              : today
+                ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-700/50'
+                : 'bg-slate-700/60 text-slate-400 border border-slate-600/40'
+          )}>
+            <Phone size={8} />
+            {label}
+          </div>
+        )
+      })()}
 
       {/* Reassign button — admin only, stale leads */}
       {isStale && isAdmin && (

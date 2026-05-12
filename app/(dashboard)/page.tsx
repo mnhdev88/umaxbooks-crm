@@ -23,7 +23,7 @@ export default function PipelinePage() {
     async function fetchLeads() {
       const query = supabase
         .from('leads')
-        .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)')
+        .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)')
         .order('updated_at', { ascending: false })
 
       if (currentProfile.role === 'developer') {

@@ -54,8 +54,27 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
 
   const visibleStages = stages ?? PIPELINE_STAGES
 
+  function getNextCallback(lead: any): string | null {
+    const pending = (lead.follow_ups || [])
+      .filter((f: any) => f.status === 'pending' && f.scheduled_at)
+      .map((f: any) => f.scheduled_at)
+      .sort()
+    return pending[0] ?? null
+  }
+
   const columns = visibleStages.reduce<Record<PipelineStatus, Lead[]>>((acc, stage) => {
-    acc[stage] = leads.filter((l) => l.status === stage)
+    const list = leads.filter((l) => l.status === stage)
+    if (stage === 'Callback Booked') {
+      list.sort((a, b) => {
+        const da = getNextCallback(a)
+        const db = getNextCallback(b)
+        if (!da && !db) return 0
+        if (!da) return 1
+        if (!db) return -1
+        return new Date(da).getTime() - new Date(db).getTime()
+      })
+    }
+    acc[stage] = list
     return acc
   }, {} as Record<PipelineStatus, Lead[]>)
 

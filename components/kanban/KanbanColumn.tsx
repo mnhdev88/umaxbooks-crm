@@ -64,9 +64,24 @@ export function KanbanColumn({ status, leads, userRole, agents, onReassign }: Ka
           ref={setNodeRef}
           className="flex-1 px-2 pb-2 space-y-2 min-h-[120px]"
         >
-          {visibleLeads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} userRole={userRole} agents={agents} onReassign={onReassign} />
-          ))}
+          {visibleLeads.map((lead) => {
+            const nextCallback = status === 'Callback Booked'
+              ? ((lead as any).follow_ups || [])
+                  .filter((f: any) => f.status === 'pending' && f.scheduled_at)
+                  .map((f: any) => f.scheduled_at)
+                  .sort()[0] ?? null
+              : null
+            return (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                userRole={userRole}
+                agents={agents}
+                onReassign={onReassign}
+                callbackDate={nextCallback}
+              />
+            )
+          })}
           {leads.length === 0 && (
             <div className={cn(
               'h-20 rounded-lg border-2 border-dashed border-slate-700/50 flex items-center justify-center',
