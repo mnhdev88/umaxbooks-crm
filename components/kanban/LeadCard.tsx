@@ -108,34 +108,34 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
         )}
       </div>
 
-      {/* Contact name + GMB rating */}
+      {/* Contact name + callback date + GMB rating */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-slate-400 truncate">{lead.name}</p>
-        {lead.gmb_review_rating && (
-          <span className="flex items-center gap-0.5 text-yellow-400 flex-shrink-0">
-            <Star size={10} fill="currentColor" />
-            <span className="text-[10px] font-medium">{lead.gmb_review_rating}</span>
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {callbackDate && (() => {
+            const { label, urgent, today } = formatCallbackDate(callbackDate)
+            return (
+              <span className={cn(
+                'flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border',
+                urgent
+                  ? 'bg-red-900/50 text-red-300 border-red-700/50'
+                  : today
+                    ? 'bg-cyan-900/50 text-cyan-300 border-cyan-700/50'
+                    : 'bg-slate-700/60 text-slate-400 border-slate-600/40'
+              )}>
+                <Phone size={8} />
+                {label}
+              </span>
+            )
+          })()}
+          {lead.gmb_review_rating && (
+            <span className="flex items-center gap-0.5 text-yellow-400">
+              <Star size={10} fill="currentColor" />
+              <span className="text-[10px] font-medium">{lead.gmb_review_rating}</span>
+            </span>
+          )}
+        </div>
       </div>
-
-      {/* Callback date pill */}
-      {callbackDate && (() => {
-        const { label, urgent, today } = formatCallbackDate(callbackDate)
-        return (
-          <div className={cn(
-            'mt-1.5 flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit',
-            urgent
-              ? 'bg-red-900/50 text-red-300 border border-red-700/50'
-              : today
-                ? 'bg-cyan-900/50 text-cyan-300 border border-cyan-700/50'
-                : 'bg-slate-700/60 text-slate-400 border border-slate-600/40'
-          )}>
-            <Phone size={8} />
-            {label}
-          </div>
-        )
-      })()}
 
       {/* Reassign button — admin only, stale leads */}
       {isStale && isAdmin && (
