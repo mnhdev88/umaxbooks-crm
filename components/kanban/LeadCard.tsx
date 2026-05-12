@@ -32,17 +32,20 @@ function formatCallbackDate(iso: string): { label: string; urgent: boolean; toda
   const tomorrowStart = new Date(todayStart.getTime() + 86400000)
   const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
+  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
   if (dateStart.getTime() < todayStart.getTime()) {
-    return { label: 'Overdue', urgent: true, today: false }
+    return { label: `Overdue · ${dateStr}`, urgent: true, today: false }
   }
   if (dateStart.getTime() === todayStart.getTime()) {
-    return { label: 'Call Today', urgent: true, today: true }
+    return { label: `Today · ${timeStr}`, urgent: true, today: true }
   }
   if (dateStart.getTime() === tomorrowStart.getTime()) {
-    return { label: 'Tomorrow', urgent: false, today: false }
+    return { label: `Tomorrow · ${timeStr}`, urgent: false, today: false }
   }
   return {
-    label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    label: `${dateStr} · ${timeStr}`,
     urgent: false,
     today: false,
   }
