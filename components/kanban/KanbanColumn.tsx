@@ -65,12 +65,15 @@ export function KanbanColumn({ status, leads, userRole, agents, onReassign }: Ka
           className="flex-1 px-2 pb-2 space-y-2 min-h-[120px]"
         >
           {visibleLeads.map((lead) => {
-            const nextCallback = status === 'Callback Booked'
-              ? ((lead as any).follow_ups || [])
-                  .filter((f: any) => f.status === 'pending' && f.scheduled_at)
-                  .map((f: any) => f.scheduled_at)
-                  .sort()[0] ?? null
-              : null
+            let nextCallback: string | null = null
+            if (status === 'Callback Booked') {
+              const pending = ((lead as any).follow_ups || [])
+                .filter((f: any) => f.status === 'pending' && f.scheduled_at)
+                .map((f: any) => f.scheduled_at)
+                .sort()
+              // Fall back to updated_at so cards always show a date
+              nextCallback = pending[0] ?? lead.updated_at ?? null
+            }
             return (
               <LeadCard
                 key={lead.id}
