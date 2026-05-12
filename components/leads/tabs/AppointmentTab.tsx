@@ -330,6 +330,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
               <Input
                 type="date"
                 value={callForm.follow_up_date}
+                min={new Date().toLocaleDateString('en-CA')}
                 onChange={(e) => setCallForm(f => ({ ...f, follow_up_date: e.target.value }))}
                 className="flex-1"
               />
