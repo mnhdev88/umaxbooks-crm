@@ -36,7 +36,7 @@ export default function PipelinePage() {
         console.warn('follow_ups join failed, retrying without:', error.message)
         ;({ data, error } = await buildQuery(false))
       }
-      if (data) setLeads(data as Lead[])
+      if (data) setLeads(data as unknown as Lead[])
       setLoading(false)
     }
 
