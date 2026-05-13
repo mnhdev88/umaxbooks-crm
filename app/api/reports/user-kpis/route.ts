@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   // Which users to show
   const { data: allUsers } = isAdmin
-    ? await supabase.from('profiles').select('id, full_name, role').in('role', ['admin', 'agent', 'sales_agent']).order('full_name')
+    ? await supabase.from('profiles').select('id, full_name, role').in('role', ['agent', 'sales_agent']).order('full_name')
     : await supabase.from('profiles').select('id, full_name, role').eq('id', user.id)
 
   if (!allUsers?.length) return NextResponse.json({ kpis: [] })

@@ -17,7 +17,7 @@ export default async function ReportsPage() {
 
   const { data: leads } = await supabase.from('leads').select('status, created_at, assigned_agent_id')
   const { data: deals } = await supabase.from('deals').select('payment_status, final_payment_amount, token_amount')
-  const { data: agents } = await supabase.from('profiles').select('id, full_name').in('role', ['agent', 'sales_agent', 'admin'])
+  const { data: agents } = await supabase.from('profiles').select('id, full_name').in('role', ['agent', 'sales_agent'])
 
   const totalLeads = leads?.length || 0
   const wonLeads = leads?.filter((l) => l.status === 'Closed Won').length || 0
