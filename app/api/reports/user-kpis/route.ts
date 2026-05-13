@@ -30,32 +30,34 @@ export async function GET(req: NextRequest) {
 
   const userIds = allUsers.map(u => u.id)
 
-  // Leads Added — via activity_logs (always exists, no migration needed)
+  // Leads Added — via activity_logs
   let addedQ = supabase.from('activity_logs').select('user_id').in('user_id', userIds).eq('action', 'Lead Created')
   if (start) addedQ = addedQ.gte('created_at', start)
   const { data: leadsAdded } = await addedQ
 
-  // Leads Assigned
-  let assignedQ = supabase.from('leads').select('assigned_agent_id').in('assigned_agent_id', userIds)
-  if (start) assignedQ = assignedQ.gte('created_at', start)
-  const { data: leadsAssigned } = await assignedQ
+  // Leads Assigned — total leads currently assigned to each user (no date filter;
+  // assignment date is not tracked separately so we show the current snapshot)
+  const { data: leadsAssigned } = await supabase
+    .from('leads')
+    .select('assigned_agent_id')
+    .in('assigned_agent_id', userIds)
 
-  // Leads Completed (status = Completed, assigned to user)
+  // Leads Completed (status = Completed, assigned to user, completed in period)
   let completedQ = supabase.from('leads').select('assigned_agent_id').in('assigned_agent_id', userIds).eq('status', 'Completed')
   if (start) completedQ = completedQ.gte('updated_at', start)
   const { data: completedLeads } = await completedQ
 
-  // Demos Booked (appointments with a demo datetime, created by user)
+  // Demos Booked (appointments with a demo datetime, created by user, in period)
   let demosQ = supabase.from('appointments').select('created_by').in('created_by', userIds).not('appointment_datetime', 'is', null)
   if (start) demosQ = demosQ.gte('created_at', start)
   const { data: demosBooked } = await demosQ
 
-  // Deals Closed (Paid) + Revenue — linked via leads.assigned_agent_id
+  // Deals Closed (Paid) + Revenue — filter by when payment was recorded (updated_at)
   let dealsQ = supabase
     .from('deals')
-    .select('final_payment_amount, leads(assigned_agent_id)')
+    .select('final_payment_amount, lead_id, leads!inner(assigned_agent_id)')
     .eq('payment_status', 'Paid')
-  if (start) dealsQ = dealsQ.gte('created_at', start)
+  if (start) dealsQ = dealsQ.gte('updated_at', start)
   const { data: deals } = await dealsQ
 
   // Build per-user aggregates
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest) {
     const leadsAssignedCount = leadsAssigned?.filter(l => l.assigned_agent_id === u.id).length || 0
     const completedCount     = completedLeads?.filter(l => l.assigned_agent_id === u.id).length || 0
     const demosBookedCount   = demosBooked?.filter(a => a.created_by === u.id).length || 0
-    const userDeals          = (deals as any[])?.filter(d => d.leads?.assigned_agent_id === u.id) || []
+    const userDeals          = (deals as any[])?.filter(d => (d.leads as any)?.assigned_agent_id === u.id) || []
     const dealsClosedCount   = userDeals.length
     const revenue            = userDeals.reduce((sum: number, d: any) => sum + (d.final_payment_amount || 0), 0)
 
@@ -72,11 +74,11 @@ export async function GET(req: NextRequest) {
       id: u.id,
       full_name: u.full_name,
       role: u.role,
-      leads_added:    leadsAddedCount,
-      leads_assigned: leadsAssignedCount,
+      leads_added:     leadsAddedCount,
+      leads_assigned:  leadsAssignedCount,
       leads_completed: completedCount,
-      demos_booked:   demosBookedCount,
-      deals_closed:   dealsClosedCount,
+      demos_booked:    demosBookedCount,
+      deals_closed:    dealsClosedCount,
       revenue,
     }
   })
