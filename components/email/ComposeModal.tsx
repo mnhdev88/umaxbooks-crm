@@ -44,6 +44,10 @@ export function ComposeModal({
 }: Props) {
   const supabase = createClient()
 
+  // Agent profile for template placeholders
+  const [agentName, setAgentName]   = useState('')
+  const [agentEmail, setAgentEmail] = useState('')
+
   // Form state
   const [providers, setProviders]     = useState<EmailProvider[]>([])
   const [templates, setTemplates]     = useState<EmailTemplate[]>([])
@@ -103,11 +107,18 @@ export function ComposeModal({
   }, [])
 
   async function loadProviders() {
-    const { data } = await supabase.from('email_providers').select('*').eq('is_active', true).order('is_default', { ascending: false })
+    const [{ data }, { data: profile }] = await Promise.all([
+      supabase.from('email_providers').select('*').eq('is_active', true).order('is_default', { ascending: false }),
+      supabase.from('profiles').select('full_name, email').eq('id', userId).single(),
+    ])
     setProviders(data || [])
     if (!initialDraft?.provider_id) {
       const def = (data || []).find((p: any) => p.is_default)
       if (def) setProviderId(def.id)
+    }
+    if (profile) {
+      setAgentName(profile.full_name || '')
+      setAgentEmail(profile.email || '')
     }
   }
 
@@ -194,17 +205,23 @@ export function ComposeModal({
 
   // Template apply
   function applyTemplate(t: EmailTemplate) {
-    const body = t.html_body
-      .replace(/\{\{client_name\}\}/g, leadName || 'there')
-      .replace(/\{\{business_name\}\}/g, businessName || 'your business')
-      .replace(/\{\{report_url\}\}/g, auditPdfUrl || '')
-    setHtmlBody(body)
+    const agencyName    = process.env.NEXT_PUBLIC_AGENCY_NAME    || 'Novelio Technologies'
+    const agencyPhone   = process.env.NEXT_PUBLIC_AGENCY_PHONE   || ''
+    const agencyWebsite = process.env.NEXT_PUBLIC_AGENCY_WEBSITE || 'noveliotech.com'
+
+    const replacePlaceholders = (str: string) => str
+      .replace(/\{\{client_name\}\}/g,    leadName     || 'there')
+      .replace(/\{\{business_name\}\}/g,  businessName || 'your business')
+      .replace(/\{\{report_url\}\}/g,     auditPdfUrl  || '')
+      .replace(/\{\{agent_name\}\}/g,     agentName    || agencyName)
+      .replace(/\{\{agent_email\}\}/g,    agentEmail   || '')
+      .replace(/\{\{agent_phone\}\}/g,    agencyPhone)
+      .replace(/\{\{agency_name\}\}/g,    agencyName)
+      .replace(/\{\{agency_website\}\}/g, agencyWebsite)
+
+    setHtmlBody(replacePlaceholders(t.html_body))
     setHtmlBodyVersion(v => v + 1)
-    if (t.subject) {
-      setSubject(t.subject
-        .replace(/\{\{business_name\}\}/g, businessName || 'your business')
-        .replace(/\{\{client_name\}\}/g, leadName || 'there'))
-    }
+    if (t.subject) setSubject(replacePlaceholders(t.subject))
   }
 
   // Storage file picker
