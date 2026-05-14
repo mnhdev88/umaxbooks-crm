@@ -733,7 +733,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       )}
 
       {/* ── Email Open Tracking ──────────────────────────────────────────── */}
-      {emailLogs.length > 0 && (
+      {!isDeveloper && emailLogs.length > 0 && (
         <div className="border border-slate-700 rounded-xl overflow-hidden">
           <button
             onClick={() => setShowLogs(v => !v)}
