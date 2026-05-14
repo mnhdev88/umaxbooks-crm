@@ -76,22 +76,50 @@ export async function POST(
 
   if (provider) {
     const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Novelio Technologies'
-    const downloadBtn = signed_pdf_url
-      ? `<p style="text-align:center;margin:24px 0"><a href="${signed_pdf_url}" style="background:#1F3A93;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600">Download Signed Agreement</a></p>`
+    const origin     = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://crm.noveliotech.com'
+    const viewUrl    = `${origin}/sign/${token}`
+
+    // Always provide a "View Agreement" link; also show PDF download if available
+    const pdfBtn = signed_pdf_url
+      ? `<p style="text-align:center;margin:8px 0">
+           <a href="${signed_pdf_url}" style="background:#1F3A93;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block">
+             ⬇ Download Signed Agreement (PDF)
+           </a>
+         </p>`
       : ''
+
+    const viewBtn = `<p style="text-align:center;margin:8px 0">
+        <a href="${viewUrl}" style="background:#f8f9fd;color:#1F3A93;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;display:inline-block;border:1.5px solid #1F3A93">
+          View Signed Agreement
+        </a>
+      </p>`
 
     const clientHtml = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#1F3A93">Agreement Signed – Thank You!</h2>
-        <p>Dear <strong>${contract.business_name}</strong>,</p>
-        <p>Your service agreement with <strong>${agencyName}</strong> has been signed successfully. A copy is available below.</p>
-        ${downloadBtn}
-        <p style="color:#9ca3af;font-size:12px">${agencyName} · support@noveliotech.com</p>
+        <div style="background:linear-gradient(90deg,#1F3A93,#4a6cf7);height:5px;border-radius:4px 4px 0 0"></div>
+        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+          <h2 style="color:#1F3A93;margin:0 0 16px">Agreement Signed – Thank You!</h2>
+          <p style="color:#374151;margin:0 0 8px">Dear <strong>${contract.business_name}</strong>,</p>
+          <p style="color:#374151;margin:0 0 24px">
+            Your service agreement with <strong>${agencyName}</strong> has been signed successfully on <strong>${client_sign_date}</strong>.
+            Your signed copy is available using the buttons below.
+          </p>
+          ${pdfBtn}
+          ${viewBtn}
+          <hr style="border:none;border-top:1px solid #f0f0f0;margin:24px 0">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;color:#374151">
+            <tr><td style="padding:4px 0;color:#9ca3af;width:120px">Package</td><td>${contract.package || '—'}</td></tr>
+            <tr><td style="padding:4px 0;color:#9ca3af">Total Amount</td><td><strong>$${contract.total_amount || '0'}</strong></td></tr>
+            <tr><td style="padding:4px 0;color:#9ca3af">Start Date</td><td>${contract.start_date || '—'}</td></tr>
+          </table>
+          <hr style="border:none;border-top:1px solid #f0f0f0;margin:24px 0">
+          <p style="color:#9ca3af;font-size:12px;margin:0">${agencyName} · support@noveliotech.com</p>
+        </div>
       </div>`
 
     const adminHtml = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <h2 style="color:#065f46">✅ Contract Signed</h2>
+        <h2 style="color:#065f46;margin:0 0 16px">✅ Contract Signed</h2>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr><td style="padding:6px 0;color:#6b7280;width:140px">Business</td><td style="color:#111"><strong>${contract.business_name}</strong></td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Signed by</td><td style="color:#111">${client_full_name}</td></tr>
@@ -101,7 +129,10 @@ export async function POST(
           <tr><td style="padding:6px 0;color:#6b7280">Date</td><td style="color:#111">${client_sign_date}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">IP Address</td><td style="color:#111">${clientIp}</td></tr>
         </table>
-        ${downloadBtn}
+        <div style="margin-top:20px">
+          ${pdfBtn}
+          ${viewBtn}
+        </div>
       </div>`
 
     try {
