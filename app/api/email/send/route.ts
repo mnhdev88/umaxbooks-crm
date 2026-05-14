@@ -32,11 +32,18 @@ export async function POST(req: NextRequest) {
 
   const service = createServiceClient()
 
-  // Get provider
-  const { data: provider } = await service.from('email_providers').select('*').eq('id', provider_id).single()
+  // Get provider + agent profile in parallel
+  const [{ data: provider }, { data: agentProfile }] = await Promise.all([
+    service.from('email_providers').select('*').eq('id', provider_id).single(),
+    service.from('profiles').select('full_name, email').eq('id', user.id).single(),
+  ])
   if (!provider) return NextResponse.json({ error: 'Email provider not found' }, { status: 400 })
 
-  const from = `${provider.from_name} <${provider.provider === 'gmail' ? provider.username : provider.from_email}>`
+  const providerEmail = provider.provider === 'gmail' ? provider.username : provider.from_email
+  // Show agent's name to the receiver, but send through the configured SMTP address
+  const agentDisplayName = agentProfile?.full_name || provider.from_name
+  const from    = `${agentDisplayName} <${providerEmail}>`
+  const replyTo = agentProfile?.email ? `${agentDisplayName} <${agentProfile.email}>` : undefined
 
   // If scheduling — save to email_sends and return (no tracking pixel for scheduled emails)
   if (scheduled_at) {
@@ -83,6 +90,7 @@ export async function POST(req: NextRequest) {
       const resend = new Resend(provider.api_key)
       const { error } = await resend.emails.send({
         from,
+        reply_to: replyTo,
         to: [to_email],
         cc: cc ? [cc] : undefined,
         bcc: bcc ? [bcc] : undefined,
@@ -102,7 +110,8 @@ export async function POST(req: NextRequest) {
         auth: { user: provider.username, pass: provider.password },
       })
       await transporter.sendMail({
-        from, to: to_email,
+        from, replyTo,
+        to: to_email,
         cc: cc || undefined,
         bcc: bcc || undefined,
         subject, html: finalHtml,
