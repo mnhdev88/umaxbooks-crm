@@ -318,20 +318,28 @@ export function ComposeModal({
           <div className="p-5 space-y-4">
 
             {/* From */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 w-16 shrink-0 text-right">From</span>
-              <select
-                value={providerId}
-                onChange={e => setProviderId(e.target.value)}
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
-              >
-                <option value="">— Select email provider —</option>
-                {providers.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.provider === 'gmail' ? p.username : p.from_email})
-                  </option>
-                ))}
-              </select>
+            <div className="flex gap-3">
+              <span className="text-xs text-slate-500 w-16 shrink-0 text-right pt-2">From</span>
+              <div className="flex-1 space-y-1.5">
+                <select
+                  value={providerId}
+                  onChange={e => setProviderId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                >
+                  <option value="">— Select email provider —</option>
+                  {providers.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.provider === 'gmail' ? p.username : p.from_email})
+                    </option>
+                  ))}
+                </select>
+                {(agentName || agentEmail) && (
+                  <p className="text-xs text-slate-500 px-1">
+                    Sent by: <span className="text-slate-300">{agentName}</span>
+                    {agentEmail && <span className="text-slate-400"> &lt;{agentEmail}&gt;</span>}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* To */}
