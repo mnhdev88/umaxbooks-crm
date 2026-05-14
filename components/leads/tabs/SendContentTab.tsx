@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import {
   FileText, Globe, Link2, Plus, X, Send, Mail, MessageCircle,
-  Clock, CheckCircle, Upload, Trash2, Sparkles, Copy, Check, Eye,
+  Clock, CheckCircle, Upload, Trash2, Sparkles, Copy, Check, Eye, ImageIcon,
+  MailOpen, MailCheck, ChevronDown, ChevronUp, RefreshCw,
 } from 'lucide-react'
 
 interface SendContentTabProps {
@@ -16,12 +17,23 @@ interface SendContentTabProps {
   userRole: string
 }
 
+interface EmailTrackingRow {
+  id: string
+  to_email: string
+  subject: string | null
+  first_opened_at: string | null
+  last_opened_at: string | null
+  opened_count: number
+  sent_at: string
+}
+
 type Channel = 'whatsapp' | 'email' | 'both'
 
 const TYPE_STYLES: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  pdf:  { label: 'PDF',  color: 'text-orange-500', icon: <FileText size={11} /> },
-  blog: { label: 'BLOG', color: 'text-purple-400', icon: <Globe size={11} /> },
-  link: { label: 'LINK', color: 'text-emerald-400', icon: <Link2 size={11} /> },
+  pdf:   { label: 'PDF',   color: 'text-orange-500', icon: <FileText size={11} /> },
+  blog:  { label: 'BLOG',  color: 'text-purple-400', icon: <Globe size={11} /> },
+  link:  { label: 'LINK',  color: 'text-emerald-400', icon: <Link2 size={11} /> },
+  image: { label: 'IMAGE', color: 'text-sky-400',     icon: <ImageIcon size={11} /> },
 }
 
 export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) {
@@ -39,11 +51,12 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
 
   // Add content modal
   const [showAdd, setShowAdd] = useState(false)
-  const [addType, setAddType] = useState<'pdf' | 'blog' | 'link'>('blog')
+  const [addType, setAddType] = useState<'pdf' | 'blog' | 'link' | 'image'>('blog')
   const [addTitle, setAddTitle] = useState('')
   const [addDesc, setAddDesc] = useState('')
   const [addUrl, setAddUrl] = useState('')
   const [addFile, setAddFile] = useState<File | null>(null)
+  const [addPreviewUrl, setAddPreviewUrl] = useState<string | null>(null)
   const [addGlobal, setAddGlobal] = useState(true)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -57,10 +70,15 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [loadingTemplate, setLoadingTemplate] = useState(false)
   const htmlFileRef = useRef<HTMLInputElement>(null)
 
+  // Email tracking
+  const [emailLogs, setEmailLogs] = useState<EmailTrackingRow[]>([])
+  const [showLogs, setShowLogs] = useState(false)
+  const [refreshingLogs, setRefreshingLogs] = useState(false)
+
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
   const canUploadTemplate = canEdit || userRole === 'developer'
 
-  useEffect(() => { fetchItems(); fetchEmailTemplate() }, [lead.id])
+  useEffect(() => { fetchItems(); fetchEmailTemplate(); fetchEmailLogs() }, [lead.id])
 
   async function fetchItems() {
     // Global items (lead_id IS NULL) + lead-specific items
@@ -115,6 +133,18 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     }
 
     setItems([...auto, ...base])
+  }
+
+  async function fetchEmailLogs(showLoader = false) {
+    if (showLoader) setRefreshingLogs(true)
+    const { data } = await supabase
+      .from('email_tracking')
+      .select('id, to_email, subject, first_opened_at, last_opened_at, opened_count, sent_at')
+      .eq('lead_id', lead.id)
+      .order('sent_at', { ascending: false })
+      .limit(20)
+    setEmailLogs((data as EmailTrackingRow[]) || [])
+    if (showLoader) setRefreshingLogs(false)
   }
 
   async function fetchEmailTemplate() {
@@ -198,12 +228,14 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
 
   async function handleAddContent() {
     if (!addTitle.trim()) return
+    if ((addType === 'pdf' || addType === 'image') && !addFile) return
     setSaving(true)
     try {
       let fileUrl: string | undefined
 
-      if (addType === 'pdf' && addFile) {
-        const path = `content-library/${Date.now()}_${addFile.name}`
+      if ((addType === 'pdf' || addType === 'image') && addFile) {
+        const folder = addType === 'image' ? 'content-library/images' : 'content-library'
+        const path = `${folder}/${Date.now()}_${addFile.name}`
         const { data: up } = await supabase.storage.from('crm-files').upload(path, addFile, { upsert: true })
         if (up) {
           const { data: urlData } = supabase.storage.from('crm-files').getPublicUrl(up.path)
@@ -215,13 +247,14 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
         type: addType,
         title: addTitle.trim(),
         description: addDesc.trim() || null,
-        url: addType !== 'pdf' ? addUrl.trim() || null : fileUrl || null,
+        url: (addType === 'pdf' || addType === 'image') ? fileUrl || null : addUrl.trim() || null,
         file_url: fileUrl || null,
-        lead_id: addGlobal ? null : lead.id,
+        lead_id: addType === 'image' ? lead.id : (addGlobal ? null : lead.id),
         created_by: userId,
       })
 
       setAddTitle(''); setAddDesc(''); setAddUrl(''); setAddFile(null)
+      setAddPreviewUrl(null)
       setShowAdd(false)
       fetchItems()
     } finally {
@@ -280,6 +313,8 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             message: message.trim(),
             links: selectedItems.map(i => ({ title: i.title, url: i.url || i.file_url })),
             htmlBody: templateHtml || undefined,
+            leadId: lead.id,
+            userId,
           }),
         })
         const data = await res.json()
@@ -308,6 +343,10 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       setResult({ ok, msg: msg || 'Sent successfully' })
       setSelected(new Set())
       setTemplateHtml(null)
+      if (channel === 'email' || channel === 'both') {
+        fetchEmailLogs()
+        setShowLogs(true)
+      }
     } finally {
       setSending(false)
     }
@@ -374,31 +413,42 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                 key={item.id}
                 onClick={() => toggleSelect(item.id)}
                 className={cn(
-                  'relative rounded-xl border p-3.5 cursor-pointer transition-all select-none',
+                  'relative rounded-xl border cursor-pointer transition-all select-none overflow-hidden',
                   isSelected
                     ? 'border-orange-500 bg-orange-950/20 shadow-[0_0_0_1px] shadow-orange-500/30'
                     : 'border-slate-700 bg-slate-800/60 hover:border-slate-500'
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className={cn('text-xs font-bold flex items-center gap-1 mb-1', color)}>
-                      {icon} {label}
-                    </span>
-                    <p className="text-sm font-semibold text-slate-100 leading-snug">{item.title}</p>
-                    {item.description && <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>}
-                    {!item.description && (item.url || item.file_url) && (
-                      <p className="text-xs text-slate-600 mt-0.5 truncate max-w-[200px]">{item.url || item.file_url}</p>
+                {item.type === 'image' && (item.file_url || item.url) && (
+                  <div className="w-full h-28 bg-slate-700/40 overflow-hidden">
+                    <img
+                      src={(item.file_url || item.url) as string}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="p-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className={cn('text-xs font-bold flex items-center gap-1 mb-1', color)}>
+                        {icon} {label}
+                      </span>
+                      <p className="text-sm font-semibold text-slate-100 leading-snug">{item.title}</p>
+                      {item.description && <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>}
+                      {!item.description && item.type !== 'image' && (item.url || item.file_url) && (
+                        <p className="text-xs text-slate-600 mt-0.5 truncate max-w-[200px]">{item.url || item.file_url}</p>
+                      )}
+                    </div>
+                    {!isAuto && canEdit && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(item.id) }}
+                        className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     )}
                   </div>
-                  {!isAuto && canEdit && (
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDelete(item.id) }}
-                      className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
                 </div>
               </div>
             )
@@ -410,7 +460,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             onClick={() => setShowAdd(true)}
             className="mt-3 flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 border border-dashed border-slate-700 hover:border-slate-500 rounded-xl px-4 py-2.5 w-full justify-center transition-colors"
           >
-            <Plus size={14} /> Upload new PDF / blog link
+            <Plus size={14} /> Upload PDF / image or add link
           </button>
         )}
       </div>
@@ -636,20 +686,86 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
         </div>
       )}
 
+      {/* ── Email Open Tracking ──────────────────────────────────────────── */}
+      {emailLogs.length > 0 && (
+        <div className="border border-slate-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowLogs(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-800/60 hover:bg-slate-800 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <MailOpen size={14} className="text-slate-400" />
+              <span className="text-xs font-semibold text-slate-300">Email Open Tracking</span>
+              <span className="text-xs text-slate-500">({emailLogs.length} sent)</span>
+              {emailLogs.some(l => l.first_opened_at) && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/40">
+                  {emailLogs.filter(l => l.first_opened_at).length} opened
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={e => { e.stopPropagation(); fetchEmailLogs(true) }}
+                className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                title="Refresh"
+              >
+                <RefreshCw size={12} className={refreshingLogs ? 'animate-spin' : ''} />
+              </button>
+              {showLogs ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+            </div>
+          </button>
+
+          {showLogs && (
+            <div className="divide-y divide-slate-800">
+              {emailLogs.map(log => {
+                const opened = !!log.first_opened_at
+                return (
+                  <div key={log.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-slate-300 font-medium truncate">{log.subject || '—'}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        To: {log.to_email} · Sent {new Date(log.sent_at).toLocaleString()}
+                      </p>
+                      {opened && (
+                        <p className="text-[11px] text-green-400 mt-0.5">
+                          First opened {new Date(log.first_opened_at!).toLocaleString()}
+                          {log.opened_count > 1 && ` · ${log.opened_count} opens total`}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 mt-0.5">
+                      {opened ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-green-400">
+                          <MailCheck size={13} /> Opened
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                          <Mail size={13} /> Not opened
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Add Content Modal ─────────────────────────────────────────────── */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowAdd(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => { setShowAdd(false); setAddPreviewUrl(null) }}>
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-100">Add to Content Library</p>
-              <button onClick={() => setShowAdd(false)} className="text-slate-500 hover:text-slate-300"><X size={16} /></button>
+              <button onClick={() => { setShowAdd(false); setAddPreviewUrl(null) }} className="text-slate-500 hover:text-slate-300"><X size={16} /></button>
             </div>
 
-            {/* Type */}
-            <div className="flex gap-2">
-              {(['pdf', 'blog', 'link'] as const).map(t => (
-                <button key={t} onClick={() => setAddType(t)}
-                  className={cn('flex-1 py-1.5 rounded-lg text-xs font-semibold border uppercase tracking-wide transition-all',
+            {/* Type tabs */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['pdf', 'blog', 'link', 'image'] as const).map(t => (
+                <button key={t} onClick={() => { setAddType(t); setAddFile(null); setAddPreviewUrl(null) }}
+                  className={cn('py-1.5 rounded-lg text-xs font-semibold border uppercase tracking-wide transition-all',
                     addType === t ? 'border-orange-500 text-orange-400 bg-orange-900/20' : 'border-slate-700 text-slate-500 hover:border-slate-500')}>
                   {t}
                 </button>
@@ -662,41 +778,101 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
               onChange={e => setAddTitle(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
             />
-            <input
-              placeholder="Short description (optional)"
-              value={addDesc}
-              onChange={e => setAddDesc(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
-            />
 
-            {addType === 'pdf' ? (
-              <div
-                onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl px-4 py-5 flex flex-col items-center gap-2 cursor-pointer"
-              >
-                <Upload size={20} className="text-slate-500" />
-                <p className="text-xs text-slate-400">{addFile ? addFile.name : 'Click to upload PDF'}</p>
-                <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={e => setAddFile(e.target.files?.[0] || null)} />
-              </div>
+            {addType === 'image' ? (
+              <>
+                {/* Image drop zone */}
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className={cn(
+                    'border-2 border-dashed rounded-xl cursor-pointer transition-colors overflow-hidden',
+                    addFile ? 'border-sky-500/50' : 'border-slate-700 hover:border-slate-500'
+                  )}
+                >
+                  {addPreviewUrl ? (
+                    <div className="relative">
+                      <img src={addPreviewUrl} alt="preview" className="w-full max-h-48 object-contain bg-slate-800" />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5">
+                        <p className="text-xs text-slate-300 truncate">{addFile?.name}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 flex flex-col items-center gap-2">
+                      <ImageIcon size={24} className="text-slate-500" />
+                      <p className="text-xs text-slate-400 text-center">
+                        Click to upload image<br />
+                        <span className="text-slate-600">PNG, JPG, GIF, WebP, SVG, AVIF, HEIC…</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,.heic,.heif,.avif"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0] || null
+                    setAddFile(file)
+                    if (file) {
+                      if (!addTitle.trim()) setAddTitle(file.name.replace(/\.[^.]+$/, ''))
+                      setAddPreviewUrl(URL.createObjectURL(file))
+                    } else {
+                      setAddPreviewUrl(null)
+                    }
+                  }}
+                />
+                {/* Notes */}
+                <textarea
+                  placeholder="Notes (optional) — e.g. 'before redesign screenshot', 'logo variation'…"
+                  value={addDesc}
+                  onChange={e => setAddDesc(e.target.value)}
+                  rows={2}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
+                />
+              </>
             ) : (
-              <input
-                placeholder={addType === 'blog' ? 'Blog URL' : 'Link URL'}
-                value={addUrl}
-                onChange={e => setAddUrl(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
-              />
+              <>
+                <input
+                  placeholder="Short description (optional)"
+                  value={addDesc}
+                  onChange={e => setAddDesc(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+                />
+                {addType === 'pdf' ? (
+                  <div
+                    onClick={() => fileRef.current?.click()}
+                    className="border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl px-4 py-5 flex flex-col items-center gap-2 cursor-pointer"
+                  >
+                    <Upload size={20} className="text-slate-500" />
+                    <p className="text-xs text-slate-400">{addFile ? addFile.name : 'Click to upload PDF'}</p>
+                    <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={e => setAddFile(e.target.files?.[0] || null)} />
+                  </div>
+                ) : (
+                  <input
+                    placeholder={addType === 'blog' ? 'Blog URL' : 'Link URL'}
+                    value={addUrl}
+                    onChange={e => setAddUrl(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+                  />
+                )}
+                {/* Scope (not shown for image — always lead-specific) */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={addGlobal} onChange={e => setAddGlobal(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500" />
+                  <span className="text-xs text-slate-400">Add to global library (visible for all leads)</span>
+                </label>
+              </>
             )}
 
-            {/* Scope */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={addGlobal} onChange={e => setAddGlobal(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500" />
-              <span className="text-xs text-slate-400">Add to global library (visible for all leads)</span>
-            </label>
-
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleAddContent} loading={saving} disabled={!addTitle.trim()}>
+              <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setAddPreviewUrl(null) }}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={handleAddContent}
+                loading={saving}
+                disabled={!addTitle.trim() || ((addType === 'pdf' || addType === 'image') && !addFile)}
+              >
                 <Plus size={13} /> Add
               </Button>
             </div>

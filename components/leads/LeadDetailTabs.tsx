@@ -13,10 +13,6 @@ import { NotesTab } from './tabs/NotesTab'
 import { SendContentTab } from './tabs/SendContentTab'
 import { BeforeAfterTab } from './tabs/BeforeAfterTab'
 import { cn } from '@/lib/utils'
-import { LeadForm } from './LeadForm'
-import { Modal } from '@/components/ui/Modal'
-import { Button } from '@/components/ui/Button'
-import { Edit2 } from 'lucide-react'
 
 const ALL_TABS = [
   { id: 'audits',       label: 'Audits',         roles: ['admin', 'agent', 'sales_agent', 'developer'] },
@@ -42,7 +38,6 @@ interface LeadDetailTabsProps {
 export function LeadDetailTabs({ lead, profile, agents, developers, userId }: LeadDetailTabsProps) {
   const TABS = ALL_TABS.filter(t => t.roles.includes(profile.role))
   const [activeTab, setActiveTab] = useState(TABS[0]?.id || 'activity')
-  const [showEditModal, setShowEditModal] = useState(false)
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -59,36 +54,24 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
               <option key={tab.id} value={tab.id}>{tab.label}</option>
             ))}
           </select>
-          {profile.role !== 'developer' && (
-            <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)} className="flex-shrink-0">
-              <Edit2 size={13} /> Edit
-            </Button>
-          )}
         </div>
 
         {/* Desktop: tab buttons */}
-        <div className="hidden md:flex items-center justify-between overflow-x-auto scrollbar-hide">
-          <div className="flex">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap',
-                  activeTab === tab.id
-                    ? 'border-orange-500 text-orange-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-300'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {profile.role !== 'developer' && (
-            <Button size="sm" variant="ghost" onClick={() => setShowEditModal(true)} className="ml-2 flex-shrink-0">
-              <Edit2 size={13} /> Edit Lead
-            </Button>
-          )}
+        <div className="hidden md:flex overflow-x-auto scrollbar-hide">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap',
+                activeTab === tab.id
+                  ? 'border-orange-500 text-orange-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -133,15 +116,6 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
           <SendContentTab lead={lead} userId={userId} userRole={profile.role} />
         )}
       </div>
-
-      <Modal open={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Lead" size="lg">
-        <LeadForm
-          lead={lead}
-          agents={agents}
-          userId={userId}
-          onSuccess={() => setShowEditModal(false)}
-        />
-      </Modal>
     </div>
   )
 }

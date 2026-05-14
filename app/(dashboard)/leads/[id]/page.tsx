@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
 import { LeadDetailTabsClient } from '@/components/leads/LeadDetailTabsClient'
+import { EditLeadButton } from '@/components/leads/EditLeadButton'
 import { Profile, Lead } from '@/types'
 import { formatDate } from '@/lib/utils'
 import {
@@ -240,6 +241,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <InfoRow icon={Flag}    label="Priority"        value={lead.priority} iconCls={PRIORITY_CLS[lead.priority || 'Normal']} />
             <InfoRow icon={Tag}     label="Pipeline Status" value={lead.status} iconCls="text-orange-400" />
             <InfoRow icon={Tag}     label="Lead Source"     value={lead.source} iconCls="text-slate-400" />
+            <EditLeadButton
+              lead={lead as Lead}
+              agents={(agents || []) as Profile[]}
+              userId={user.id}
+              role={profile.role}
+            />
           </Section>
 
           {/* Notes */}

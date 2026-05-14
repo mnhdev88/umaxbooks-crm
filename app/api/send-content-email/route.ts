@@ -1,33 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { createServiceClient } from '@/lib/supabase/service'
+
+function injectTrackingPixel(html: string, pixelUrl: string): string {
+  const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;border:0;width:1px;height:1px;" alt="" />`
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${pixel}</body>`)
+  }
+  return html + pixel
+}
 
 export async function POST(req: NextRequest) {
-
-  const { to, clientName, businessName, message, links, htmlBody } = await req.json() as {
+  const { to, clientName, businessName, message, links, htmlBody, leadId, userId } = await req.json() as {
     to: string
     clientName: string
     businessName: string
     message?: string
     links: Array<{ title: string; url?: string }>
     htmlBody?: string
+    leadId?: string
+    userId?: string
   }
 
   if (!to || !links?.length) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // If a full HTML body was provided (client email template), send it directly
-  if (htmlBody) {
-    const { data, error } = await sendEmail({
-      to,
-      subject: `For ${businessName} — ${process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'}`,
-      html: htmlBody,
-    })
-    if (error) return NextResponse.json({ error }, { status: 400 })
-    return NextResponse.json({ success: true, id: data?.id })
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'
+  const subject = htmlBody
+    ? `For ${businessName} — ${agencyName}`
+    : `Resources for ${businessName} — ${agencyName}`
+
+  // Create tracking record before sending so we have the token to embed
+  const supabase = createServiceClient()
+  let trackingToken: string | null = null
+  let trackingId: string | null = null
+
+  if (leadId) {
+    const { data: tracking } = await supabase
+      .from('email_tracking')
+      .insert({ lead_id: leadId, user_id: userId ?? null, to_email: to, subject })
+      .select('id, token')
+      .single()
+
+    if (tracking) {
+      trackingToken = tracking.token
+      trackingId = tracking.id
+    }
   }
 
-  const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Noveliotech CRM'
+  const pixelUrl = trackingToken ? `${origin}/api/track/open/${trackingToken}` : null
+
+  // If a full HTML body was provided (client email template), send it directly
+  if (htmlBody) {
+    const finalHtml = pixelUrl ? injectTrackingPixel(htmlBody, pixelUrl) : htmlBody
+    const { data, error } = await sendEmail({ to, subject, html: finalHtml })
+    if (error) return NextResponse.json({ error }, { status: 400 })
+    return NextResponse.json({ success: true, id: data?.id, trackingId })
+  }
 
   const linksHtml = links
     .filter(l => l.url)
@@ -83,12 +114,9 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`
 
-  const { data, error } = await sendEmail({
-    to,
-    subject: `Resources for ${businessName} — ${agencyName}`,
-    html,
-  })
+  const finalHtml = pixelUrl ? injectTrackingPixel(html, pixelUrl) : html
+  const { data, error } = await sendEmail({ to, subject, html: finalHtml })
 
   if (error) return NextResponse.json({ error }, { status: 400 })
-  return NextResponse.json({ success: true, id: data?.id })
+  return NextResponse.json({ success: true, id: data?.id, trackingId })
 }

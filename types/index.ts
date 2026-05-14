@@ -255,7 +255,7 @@ export interface FollowUpStep {
 
 export interface ContentItem {
   id: string
-  type: 'pdf' | 'blog' | 'link'
+  type: 'pdf' | 'blog' | 'link' | 'image' | 'email_template'
   title: string
   description?: string
   url?: string

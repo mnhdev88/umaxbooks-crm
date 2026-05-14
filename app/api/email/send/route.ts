@@ -12,6 +12,12 @@ async function fetchAttachment(url: string, name: string) {
   return { filename: name, content: buffer, contentType }
 }
 
+function injectTrackingPixel(html: string, pixelUrl: string): string {
+  const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;border:0;width:1px;height:1px;" alt="" />`
+  if (html.includes('</body>')) return html.replace('</body>', `${pixel}</body>`)
+  return html + pixel
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -32,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const from = `${provider.from_name} <${provider.provider === 'gmail' ? provider.username : provider.from_email}>`
 
-  // If scheduling — save to email_sends and return
+  // If scheduling — save to email_sends and return (no tracking pixel for scheduled emails)
   if (scheduled_at) {
     const { error } = await service.from('email_sends').insert({
       lead_id, sent_by: user.id, provider_id,
@@ -43,6 +49,24 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, scheduled: true })
   }
+
+  // Create tracking record before sending so we can embed the pixel
+  let trackingToken: string | null = null
+  if (html_body) {
+    const { data: tracking } = await service
+      .from('email_tracking')
+      .insert({ lead_id, user_id: user.id, to_email, subject })
+      .select('token')
+      .single()
+    if (tracking) trackingToken = tracking.token
+  }
+
+  // Inject tracking pixel into HTML body
+  // Use NEXT_PUBLIC_APP_URL so the pixel URL works when sending from localhost
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  const finalHtml = trackingToken && html_body
+    ? injectTrackingPixel(html_body, `${origin}/api/track/open/${trackingToken}`)
+    : html_body
 
   // Fetch attachment buffers
   let attachmentData: any[] = []
@@ -63,7 +87,7 @@ export async function POST(req: NextRequest) {
         cc: cc ? [cc] : undefined,
         bcc: bcc ? [bcc] : undefined,
         subject,
-        html: html_body,
+        html: finalHtml,
         attachments: attachmentData.map(a => ({
           filename: a.filename,
           content: a.content.toString('base64'),
@@ -81,17 +105,18 @@ export async function POST(req: NextRequest) {
         from, to: to_email,
         cc: cc || undefined,
         bcc: bcc || undefined,
-        subject, html: html_body,
+        subject, html: finalHtml,
         attachments: attachmentData,
       })
     }
 
-    // Log to email_sends
+    // Log to email_sends (store tracking_token so EmailHistory can show open status)
     await service.from('email_sends').insert({
       lead_id, sent_by: user.id, provider_id,
       from_email: from, to_email, cc: cc || null, bcc: bcc || null,
-      subject, html_body, attachments,
+      subject, html_body: finalHtml, attachments,
       status: 'sent', sent_at: new Date().toISOString(),
+      tracking_token: trackingToken,
     })
 
     // Activity log
