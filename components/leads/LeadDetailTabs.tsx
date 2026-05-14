@@ -12,6 +12,7 @@ import { ActivityTab } from './tabs/ActivityTab'
 import { NotesTab } from './tabs/NotesTab'
 import { SendContentTab } from './tabs/SendContentTab'
 import { BeforeAfterTab } from './tabs/BeforeAfterTab'
+import { ContractTab } from '@/components/contracts/ContractTab'
 import { cn } from '@/lib/utils'
 
 const ALL_TABS = [
@@ -20,6 +21,7 @@ const ALL_TABS = [
   { id: 'demo',         label: 'Demo',           roles: ['admin', 'sales_agent', 'developer'] },
   { id: 'appointments', label: 'Calls & Appts',  roles: ['admin', 'sales_agent'] },
   { id: 'deal',         label: 'Deal',           roles: ['admin', 'sales_agent'] },
+  { id: 'contract',     label: 'Contract',       roles: ['admin'] },
   { id: 'revisions',    label: 'Revisions',      roles: ['admin', 'sales_agent'] },
   { id: 'live',         label: 'Live',           roles: ['admin', 'sales_agent'] },
   { id: 'before-after', label: 'Before / After', roles: ['admin', 'sales_agent'] },
@@ -105,6 +107,9 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId }: Le
         )}
         {activeTab === 'deal' && (
           <DealTab leadId={lead.id} userId={userId} userRole={profile.role} />
+        )}
+        {activeTab === 'contract' && (
+          <ContractTab lead={lead} profile={profile} userId={userId} />
         )}
         {activeTab === 'revisions' && (
           <RevisionTab leadId={lead.id} leadSlug={lead.slug} userId={userId} userRole={profile.role} />

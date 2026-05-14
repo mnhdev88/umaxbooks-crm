@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Noveliotech CRM",
   description: "Digital Agency CRM Platform",
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({
