@@ -750,13 +750,16 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={e => { e.stopPropagation(); fetchEmailLogs(true) }}
-                className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                onKeyDown={e => e.key === 'Enter' && fetchEmailLogs(true)}
+                className="text-slate-500 hover:text-slate-300 transition-colors p-1 cursor-pointer"
                 title="Refresh"
               >
                 <RefreshCw size={12} className={refreshingLogs ? 'animate-spin' : ''} />
-              </button>
+              </div>
               {showLogs ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
             </div>
           </button>
