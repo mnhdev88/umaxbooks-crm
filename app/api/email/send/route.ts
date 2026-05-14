@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       const resend = new Resend(provider.api_key)
       const { error } = await resend.emails.send({
         from,
-        reply_to: replyTo,
+        replyTo,
         to: [to_email],
         cc: cc ? [cc] : undefined,
         bcc: bcc ? [bcc] : undefined,
