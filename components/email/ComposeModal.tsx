@@ -112,20 +112,13 @@ export function ComposeModal({
       supabase.from('profiles').select('full_name, email').eq('id', userId).single(),
     ])
     setProviders(data || [])
-    const def = (data || []).find((p: any) => p.is_default)
-    if (!initialDraft?.provider_id && def) setProviderId(def.id)
-
+    if (!initialDraft?.provider_id) {
+      const def = (data || []).find((p: any) => p.is_default)
+      if (def) setProviderId(def.id)
+    }
     if (profile) {
       setAgentName(profile.full_name || '')
       setAgentEmail(profile.email || '')
-      // Auto-CC the company email if it differs from the agent's email
-      if (!initialDraft?.cc && def) {
-        const companyEmail = def.provider === 'gmail' ? def.username : def.from_email
-        if (companyEmail && companyEmail !== profile.email) {
-          setCc(companyEmail)
-          setShowCcBcc(true)
-        }
-      }
     }
   }
 
@@ -336,7 +329,7 @@ export function ComposeModal({
                   <option value="">— Select email provider —</option>
                   {providers.map(p => (
                     <option key={p.id} value={p.id}>
-                      {agentName || p.from_name} &lt;{agentEmail || (p.provider === 'gmail' ? p.username : p.from_email)}&gt;
+                      {p.name} ({p.provider === 'gmail' ? p.username : p.from_email})
                     </option>
                   ))}
                 </select>
