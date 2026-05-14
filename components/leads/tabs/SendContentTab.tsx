@@ -75,8 +75,9 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [showLogs, setShowLogs] = useState(false)
   const [refreshingLogs, setRefreshingLogs] = useState(false)
 
+  const isDeveloper = userRole === 'developer'
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
-  const canUploadTemplate = canEdit || userRole === 'developer'
+  const canUploadTemplate = canEdit || isDeveloper
 
   useEffect(() => { fetchItems(); fetchEmailTemplate(); fetchEmailLogs() }, [lead.id])
 
@@ -402,12 +403,61 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
 
       {/* ── Content Library ──────────────────────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Content Library</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            {isDeveloper ? 'Uploaded Content & Assets' : 'Content Library'}
+          </p>
+          {isDeveloper && (
+            <span className="text-[10px] text-slate-600 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
+              View only
+            </span>
+          )}
+        </div>
+
+        {items.length === 0 && (
+          <p className="text-xs text-slate-600 text-center py-6">No content uploaded yet.</p>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {items.map(item => {
             const isSelected = selected.has(item.id)
             const { label, color, icon } = TYPE_STYLES[item.type] || TYPE_STYLES.link
             const isAuto = item.id.startsWith('__')
+            const fileUrl = (item.file_url || item.url) as string | undefined
+
+            if (isDeveloper) {
+              // Developer: card opens the file directly, no selection
+              return (
+                <a
+                  key={item.id}
+                  href={fileUrl || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative rounded-xl border border-slate-700 bg-slate-800/60 hover:border-orange-500/50 hover:bg-slate-800 transition-all overflow-hidden group"
+                >
+                  {item.type === 'image' && fileUrl && (
+                    <div className="w-full h-28 bg-slate-700/40 overflow-hidden">
+                      <img src={fileUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    </div>
+                  )}
+                  <div className="p-3.5">
+                    <span className={cn('text-xs font-bold flex items-center gap-1 mb-1', color)}>
+                      {icon} {label}
+                    </span>
+                    <p className="text-sm font-semibold text-slate-100 leading-snug">{item.title}</p>
+                    {item.description && <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>}
+                    {fileUrl && item.type !== 'image' && (
+                      <p className="text-xs text-slate-600 mt-1 truncate max-w-[200px]">{fileUrl}</p>
+                    )}
+                    <p className="text-[10px] text-orange-400 mt-2 font-medium group-hover:underline">
+                      {item.type === 'pdf' ? '⬇ Open PDF' : item.type === 'image' ? '🖼 View Image' : '🔗 Open Link'}
+                    </p>
+                  </div>
+                </a>
+              )
+            }
+
+            // Admin / sales agent: selectable cards
             return (
               <div
                 key={item.id}
@@ -419,13 +469,9 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                     : 'border-slate-700 bg-slate-800/60 hover:border-slate-500'
                 )}
               >
-                {item.type === 'image' && (item.file_url || item.url) && (
+                {item.type === 'image' && fileUrl && (
                   <div className="w-full h-28 bg-slate-700/40 overflow-hidden">
-                    <img
-                      src={(item.file_url || item.url) as string}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={fileUrl} alt={item.title} className="w-full h-full object-cover" />
                   </div>
                 )}
                 <div className="p-3.5">
@@ -436,8 +482,8 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
                       </span>
                       <p className="text-sm font-semibold text-slate-100 leading-snug">{item.title}</p>
                       {item.description && <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>}
-                      {!item.description && item.type !== 'image' && (item.url || item.file_url) && (
-                        <p className="text-xs text-slate-600 mt-0.5 truncate max-w-[200px]">{item.url || item.file_url}</p>
+                      {!item.description && item.type !== 'image' && fileUrl && (
+                        <p className="text-xs text-slate-600 mt-0.5 truncate max-w-[200px]">{fileUrl}</p>
                       )}
                     </div>
                     {!isAuto && canEdit && (
@@ -589,7 +635,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       )}
 
       {/* ── AI Cold Email Generator ──────────────────────────────────────── */}
-      <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4 space-y-3">
+      {!isDeveloper && <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-300">AI Cold Email Generator</p>
@@ -610,14 +656,14 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500 resize-none"
           />
         )}
-      </div>
+      </div>}
 
-      {selected.size === 0 && (
+      {!isDeveloper && selected.size === 0 && (
         <p className="text-xs text-slate-500 text-center">Select one or more items above to send.</p>
       )}
 
       {/* ── Send Via ─────────────────────────────────────────────────────── */}
-      {selected.size > 0 && (
+      {!isDeveloper && selected.size > 0 && (
         <div className="space-y-4">
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Send Via</p>
