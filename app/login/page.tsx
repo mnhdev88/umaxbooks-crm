@@ -39,7 +39,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="bg-white rounded-2xl px-6 py-3 mb-5 shadow-lg">
             <Image
-              src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
+              src="https://noveliotech.com/logo.png"
               alt="Novelio"
               width={180}
               height={54}

@@ -103,7 +103,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       <div className="px-5 py-5 border-b border-slate-800 flex items-center justify-between">
         <div className="bg-white rounded-xl px-3 py-1.5">
           <Image
-            src="https://noveliotech.com/wp-content/uploads/2026/04/Novelio-final-logo-n-blue.png"
+            src="https://noveliotech.com/logo.png"
             alt="Novelio"
             width={120}
             height={32}
