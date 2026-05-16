@@ -382,27 +382,43 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
       } catch { /* best-effort */ }
 
 
-      // Generate PDF from a clean HTML string — html2pdf manages the container
-      // internally, avoiding html2canvas viewport-clipping issues with off-screen elements.
+      // Generate PDF using html2pdf. html2pdf wraps the source HTML in a container
+      // with visibility:hidden — we use onclone to make it visible before html2canvas
+      // renders, otherwise the canvas (and PDF) comes out blank.
       let pdf_base64: string | null = null
       if (window.html2pdf) {
-        const htmlStr = buildContractPdfHtml(
-          contract, payment, client_signature, geoData, clientMeta, ACKS,
-        )
-        const blob: Blob = await window.html2pdf().set({
-          margin:      [8, 8, 8, 8],
-          filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
-          image:       { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 1.5, useCORS: true, logging: false },
-          jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        }).from(htmlStr).outputPdf('blob')
+        try {
+          const htmlStr = buildContractPdfHtml(
+            contract, payment, client_signature, geoData, clientMeta, ACKS,
+          )
+          const blob: Blob = await window.html2pdf().set({
+            margin:      [8, 8, 8, 8],
+            filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
+            image:       { type: 'jpeg', quality: 0.95 },
+            html2canvas: {
+              scale:     1.5,
+              useCORS:   true,
+              logging:   false,
+              // html2pdf puts content in visibility:hidden; fix before capture
+              onclone: (clonedDoc: Document) => {
+                clonedDoc.querySelectorAll<HTMLElement>('[style*="visibility"]').forEach(el => {
+                  el.style.visibility = 'visible'
+                })
+              },
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          }).from(htmlStr).toPdf().outputPdf('blob')
 
-        pdf_base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload  = () => resolve((reader.result as string).split(',')[1])
-          reader.onerror = reject
-          reader.readAsDataURL(blob)
-        })
+          pdf_base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload  = () => resolve((reader.result as string).split(',')[1])
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+        } catch (pdfErr) {
+          console.error('PDF generation error:', pdfErr)
+          // Non-fatal — contract will be saved without an attached PDF
+        }
       }
 
       const res = await fetch(`/api/contracts/${token}/sign`, {
