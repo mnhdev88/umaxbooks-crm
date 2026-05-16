@@ -6,7 +6,7 @@ import { useRef, useState, useEffect } from 'react'
 // Build a self-contained, inline-styled div for PDF capture.
 // Using the live React form DOM is unreliable (canvas, React state, CSS classes).
 // ---------------------------------------------------------------------------
-function buildContractPdfEl(
+function buildContractPdfHtml(
   contract: any,
   payment: {
     name_on_card: string; card_type: string; card_last_4: string
@@ -17,7 +17,7 @@ function buildContractPdfEl(
   geoInfo: { ip: string; city: string; region: string; country: string; isp: string },
   clientMeta: { timezone: string; screen: string; language: string; signed_at_utc: string },
   acks: readonly string[],
-): HTMLDivElement {
+): string {
   const f = (v: any) => String(v ?? '—')
   const location = [geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(', ') || 'Recorded'
 
@@ -37,10 +37,7 @@ function buildContractPdfEl(
   const table = (...rows: string[]) =>
     `<table style="width:100%;border-collapse:collapse;">${rows.join('')}</table>`
 
-  const wrap = document.createElement('div')
-  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff;font-family:Arial,sans-serif;'
-
-  wrap.innerHTML = `
+  return `
 <div style="max-width:800px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;color:#111;font-size:14px;">
   <div style="height:5px;background:linear-gradient(90deg,#1F3A93,#4a6cf7,#b8902a);"></div>
 
@@ -178,8 +175,6 @@ function buildContractPdfEl(
   </div>
 </div>`
 
-  document.body.appendChild(wrap)
-  return wrap
 }
 
 const CSS = `
@@ -387,30 +382,27 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
       } catch { /* best-effort */ }
 
 
-      // Generate PDF from a clean, self-contained element (not the live React form)
+      // Generate PDF from a clean HTML string — html2pdf manages the container
+      // internally, avoiding html2canvas viewport-clipping issues with off-screen elements.
       let pdf_base64: string | null = null
       if (window.html2pdf) {
-        const pdfEl = buildContractPdfEl(
+        const htmlStr = buildContractPdfHtml(
           contract, payment, client_signature, geoData, clientMeta, ACKS,
         )
-        try {
-          const blob: Blob = await window.html2pdf().set({
-            margin:      [8, 8, 8, 8],
-            filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
-            image:       { type: 'jpeg', quality: 0.95 },
-            html2canvas: { scale: 1.5, useCORS: true, logging: false },
-            jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          }).from(pdfEl).outputPdf('blob')
+        const blob: Blob = await window.html2pdf().set({
+          margin:      [8, 8, 8, 8],
+          filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
+          image:       { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 1.5, useCORS: true, logging: false },
+          jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }).from(htmlStr).outputPdf('blob')
 
-          pdf_base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload  = () => resolve((reader.result as string).split(',')[1])
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-        } finally {
-          document.body.removeChild(pdfEl)
-        }
+        pdf_base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload  = () => resolve((reader.result as string).split(',')[1])
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
       }
 
       const res = await fetch(`/api/contracts/${token}/sign`, {
