@@ -76,7 +76,9 @@ function SetPasswordForm() {
       return
     }
 
-    router.push('/portal')
+    // Hard navigation ensures the middleware re-reads the fresh session cookies
+    // and the client portal loads with the correct profile (not a stale server cache).
+    window.location.href = '/portal'
   }
 
   return (

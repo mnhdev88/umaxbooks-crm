@@ -57,6 +57,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
+  // Upsert the profile now so the client's portal works immediately on first login.
+  // We can't rely solely on the DB trigger because it may not populate lead_id / role
+  // from user_metadata in all Supabase versions.
+  const userId = (linkData as any)?.user?.id
+  if (userId) {
+    await adminSupabase.from('profiles').upsert(
+      { id: userId, full_name: clientName, role: 'client', lead_id },
+      { onConflict: 'id' }
+    )
+  }
+
   // Take Supabase's action_link (correct token format) and override redirect_to.
   // We cannot construct the URL from hashed_token — the verify endpoint expects the raw
   // email_otp token, not the hash; using hashed_token produces an otp_expired error.
