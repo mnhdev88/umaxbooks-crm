@@ -26,10 +26,15 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const path = request.nextUrl.pathname
-  const isAuthPage = path.startsWith('/login')
-  const isPublicApi = path.startsWith('/api/public')
 
-  if (!user && !isAuthPage && !isPublicApi) {
+  // Public routes — no auth required
+  const isAuthPage    = path.startsWith('/login')
+  const isPublicApi   = path.startsWith('/api/public')
+  const isSigningPage = path.startsWith('/sign/')
+  // /api/contracts/{token} and /api/contracts/{token}/sign — but NOT the bare /api/contracts (admin list/create)
+  const isSigningApi  = /^\/api\/contracts\/[^/]/.test(path)
+
+  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

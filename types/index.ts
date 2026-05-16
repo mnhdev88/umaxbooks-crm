@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'developer'
+export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'developer' | 'client'
 
 export type LeadSource =
   | 'GMB'
@@ -76,6 +76,7 @@ export interface Profile {
   full_name: string
   role: UserRole
   avatar_url?: string
+  lead_id?: string
   created_at: string
 }
 
@@ -225,6 +226,36 @@ export interface LiveSite {
   go_live_date?: string
   hosting_provider?: string
   domain_status?: string
+  domain_registrar?: string
+  domain_expiry?: string
+  hosting_expiry?: string
+  ssl_expiry?: string
+  hosting_cpanel_url?: string
+  maintenance_plan?: boolean
+  maintenance_renewal_date?: string
+  maintenance_monthly_amt?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ClientEmail {
+  id: string
+  lead_id: string
+  email_address: string
+  label?: string
+  provider?: string
+  created_at: string
+}
+
+export interface SupportRequest {
+  id: string
+  lead_id: string
+  client_id: string
+  title: string
+  description?: string
+  type: 'revision' | 'bug' | 'content' | 'other'
+  status: 'open' | 'in_progress' | 'resolved'
+  developer_note?: string
   created_at: string
   updated_at: string
 }

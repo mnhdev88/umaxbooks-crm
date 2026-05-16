@@ -14,6 +14,7 @@ import {
   Activity,
   MonitorPlay,
   ClipboardList,
+  Globe,
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -51,6 +52,7 @@ const adminNav = [
   { href: '/developer-queue', label: 'Dev Queue',         icon: Code2 },
   { href: '/approvals',       label: 'Approvals',         icon: ClipboardList },
   { href: '/reports',         label: 'Reports',           icon: BarChart3 },
+  { href: '/clients',         label: 'Clients',           icon: Globe },
   { href: '/settings',        label: 'Settings',          icon: Settings },
 ]
 

@@ -14,7 +14,8 @@ import {
 import { CopyButton } from '@/components/ui/CopyButton'
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params:       Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string }>
 }
 
 function InfoRow({ icon: Icon, label, value, href, iconCls = 'text-orange-400' }: {
@@ -54,8 +55,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export default async function LeadDetailPage({ params }: PageProps) {
-  const { id } = await params
+export default async function LeadDetailPage({ params, searchParams }: PageProps) {
+  const { id }  = await params
+  const { tab } = await searchParams
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -287,6 +289,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
           agents={(agents || []) as Profile[]}
           developers={(developers || []) as Profile[]}
           userId={user.id}
+          initialTab={tab}
         />
       </div>
     </>

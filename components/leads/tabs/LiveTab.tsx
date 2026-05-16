@@ -58,6 +58,11 @@ export function LiveTab({ leadId, userId, userRole }: LiveTabProps) {
       await supabase.from('live_sites').insert(payload)
     }
 
+    // Auto-set lead status to Live when a final URL is provided
+    if (form.final_url) {
+      await supabase.from('leads').update({ status: 'Live' }).eq('id', leadId)
+    }
+
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
       user_id: userId,
@@ -137,6 +142,9 @@ export function LiveTab({ leadId, userId, userRole }: LiveTabProps) {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={liveSite ? 'Edit Live Site' : 'Add Live Site'}>
         <div className="space-y-4">
+          <p className="text-xs text-slate-500 -mt-1">
+            Saving a Final URL will automatically set the lead status to <span className="text-green-400 font-medium">Live</span>.
+          </p>
           <Input label="Final URL" type="url" placeholder="https://" value={form.final_url}
             onChange={(e) => setForm((f) => ({ ...f, final_url: e.target.value }))} />
           <Input label="Go-Live Date" type="date" value={form.go_live_date}

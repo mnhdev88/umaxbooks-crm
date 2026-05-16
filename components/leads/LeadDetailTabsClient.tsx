@@ -25,6 +25,7 @@ interface Props {
   agents: Profile[]
   developers: Profile[]
   userId: string
+  initialTab?: string
 }
 
 export function LeadDetailTabsClient(props: Props) {

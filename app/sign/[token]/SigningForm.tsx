@@ -72,6 +72,25 @@ declare global {
   interface Window { html2pdf: any }
 }
 
+function parseBrowserUA(ua: string): string {
+  if (!ua) return 'Unknown'
+  let browser = 'Unknown'
+  let os = 'Unknown OS'
+  if (ua.includes('Edg/') || ua.includes('Edge/')) browser = 'Edge'
+  else if (ua.includes('OPR/') || ua.includes('Opera/')) browser = 'Opera'
+  else if (ua.includes('Chrome/')) browser = 'Chrome'
+  else if (ua.includes('Firefox/')) browser = 'Firefox'
+  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari'
+  if (ua.includes('Windows NT 10.0') || ua.includes('Windows NT 11.0')) os = 'Windows 10/11'
+  else if (ua.includes('Windows')) os = 'Windows'
+  else if (ua.includes('iPhone')) os = 'iPhone (iOS)'
+  else if (ua.includes('iPad')) os = 'iPad (iOS)'
+  else if (ua.includes('Android')) os = 'Android'
+  else if (ua.includes('Mac OS X')) os = 'macOS'
+  else if (ua.includes('Linux')) os = 'Linux'
+  return `${browser} on ${os}`
+}
+
 export function SigningForm({ contract, token }: { contract: any; token: string }) {
   const today = new Date().toISOString().split('T')[0]
 
@@ -96,6 +115,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
 
   const canvasRef   = useRef<HTMLCanvasElement>(null)
   const contractRef = useRef<HTMLDivElement>(null)
+  const certRef     = useRef<HTMLDivElement>(null)
 
   // Load html2pdf.js from CDN
   useEffect(() => {
@@ -171,23 +191,113 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
     setSubmitting(true)
 
     try {
+      // Collect client-side metadata
+      const signed_at_utc = new Date().toISOString()
+      const clientMeta = {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        screen:   `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        browser:  navigator.userAgent,
+        signed_at_utc,
+      }
+
+      // Fetch IP + geo from server (so it appears in the PDF certificate)
+      let geoData = { ip: 'Recorded', city: '', region: '', country: '', isp: '', timezone: clientMeta.timezone }
+      try {
+        const geoRes = await fetch(`/api/contracts/${token}/sign`)
+        if (geoRes.ok) geoData = await geoRes.json()
+      } catch { /* best-effort */ }
+
+      // Populate Signature Certificate div before PDF generation
+      if (certRef.current) {
+        const location = [geoData.city, geoData.region, geoData.country].filter(Boolean).join(', ') || 'Recorded'
+        const browser  = parseBrowserUA(navigator.userAgent)
+        certRef.current.innerHTML = `
+          <div style="padding:20px 32px;border-top:2px solid #1F3A93;background:#f8f9fd;margin-top:0">
+            <div style="font-size:11px;font-weight:700;color:#1F3A93;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #dde3f5">
+              Electronic Signature Certificate
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;color:#374151">
+              <tr><td style="padding:4px 0;color:#6b7280;width:150px;vertical-align:top">Document</td><td>Website &amp; Digital Services Agreement – ${contract.business_name}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Signed by</td><td>${payment.client_full_name} &lt;${contract.client_email}&gt;</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Signed At (UTC)</td><td>${signed_at_utc}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">IP Address</td><td>${geoData.ip}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Location</td><td>${location || 'Recorded'}</td></tr>
+              ${geoData.isp ? `<tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">ISP / Network</td><td>${geoData.isp}</td></tr>` : ''}
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Browser / OS</td><td>${browser}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Timezone</td><td>${clientMeta.timezone}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Language</td><td>${clientMeta.language}</td></tr>
+              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Screen Resolution</td><td>${clientMeta.screen}</td></tr>
+            </table>
+            <p style="font-size:10px;color:#9ca3af;margin-top:12px;line-height:1.6">
+              This certificate is automatically generated and records technical details of the signing event for audit and legal compliance purposes. IP geolocation provided by ipinfo.io.
+            </p>
+          </div>`
+      }
+
+      // Small delay for DOM to settle before html2pdf captures it
+      await new Promise(r => setTimeout(r, 80))
+
       // Generate PDF from the contract div
       let pdf_base64: string | null = null
       if (window.html2pdf && contractRef.current) {
-        const blob: Blob = await window.html2pdf().set({
-          margin:     [8, 8, 8, 8],
-          filename:   `Novelio-Agreement-${contract.business_name}.pdf`,
-          image:      { type: 'jpeg', quality: 0.95 },
-          html2canvas:{ scale: 2, useCORS: true, logging: false },
-          jsPDF:      { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        }).from(contractRef.current).outputPdf('blob')
+        const el = contractRef.current
 
-        pdf_base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload  = () => resolve((reader.result as string).split(',')[1])
-          reader.onerror = reject
-          reader.readAsDataURL(blob)
+        // Collapse viewport-height so the PDF has no blank space at the bottom
+        const prevMinH = el.style.minHeight
+        const prevPad  = el.style.padding
+        el.style.minHeight = 'unset'
+        el.style.padding   = '0'
+
+        // html2canvas does not paint <input> .value — it only captures the browser's
+        // native painted pixels, which excludes JS-set values on input elements.
+        // Swap every <input> for a styled <div> showing its value, then restore after.
+        const inputSwaps: Array<{ div: Element; input: HTMLInputElement }> = []
+        el.querySelectorAll('input').forEach(inp => {
+          const input = inp as HTMLInputElement
+          const div   = document.createElement('div')
+          div.style.cssText = [
+            'width:100%',
+            'padding:10px 12px',
+            "font-family:'DM Sans',sans-serif",
+            'font-size:14px',
+            `color:${input.readOnly ? '#4b5563' : '#111'}`,
+            `background:${input.readOnly ? '#f3f4f6' : '#f9fafb'}`,
+            'border:1.5px solid #e5e7eb',
+            'border-radius:8px',
+            'min-height:40px',
+            'box-sizing:border-box',
+            'line-height:1.4',
+            'word-break:break-word',
+          ].join(';')
+          div.textContent = input.value
+          input.parentNode!.replaceChild(div, input)
+          inputSwaps.push({ div, input })
         })
+
+        try {
+          const blob: Blob = await window.html2pdf().set({
+            margin:      [8, 8, 8, 8],
+            filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
+            image:       { type: 'jpeg', quality: 0.95 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          }).from(el).outputPdf('blob')
+
+          pdf_base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload  = () => resolve((reader.result as string).split(',')[1])
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+        } finally {
+          // Restore inputs so the form is intact if submission fails
+          inputSwaps.forEach(({ div, input }) => {
+            div.parentNode!.replaceChild(input, div)
+          })
+          el.style.minHeight = prevMinH
+          el.style.padding   = prevPad
+        }
       }
 
       const res = await fetch(`/api/contracts/${token}/sign`, {
@@ -200,6 +310,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
           balance_payment:     parseFloat(payment.balance_payment)     || null,
           client_signature,
           pdf_base64,
+          client_meta: clientMeta,
         }),
       })
 
@@ -252,8 +363,8 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
 
-      <div id="nva">
-        <div className="box" id="nva-card" ref={contractRef}>
+      <div id="nva" ref={contractRef}>
+        <div className="box" id="nva-card">
           <div className="top-bar" />
 
           {/* Header */}
@@ -489,6 +600,9 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
               By clicking Submit, you agree to all terms above.
             </p>
           </div>
+
+          {/* Signature Certificate — populated just before PDF generation */}
+          <div ref={certRef} />
 
           <div className="foot">
             <strong>Novelio Technologies LLC</strong> · 8 The Green STE A, Dover, DE 19901 · +1-609-325-2541 · support@noveliotech.com

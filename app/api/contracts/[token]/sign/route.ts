@@ -3,6 +3,50 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/service'
 
+const IPINFO_TOKEN = 'cc7528fe4ebae3'
+
+function extractIp(req: NextRequest) {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  )
+}
+
+async function fetchGeo(ip: string) {
+  if (!ip || ip === 'unknown' || ip === '::1' || ip.startsWith('127.') || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return {}
+  }
+  try {
+    const r = await fetch(`https://api.ipinfo.io/lite/${ip}?token=${IPINFO_TOKEN}`, {
+      next: { revalidate: 0 },
+    })
+    if (!r.ok) return {}
+    return await r.json()
+  } catch {
+    return {}
+  }
+}
+
+/** Client calls this GET to get IP + geo before generating the PDF */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const ip  = extractIp(req)
+  const geo = await fetchGeo(ip)
+
+  return NextResponse.json({
+    ip:       ip === 'unknown' ? 'Recorded' : ip,
+    city:     geo.city     || '',
+    region:   geo.region   || '',
+    country:  geo.country  || '',
+    isp:      geo.org      || '',
+    timezone: geo.timezone || '',
+    loc:      geo.loc      || '',
+  })
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -25,11 +69,15 @@ export async function POST(
     first_payment, installment_payment, balance_payment,
     client_full_name, client_sign_date, client_signature,
     pdf_base64,
+    client_meta, // { timezone, screen, language, browser, signed_at_utc }
   } = body
 
-  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]
-    || req.headers.get('x-real-ip')
-    || 'unknown'
+  const clientIp  = extractIp(req)
+  const userAgent = req.headers.get('user-agent') || ''
+  const acceptLang = req.headers.get('accept-language') || ''
+
+  // Geo lookup (parallel with other work)
+  const geoPromise = fetchGeo(clientIp)
 
   // Upload signed PDF to Supabase Storage
   let signed_pdf_url: string | null = null
@@ -47,23 +95,48 @@ export async function POST(
     } catch { /* best-effort */ }
   }
 
-  await service.from('contracts').update({
-    status: 'signed',
-    name_on_card, card_type, card_last_4,
-    first_payment: first_payment || null,
-    installment_payment: installment_payment || null,
-    balance_payment: balance_payment || null,
-    client_full_name, client_sign_date, client_signature,
-    client_ip: clientIp,
-    signed_at: new Date().toISOString(),
-    signed_pdf_url,
-  }).eq('id', contract.id)
+  const geo = await geoPromise
+  const location = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || ''
+
+  const signing_metadata = {
+    ip:           clientIp,
+    user_agent:   userAgent,
+    browser:      client_meta?.browser || userAgent,
+    timezone:     client_meta?.timezone || geo.timezone || '',
+    language:     client_meta?.language || acceptLang,
+    screen:       client_meta?.screen  || '',
+    signed_at_utc: client_meta?.signed_at_utc || new Date().toISOString(),
+    geo: {
+      city:    geo.city    || '',
+      region:  geo.region  || '',
+      country: geo.country || '',
+      isp:     geo.org     || '',
+      timezone:geo.timezone|| '',
+      loc:     geo.loc     || '',
+    },
+  }
+
+  await Promise.all([
+    service.from('contracts').update({
+      status: 'signed',
+      name_on_card, card_type, card_last_4,
+      first_payment:       first_payment       || null,
+      installment_payment: installment_payment || null,
+      balance_payment:     balance_payment     || null,
+      client_full_name, client_sign_date, client_signature,
+      client_ip:        clientIp,
+      signing_metadata,
+      signed_at:        new Date().toISOString(),
+      signed_pdf_url,
+    }).eq('id', contract.id),
+    service.from('leads').update({ status: 'Closed Won' }).eq('id', contract.lead_id),
+  ])
 
   await service.from('activity_logs').insert({
-    lead_id: contract.lead_id,
-    user_id: contract.created_by,
-    action: 'Contract Signed',
-    details: `Agreement signed by ${client_full_name || contract.client_email} (IP: ${clientIp})`,
+    lead_id:  contract.lead_id,
+    user_id:  contract.created_by,
+    action:   'Contract Signed',
+    details:  `Agreement signed by ${client_full_name || contract.client_email} (IP: ${clientIp}${location ? ` · ${location}` : ''})`,
   })
 
   // Send confirmation emails
@@ -79,7 +152,6 @@ export async function POST(
     const origin     = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://crm.noveliotech.com'
     const viewUrl    = `${origin}/sign/${token}`
 
-    // Always provide a "View Agreement" link; also show PDF download if available
     const pdfBtn = signed_pdf_url
       ? `<p style="text-align:center;margin:8px 0">
            <a href="${signed_pdf_url}" style="background:#1F3A93;color:#fff;padding:13px 30px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block">
@@ -117,17 +189,23 @@ export async function POST(
         </div>
       </div>`
 
+    const parsedBrowser = parseBrowserUA(userAgent)
     const adminHtml = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
         <h2 style="color:#065f46;margin:0 0 16px">✅ Contract Signed</h2>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr><td style="padding:6px 0;color:#6b7280;width:140px">Business</td><td style="color:#111"><strong>${contract.business_name}</strong></td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;width:160px">Business</td><td style="color:#111"><strong>${contract.business_name}</strong></td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Signed by</td><td style="color:#111">${client_full_name}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Email</td><td style="color:#111">${contract.client_email}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Package</td><td style="color:#111">${contract.package || '—'}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280">Amount</td><td style="color:#111">$${contract.total_amount || '0'}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">Date</td><td style="color:#111">${client_sign_date}</td></tr>
-          <tr><td style="padding:6px 0;color:#6b7280">IP Address</td><td style="color:#111">${clientIp}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">Date Signed</td><td style="color:#111">${client_sign_date}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280">IP Address</td><td style="color:#111"><code>${clientIp}</code></td></tr>
+          ${location ? `<tr><td style="padding:6px 0;color:#6b7280">Location</td><td style="color:#111">${location}</td></tr>` : ''}
+          ${geo.org ? `<tr><td style="padding:6px 0;color:#6b7280">ISP</td><td style="color:#111">${geo.org}</td></tr>` : ''}
+          <tr><td style="padding:6px 0;color:#6b7280">Browser / OS</td><td style="color:#111">${parsedBrowser}</td></tr>
+          ${signing_metadata.timezone ? `<tr><td style="padding:6px 0;color:#6b7280">Timezone</td><td style="color:#111">${signing_metadata.timezone}</td></tr>` : ''}
+          ${signing_metadata.screen ? `<tr><td style="padding:6px 0;color:#6b7280">Screen</td><td style="color:#111">${signing_metadata.screen}</td></tr>` : ''}
         </table>
         <div style="margin-top:20px">
           ${pdfBtn}
@@ -163,4 +241,26 @@ export async function POST(
   }
 
   return NextResponse.json({ success: true, signed_pdf_url })
+}
+
+function parseBrowserUA(ua: string): string {
+  if (!ua) return 'Unknown'
+  let browser = 'Unknown'
+  let os = 'Unknown OS'
+
+  if (ua.includes('Edg/') || ua.includes('Edge/')) browser = 'Edge'
+  else if (ua.includes('OPR/') || ua.includes('Opera/')) browser = 'Opera'
+  else if (ua.includes('Chrome/')) browser = 'Chrome'
+  else if (ua.includes('Firefox/')) browser = 'Firefox'
+  else if (ua.includes('Safari/') && !ua.includes('Chrome')) browser = 'Safari'
+
+  if (ua.includes('Windows NT 10.0') || ua.includes('Windows NT 11.0')) os = 'Windows 10/11'
+  else if (ua.includes('Windows')) os = 'Windows'
+  else if (ua.includes('iPhone')) os = 'iPhone (iOS)'
+  else if (ua.includes('iPad')) os = 'iPad (iOS)'
+  else if (ua.includes('Android')) os = 'Android'
+  else if (ua.includes('Mac OS X')) os = 'macOS'
+  else if (ua.includes('Linux')) os = 'Linux'
+
+  return `${browser} on ${os}`
 }
