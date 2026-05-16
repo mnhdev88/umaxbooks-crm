@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 
@@ -16,7 +16,6 @@ export default function SetPasswordPage() {
 
 function SetPasswordForm() {
   const supabase      = createClient()
-  const router        = useRouter()
   const searchParams  = useSearchParams()
 
   const [exchanging, setExchanging]       = useState(true)
@@ -29,28 +28,44 @@ function SetPasswordForm() {
 
   useEffect(() => {
     const code = searchParams.get('code')
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const hasHashToken = hash.includes('access_token=')
 
     if (code) {
-      // PKCE flow: Supabase redirected with ?code= — exchange it for a session
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
-        }
-        setExchanging(false)
+      // PKCE flow: sign out any existing session first so the invite session
+      // is established cleanly (handles admin testing in the same browser).
+      supabase.auth.signOut().finally(() => {
+        supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+          if (error) {
+            setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
+          }
+          setExchanging(false)
+        })
       })
       return
     }
 
-    // Implicit / hash flow: Supabase may have already set a session via #access_token in the URL
-    // (handled automatically by the Supabase client). Just check if a session exists.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    if (hasHashToken) {
+      // Hash/implicit flow: Supabase auto-parses the hash and fires onAuthStateChange.
+      // Wait for SIGNED_IN to confirm the invite session was established.
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          subscription.unsubscribe()
+          setExchanging(false)
+        }
+      })
+      // Timeout fallback — if no SIGNED_IN after 8s, show error
+      const t = setTimeout(() => {
+        subscription.unsubscribe()
+        setExchangeError('Could not verify your invite link. Please ask your admin to send a new one.')
         setExchanging(false)
-      } else {
-        setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
-        setExchanging(false)
-      }
-    })
+      }, 8000)
+      return () => { subscription.unsubscribe(); clearTimeout(t) }
+    }
+
+    // No code and no hash token — invalid or already-used link
+    setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
+    setExchanging(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -69,9 +84,9 @@ function SetPasswordForm() {
 
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
-    setLoading(false)
 
     if (error) {
+      setLoading(false)
       setError(error.message)
       return
     }
