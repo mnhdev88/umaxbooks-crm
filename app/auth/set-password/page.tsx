@@ -29,17 +29,27 @@ function SetPasswordForm() {
 
   useEffect(() => {
     const code = searchParams.get('code')
-    if (!code) {
-      setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
-      setExchanging(false)
+
+    if (code) {
+      // PKCE flow: Supabase redirected with ?code= — exchange it for a session
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
+        }
+        setExchanging(false)
+      })
       return
     }
 
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
+    // Implicit / hash flow: Supabase may have already set a session via #access_token in the URL
+    // (handled automatically by the Supabase client). Just check if a session exists.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setExchanging(false)
+      } else {
+        setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
+        setExchanging(false)
       }
-      setExchanging(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

@@ -57,10 +57,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const inviteUrl = (linkData as any)?.properties?.action_link
-  if (!inviteUrl) {
-    return NextResponse.json({ error: 'Failed to generate invite link' }, { status: 500 })
+  // Build the verify URL from hashed_token instead of action_link.
+  // action_link may silently strip redirect_to when Supabase's allowlist check fails;
+  // constructing it ourselves guarantees redirect_to is present in the final URL.
+  const hashedToken = (linkData as any)?.properties?.hashed_token
+  if (!hashedToken) {
+    return NextResponse.json({ error: 'Failed to generate invite token' }, { status: 500 })
   }
+  const inviteUrl =
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify` +
+    `?token=${encodeURIComponent(hashedToken)}&type=invite` +
+    `&redirect_to=${encodeURIComponent(redirectTo)}`
 
   // Send branded invite email via our configured email provider
   const service = createServiceClient()

@@ -63,8 +63,10 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Already logged-in hitting /login
-    if (isAuthPage) {
+    // Already logged-in hitting an auth page — redirect away EXCEPT for /auth/set-password.
+    // New invited users arrive at set-password with a session already established;
+    // we must let them stay to set their password.
+    if (isAuthPage && pathname !== '/auth/set-password') {
       const url = request.nextUrl.clone()
       url.pathname = role === 'client' ? '/portal' : '/'
       return NextResponse.redirect(url)
