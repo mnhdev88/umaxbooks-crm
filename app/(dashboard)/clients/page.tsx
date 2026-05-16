@@ -5,16 +5,18 @@ import { Profile } from '@/types'
 import { Globe, ExternalLink, Building2, UserCheck, UserX, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
+interface LeadInfo {
+  id: string
+  company_name: string | null
+  name: string | null
+  email: string | null
+  status: string | null
+}
+
 interface LiveSiteRow {
   lead_id: string
   final_url: string
-  leads: {
-    id: string
-    company_name: string | null
-    name: string | null
-    email: string | null
-    status: string | null
-  } | null
+  leads: LeadInfo | LeadInfo[] | null
 }
 
 interface ClientProfile {
@@ -90,7 +92,7 @@ export default async function ClientsPage() {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {rows.map(row => {
-                  const lead        = row.leads
+                  const lead        = Array.isArray(row.leads) ? row.leads[0] ?? null : row.leads
                   const portalAcct  = lead ? portalMap.get(lead.id) : undefined
                   const leadId      = lead?.id ?? row.lead_id
 
