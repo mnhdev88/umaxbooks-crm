@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
@@ -14,6 +14,22 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Supabase redirects auth errors to the site URL with #error= in the hash.
+  // Detect and surface them so the user knows what happened.
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash.includes('error=')) return
+    const params = new URLSearchParams(hash.replace(/^#/, ''))
+    const code = params.get('error_code')
+    if (code === 'otp_expired') {
+      setError('Your invite link has expired. Please ask your admin to send a new invite.')
+    } else if (params.get('error')) {
+      setError('This link is invalid or has already been used. Please ask your admin for a new invite.')
+    }
+    // Clean the hash so refreshing doesn't re-show the error
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

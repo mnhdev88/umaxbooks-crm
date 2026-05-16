@@ -57,17 +57,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  // Build the verify URL from hashed_token instead of action_link.
-  // action_link may silently strip redirect_to when Supabase's allowlist check fails;
-  // constructing it ourselves guarantees redirect_to is present in the final URL.
-  const hashedToken = (linkData as any)?.properties?.hashed_token
-  if (!hashedToken) {
-    return NextResponse.json({ error: 'Failed to generate invite token' }, { status: 500 })
+  // Take Supabase's action_link (correct token format) and override redirect_to.
+  // We cannot construct the URL from hashed_token — the verify endpoint expects the raw
+  // email_otp token, not the hash; using hashed_token produces an otp_expired error.
+  const actionLink: string | undefined = (linkData as any)?.properties?.action_link
+  if (!actionLink) {
+    return NextResponse.json({ error: 'Failed to generate invite link' }, { status: 500 })
   }
-  const inviteUrl =
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify` +
-    `?token=${encodeURIComponent(hashedToken)}&type=invite` +
-    `&redirect_to=${encodeURIComponent(redirectTo)}`
+  let inviteUrl = actionLink
+  try {
+    const parsed = new URL(actionLink)
+    parsed.searchParams.set('redirect_to', redirectTo)
+    inviteUrl = parsed.toString()
+  } catch { /* use actionLink as-is if URL parse fails */ }
 
   // Send branded invite email via our configured email provider
   const service = createServiceClient()
