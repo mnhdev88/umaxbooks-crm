@@ -36,12 +36,23 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError('Invalid email or password.')
       setLoading(false)
       return
+    }
+
+    // Route clients straight to their portal; staff to the CRM dashboard
+    const userId = data.user?.id
+    if (userId) {
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', userId).single()
+      if (profile?.role === 'client') {
+        window.location.href = '/portal'
+        return
+      }
     }
 
     router.push('/')
