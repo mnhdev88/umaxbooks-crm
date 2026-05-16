@@ -2,6 +2,186 @@
 
 import { useRef, useState, useEffect } from 'react'
 
+// ---------------------------------------------------------------------------
+// Build a self-contained, inline-styled div for PDF capture.
+// Using the live React form DOM is unreliable (canvas, React state, CSS classes).
+// ---------------------------------------------------------------------------
+function buildContractPdfEl(
+  contract: any,
+  payment: {
+    name_on_card: string; card_type: string; card_last_4: string
+    first_payment: string; installment_payment: string; balance_payment: string
+    client_full_name: string; client_sign_date: string
+  },
+  signatureDataUrl: string,
+  geoInfo: { ip: string; city: string; region: string; country: string; isp: string },
+  clientMeta: { timezone: string; screen: string; language: string; signed_at_utc: string },
+  acks: readonly string[],
+): HTMLDivElement {
+  const f = (v: any) => String(v ?? '—')
+  const location = [geoInfo.city, geoInfo.region, geoInfo.country].filter(Boolean).join(', ') || 'Recorded'
+
+  const sec = (title: string, body: string) => `
+    <div style="padding:18px 32px;border-bottom:1px solid #f0f0f0;">
+      <div style="font-size:11px;font-weight:700;color:#1F3A93;text-transform:uppercase;letter-spacing:.6px;
+                  margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #eef1fb;">${title}</div>
+      ${body}
+    </div>`
+
+  const kv = (label: string, val: string) => val && val !== '—' ? `
+    <tr>
+      <td style="padding:4px 12px 4px 0;font-size:12px;color:#6b7280;width:180px;vertical-align:top;">${label}</td>
+      <td style="padding:4px 0;font-size:13px;color:#111;vertical-align:top;">${val}</td>
+    </tr>` : ''
+
+  const table = (...rows: string[]) =>
+    `<table style="width:100%;border-collapse:collapse;">${rows.join('')}</table>`
+
+  const wrap = document.createElement('div')
+  wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:820px;background:#fff;font-family:Arial,sans-serif;'
+
+  wrap.innerHTML = `
+<div style="max-width:800px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;color:#111;font-size:14px;">
+  <div style="height:5px;background:linear-gradient(90deg,#1F3A93,#4a6cf7,#b8902a);"></div>
+
+  <div style="text-align:center;padding:28px 32px 18px;border-bottom:1px solid #eee;">
+    <h1 style="font-size:20px;font-weight:700;color:#1F3A93;margin:0 0 6px;">Website &amp; Digital Services Agreement</h1>
+    <p style="font-size:12px;color:#6b7280;margin:0 0 6px;">Novelio Technologies LLC &nbsp;·&nbsp; 8 The Green STE A, Dover, DE 19901 &nbsp;·&nbsp; support@noveliotech.com</p>
+    <p style="font-size:12px;color:#374151;font-style:italic;margin:0;">
+      This agreement is entered into by and between Novelio Technologies LLC and the undersigned client.
+    </p>
+  </div>
+
+  ${sec('1 · Client Information', table(
+    kv('Business Name',   f(contract.business_name)),
+    kv('Contact Person',  f(contract.contact_person)),
+    kv('Address',         f(contract.address)),
+    kv('City / State / ZIP', [contract.city, contract.state, contract.zip_code].filter(Boolean).join(', ')),
+    kv('Phone',           f(contract.phone)),
+    kv('Email',           f(contract.client_email)),
+  ))}
+
+  ${sec('2 · Service Details', table(
+    kv('Package',          f(contract.package)),
+    kv('Project Name',     f(contract.project_name)),
+    kv('Start Date',       f(contract.start_date)),
+    kv('Delivery Timeline',f(contract.delivery_timeline)),
+    kv('Hosting Included', '1 Year'),
+    kv('SSL Included',     '1 Year'),
+    kv('Payment Type',     f(contract.payment_type)),
+    kv('Total Amount',     contract.total_amount ? `$${Number(contract.total_amount).toFixed(2)}` : ''),
+  ))}
+
+  ${sec('3 · Payment Confirmation', table(
+    kv('Name on Card',       payment.name_on_card),
+    kv('Card Type',          payment.card_type),
+    kv('Last 4 Digits',      payment.card_last_4),
+    kv('First Payment',      payment.first_payment      ? `$${payment.first_payment}`      : ''),
+    kv('Installment Payment',payment.installment_payment? `$${payment.installment_payment}`: ''),
+    kv('Balance Payment',    payment.balance_payment    ? `$${payment.balance_payment}`    : ''),
+  ))}
+
+  ${sec('4 · Scope of Services',
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
+      The selected package may include: Website Design &amp; Development, Mobile Responsive Design, Basic SEO Setup, Contact Form Setup, SSL Installation and Hosting Setup, Google Business Profile Guidance, Minor Content / Layout Adjustments.
+    </p>`)}
+
+  ${sec('5 · Refund Policy',
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
+      Client is eligible for a <strong>7-Day Refund Window</strong> from project delivery or activation. After 7 days, refunds are not available due to development efforts, hosting/server charges, and resources already incurred.
+    </p>`)}
+
+  ${sec('6 · Hosting &amp; SSL Renewal',
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
+      Hosting and SSL are included for one (1) year from the Service Start Date. Renewal beyond the first year is chargeable separately and requires the Client's written approval.
+    </p>`)}
+
+  ${sec('7 · Minor Changes &amp; Additional Work',
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
+      Minor changes included for 3 months post-launch. Work requiring 30+ minutes is billed at <strong>$40.00/hour</strong>. Major redesigns require a separate agreement.
+    </p>`)}
+
+  ${sec('8–11 · Additional Terms',
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
+      <strong>Content &amp; Images:</strong> All content and materials must be provided by the Client.<br>
+      <strong>Google Business Profile:</strong> GMB approval and ranking are governed solely by Google. No guarantees are made.<br>
+      <strong>Support:</strong> Support is limited to services in the selected package.<br>
+      <strong>Client Responsibilities:</strong> Client must provide: business logo, website content, images/videos, contact details, social links.
+    </p>`)}
+
+  ${sec('12 · Client Acknowledgment',
+    acks.map(txt => `
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;">
+        <div style="width:14px;height:14px;flex-shrink:0;background:#1F3A93;border-radius:3px;margin-top:1px;
+                    display:flex;align-items:center;justify-content:center;">
+          <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+            <polyline points="1,3.5 3.5,6 8,1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span style="font-size:12px;color:#374151;line-height:1.5;">${txt}</span>
+      </div>`).join('')
+  )}
+
+  <div style="padding:20px 32px;border-bottom:1px solid #f0f0f0;">
+    <div style="font-size:11px;font-weight:700;color:#1F3A93;text-transform:uppercase;letter-spacing:.6px;
+                margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid #eef1fb;">Signatures</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <div>
+        <p style="font-size:12px;font-weight:600;color:#374151;margin:0 0 8px;">Client Signature</p>
+        <img src="${signatureDataUrl}" style="width:100%;height:80px;border:1.5px solid #1F3A93;border-radius:6px;object-fit:contain;background:#fff;display:block;" />
+        ${table(
+          kv('Full Name', payment.client_full_name),
+          kv('Date Signed', payment.client_sign_date),
+        )}
+      </div>
+      <div>
+        <p style="font-size:12px;font-weight:600;color:#374151;margin:0 0 8px;">Novelio Representative</p>
+        ${contract.rep_signature
+          ? `<img src="${contract.rep_signature}" style="width:100%;height:80px;border:1.5px solid #1F3A93;border-radius:6px;object-fit:contain;background:#fff;display:block;" />`
+          : `<div style="width:100%;height:80px;border:1px solid #e5e7eb;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:12px;">Signature on file</div>`}
+        ${table(
+          kv('Name',  f(contract.rep_name)),
+          kv('Title', f(contract.rep_title)),
+          kv('Date',  f(contract.rep_sign_date)),
+        )}
+        <div style="margin-top:8px;display:inline-flex;align-items:center;gap:4px;background:#d1fae5;
+                    color:#065f46;border:1px solid #6ee7b7;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;">
+          ✓ Signed by Novelio
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:20px 32px;background:#f8f9fd;">
+    <div style="font-size:11px;font-weight:700;color:#1F3A93;text-transform:uppercase;letter-spacing:.6px;
+                margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #dde3f5;">
+      Electronic Signature Certificate
+    </div>
+    ${table(
+      kv('Document',       `Website &amp; Digital Services Agreement – ${contract.business_name}`),
+      kv('Signed by',      `${payment.client_full_name} &lt;${contract.client_email}&gt;`),
+      kv('Signed At (UTC)',clientMeta.signed_at_utc),
+      kv('IP Address',     geoInfo.ip),
+      kv('Location',       location),
+      geoInfo.isp ? kv('ISP / Network', geoInfo.isp) : '',
+      kv('Timezone',       clientMeta.timezone),
+      kv('Language',       clientMeta.language),
+      kv('Screen',         clientMeta.screen),
+    )}
+    <p style="font-size:10px;color:#9ca3af;margin-top:10px;line-height:1.6;">
+      This certificate records technical details of the signing event for audit and legal compliance purposes. IP geolocation by ipinfo.io.
+    </p>
+  </div>
+
+  <div style="text-align:center;font-size:11px;color:#9ca3af;padding:14px 32px;">
+    Novelio Technologies LLC · 8 The Green STE A, Dover, DE 19901 · +1-609-325-2541 · support@noveliotech.com
+  </div>
+</div>`
+
+  document.body.appendChild(wrap)
+  return wrap
+}
+
 const CSS = `
 #nva *,#nva *::before,#nva *::after{box-sizing:border-box;margin:0;padding:0}
 #nva{font-family:'DM Sans',sans-serif;font-size:15px;color:#111;background:#f1f3fa;padding:40px 16px 60px;min-height:100vh}
@@ -113,9 +293,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
   const [done,     setDone]     = useState(false)
   const [pdfUrl,   setPdfUrl]   = useState<string | null>(null)
 
-  const canvasRef   = useRef<HTMLCanvasElement>(null)
-  const contractRef = useRef<HTMLDivElement>(null)
-  const certRef     = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Load html2pdf.js from CDN
   useEffect(() => {
@@ -208,81 +386,21 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
         if (geoRes.ok) geoData = await geoRes.json()
       } catch { /* best-effort */ }
 
-      // Populate Signature Certificate div before PDF generation
-      if (certRef.current) {
-        const location = [geoData.city, geoData.region, geoData.country].filter(Boolean).join(', ') || 'Recorded'
-        const browser  = parseBrowserUA(navigator.userAgent)
-        certRef.current.innerHTML = `
-          <div style="padding:20px 32px;border-top:2px solid #1F3A93;background:#f8f9fd;margin-top:0">
-            <div style="font-size:11px;font-weight:700;color:#1F3A93;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #dde3f5">
-              Electronic Signature Certificate
-            </div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px;color:#374151">
-              <tr><td style="padding:4px 0;color:#6b7280;width:150px;vertical-align:top">Document</td><td>Website &amp; Digital Services Agreement – ${contract.business_name}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Signed by</td><td>${payment.client_full_name} &lt;${contract.client_email}&gt;</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Signed At (UTC)</td><td>${signed_at_utc}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">IP Address</td><td>${geoData.ip}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Location</td><td>${location || 'Recorded'}</td></tr>
-              ${geoData.isp ? `<tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">ISP / Network</td><td>${geoData.isp}</td></tr>` : ''}
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Browser / OS</td><td>${browser}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Timezone</td><td>${clientMeta.timezone}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Language</td><td>${clientMeta.language}</td></tr>
-              <tr><td style="padding:4px 0;color:#6b7280;vertical-align:top">Screen Resolution</td><td>${clientMeta.screen}</td></tr>
-            </table>
-            <p style="font-size:10px;color:#9ca3af;margin-top:12px;line-height:1.6">
-              This certificate is automatically generated and records technical details of the signing event for audit and legal compliance purposes. IP geolocation provided by ipinfo.io.
-            </p>
-          </div>`
-      }
 
-      // Small delay for DOM to settle before html2pdf captures it
-      await new Promise(r => setTimeout(r, 80))
-
-      // Generate PDF from the contract div
+      // Generate PDF from a clean, self-contained element (not the live React form)
       let pdf_base64: string | null = null
-      if (window.html2pdf && contractRef.current) {
-        const el = contractRef.current
-
-        // Collapse viewport-height so the PDF has no blank space at the bottom
-        const prevMinH = el.style.minHeight
-        const prevPad  = el.style.padding
-        el.style.minHeight = 'unset'
-        el.style.padding   = '0'
-
-        // html2canvas does not paint <input> .value — it only captures the browser's
-        // native painted pixels, which excludes JS-set values on input elements.
-        // Swap every <input> for a styled <div> showing its value, then restore after.
-        const inputSwaps: Array<{ div: Element; input: HTMLInputElement }> = []
-        el.querySelectorAll('input').forEach(inp => {
-          const input = inp as HTMLInputElement
-          const div   = document.createElement('div')
-          div.style.cssText = [
-            'width:100%',
-            'padding:10px 12px',
-            "font-family:'DM Sans',sans-serif",
-            'font-size:14px',
-            `color:${input.readOnly ? '#4b5563' : '#111'}`,
-            `background:${input.readOnly ? '#f3f4f6' : '#f9fafb'}`,
-            'border:1.5px solid #e5e7eb',
-            'border-radius:8px',
-            'min-height:40px',
-            'box-sizing:border-box',
-            'line-height:1.4',
-            'word-break:break-word',
-          ].join(';')
-          div.textContent = input.value
-          input.parentNode!.replaceChild(div, input)
-          inputSwaps.push({ div, input })
-        })
-
+      if (window.html2pdf) {
+        const pdfEl = buildContractPdfEl(
+          contract, payment, client_signature, geoData, clientMeta, ACKS,
+        )
         try {
           const blob: Blob = await window.html2pdf().set({
             margin:      [8, 8, 8, 8],
             filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
             image:       { type: 'jpeg', quality: 0.95 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            html2canvas: { scale: 1.5, useCORS: true, logging: false },
             jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          }).from(el).outputPdf('blob')
+          }).from(pdfEl).outputPdf('blob')
 
           pdf_base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
@@ -291,12 +409,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
             reader.readAsDataURL(blob)
           })
         } finally {
-          // Restore inputs so the form is intact if submission fails
-          inputSwaps.forEach(({ div, input }) => {
-            div.parentNode!.replaceChild(input, div)
-          })
-          el.style.minHeight = prevMinH
-          el.style.padding   = prevPad
+          document.body.removeChild(pdfEl)
         }
       }
 
@@ -363,7 +476,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
 
-      <div id="nva" ref={contractRef}>
+      <div id="nva">
         <div className="box" id="nva-card">
           <div className="top-bar" />
 
@@ -601,8 +714,6 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
             </p>
           </div>
 
-          {/* Signature Certificate — populated just before PDF generation */}
-          <div ref={certRef} />
 
           <div className="foot">
             <strong>Novelio Technologies LLC</strong> · 8 The Green STE A, Dover, DE 19901 · +1-609-325-2541 · support@noveliotech.com
