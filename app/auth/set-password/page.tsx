@@ -1,12 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 
 export default function SetPasswordPage() {
+  return (
+    <Suspense>
+      <SetPasswordForm />
+    </Suspense>
+  )
+}
+
+function SetPasswordForm() {
   const supabase      = createClient()
   const router        = useRouter()
   const searchParams  = useSearchParams()
