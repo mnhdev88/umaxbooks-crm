@@ -28,42 +28,38 @@ function SetPasswordForm() {
 
   useEffect(() => {
     const code = searchParams.get('code')
-    const hash = typeof window !== 'undefined' ? window.location.hash : ''
-    const hasHashToken = hash.includes('access_token=')
 
     if (code) {
-      // PKCE flow: sign out any existing session first so the invite session
-      // is established cleanly (handles admin testing in the same browser).
-      supabase.auth.signOut().finally(() => {
-        supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      // PKCE flow — exchange the server-generated code for a session.
+      // Do NOT call signOut() first: it clears the PKCE code_verifier from storage.
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
+        }
+        setExchanging(false)
+      })
+      return
+    }
+
+    // Hash / implicit flow — @supabase/ssr sets detectSessionInUrl:false so the
+    // client does NOT auto-process the hash. Parse it manually and call setSession.
+    const hash = window.location.hash
+    if (hash.includes('access_token=')) {
+      const params        = new URLSearchParams(hash.replace(/^#/, ''))
+      const accessToken   = params.get('access_token')  ?? ''
+      const refreshToken  = params.get('refresh_token') ?? ''
+
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
           if (error) {
             setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
           }
           setExchanging(false)
         })
-      })
       return
     }
 
-    if (hasHashToken) {
-      // Hash/implicit flow: Supabase auto-parses the hash and fires onAuthStateChange.
-      // Wait for SIGNED_IN to confirm the invite session was established.
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          subscription.unsubscribe()
-          setExchanging(false)
-        }
-      })
-      // Timeout fallback — if no SIGNED_IN after 8s, show error
-      const t = setTimeout(() => {
-        subscription.unsubscribe()
-        setExchangeError('Could not verify your invite link. Please ask your admin to send a new one.')
-        setExchanging(false)
-      }, 8000)
-      return () => { subscription.unsubscribe(); clearTimeout(t) }
-    }
-
-    // No code and no hash token — invalid or already-used link
+    // No code and no hash token — invalid or direct navigation
     setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
     setExchanging(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,8 +87,20 @@ function SetPasswordForm() {
       return
     }
 
-    // Hard navigation ensures the middleware re-reads the fresh session cookies
-    // and the client portal loads with the correct profile (not a stale server cache).
+    // Check role so admins testing in the same browser are not sent to the client portal.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', user.id).single()
+      if (profile?.role !== 'client') {
+        // Not a client session — sign out and let them log in normally
+        await supabase.auth.signOut()
+        window.location.href = '/login'
+        return
+      }
+    }
+
+    // Hard navigation ensures the middleware re-reads fresh session cookies
     window.location.href = '/portal'
   }
 
