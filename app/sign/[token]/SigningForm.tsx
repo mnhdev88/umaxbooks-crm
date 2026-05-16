@@ -244,7 +244,10 @@ const ACKS = [
 const CARD_TYPES = ['Visa', 'Mastercard', 'Amex', 'Discover']
 
 declare global {
-  interface Window { html2pdf: any }
+  interface Window {
+    html2canvas: (el: HTMLElement, opts?: Record<string, unknown>) => Promise<HTMLCanvasElement>
+    jspdf: { jsPDF: any }
+  }
 }
 
 function parseBrowserUA(ua: string): string {
@@ -290,12 +293,15 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Load html2pdf.js from CDN
+  // Load html2canvas + jsPDF from CDN (used separately so we control the container)
   useEffect(() => {
-    if (window.html2pdf) return
-    const s = document.createElement('script')
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-    document.head.appendChild(s)
+    const load = (src: string) => {
+      const s = document.createElement('script')
+      s.src = src
+      document.head.appendChild(s)
+    }
+    if (!window.html2canvas) load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+    if (!window.jspdf)       load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
   }, [])
 
   // Init canvas
@@ -382,42 +388,68 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
       } catch { /* best-effort */ }
 
 
-      // Generate PDF using html2pdf. html2pdf wraps the source HTML in a container
-      // with visibility:hidden — we use onclone to make it visible before html2canvas
-      // renders, otherwise the canvas (and PDF) comes out blank.
+      // Generate PDF using html2canvas + jsPDF directly.
+      // We create a visible DOM element at z-index:-1 (hidden behind the page background
+      // but fully renderable by html2canvas) to avoid html2pdf's makeContainer pitfalls
+      // (visibility:hidden + left:-200em both cause blank canvas output).
       let pdf_base64: string | null = null
-      if (window.html2pdf) {
+      if (window.html2canvas && window.jspdf) {
         try {
           const htmlStr = buildContractPdfHtml(
             contract, payment, client_signature, geoData, clientMeta, ACKS,
           )
-          const blob: Blob = await window.html2pdf().set({
-            margin:      [8, 8, 8, 8],
-            filename:    `Novelio-Agreement-${contract.business_name}.pdf`,
-            image:       { type: 'jpeg', quality: 0.95 },
-            html2canvas: {
-              scale:     1.5,
-              useCORS:   true,
-              logging:   false,
-              // html2pdf puts content in visibility:hidden; fix before capture
-              onclone: (clonedDoc: Document) => {
-                clonedDoc.querySelectorAll<HTMLElement>('[style*="visibility"]').forEach(el => {
-                  el.style.visibility = 'visible'
-                })
-              },
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          }).from(htmlStr).toPdf().outputPdf('blob')
 
-          pdf_base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload  = () => resolve((reader.result as string).split(',')[1])
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
+          // Append at (0,0) behind all content; html2canvas captures the element
+          // itself regardless of what is layered on top.
+          const wrap = document.createElement('div')
+          wrap.style.cssText = 'position:absolute;top:0;left:0;width:800px;z-index:-1;background:#fff;'
+          wrap.innerHTML = htmlStr
+          document.body.appendChild(wrap)
+          void wrap.getBoundingClientRect() // force layout reflow
+
+          try {
+            const canvas = await window.html2canvas(wrap, {
+              scale:       1.5,
+              useCORS:     true,
+              logging:     false,
+              width:       800,
+              height:      wrap.scrollHeight,
+              windowWidth: 800,
+              backgroundColor: '#ffffff',
+            })
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.92)
+            const { jsPDF } = window.jspdf
+            const pdf   = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+            const margin = 8
+            const cw     = 210 - margin * 2   // 194 mm content width
+            const ch     = 297 - margin * 2   // 281 mm content height per page
+            const imgH   = (canvas.height / canvas.width) * cw  // scaled image height
+
+            // Page 1
+            pdf.addImage(imgData, 'JPEG', margin, margin, cw, imgH)
+            let remaining = imgH - ch
+
+            // Additional pages
+            while (remaining > 0) {
+              pdf.addPage()
+              pdf.addImage(imgData, 'JPEG', margin, margin - (imgH - remaining), cw, imgH)
+              remaining -= ch
+            }
+
+            const blob = pdf.output('blob')
+            pdf_base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload  = () => resolve((reader.result as string).split(',')[1])
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+          } finally {
+            document.body.removeChild(wrap)
+          }
         } catch (pdfErr) {
           console.error('PDF generation error:', pdfErr)
-          // Non-fatal — contract will be saved without an attached PDF
+          // Non-fatal — contract is saved without an attached PDF
         }
       }
 
