@@ -77,15 +77,17 @@ export async function GET(req: NextRequest) {
     const sentAt = now.toISOString()
 
     // Record in email_sends for history (best-effort)
-    await supabase.from('email_sends').insert({
-      lead_id:   lead.id,
-      sent_by:   null,
-      to_email:  lead.email,
-      subject,
-      html_body: html,
-      status:    'sent',
-      sent_at:   sentAt,
-    }).then(() => {}).catch(() => {})
+    try {
+      await supabase.from('email_sends').insert({
+        lead_id:   lead.id,
+        sent_by:   null,
+        to_email:  lead.email,
+        subject,
+        html_body: html,
+        status:    'sent',
+        sent_at:   sentAt,
+      })
+    } catch {}
 
     // Update lead's last_followup_sent_at
     await supabase
@@ -105,12 +107,14 @@ export async function GET(req: NextRequest) {
     }
 
     // Activity log
-    await supabase.from('activity_logs').insert({
-      lead_id: lead.id,
-      user_id: null,
-      action:  'Auto Follow-up Email Sent',
-      details: `Automated follow-up email sent to ${lead.email} (${FOLLOWUP_INTERVAL_DAYS}+ days since creation).`,
-    }).then(() => {}).catch(() => {})
+    try {
+      await supabase.from('activity_logs').insert({
+        lead_id: lead.id,
+        user_id: null,
+        action:  'Auto Follow-up Email Sent',
+        details: `Automated follow-up email sent to ${lead.email} (${FOLLOWUP_INTERVAL_DAYS}+ days since creation).`,
+      })
+    } catch {}
 
     processed++
   }
