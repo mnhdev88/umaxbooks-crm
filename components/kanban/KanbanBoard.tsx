@@ -54,6 +54,15 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
 
   const visibleStages = stages ?? PIPELINE_STAGES
 
+  const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost'])
+  const FOLLOWUP_DAYS     = 5
+
+  function isFollowupDue(lead: Lead): boolean {
+    if (FOLLOWUP_TERMINAL.has(lead.status)) return false
+    const age = Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))
+    return age >= FOLLOWUP_DAYS
+  }
+
   function getNextCallback(lead: any): string | null {
     const pending = (lead.follow_ups || [])
       .filter((f: any) => f.status === 'pending' && f.scheduled_at)
@@ -72,6 +81,13 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
         if (!da) return 1
         if (!db) return -1
         return new Date(da).getTime() - new Date(db).getTime()
+      })
+    } else {
+      // Follow-up-due leads float to the top
+      list.sort((a, b) => {
+        const aDue = isFollowupDue(a) ? 0 : 1
+        const bDue = isFollowupDue(b) ? 0 : 1
+        return aDue - bDue
       })
     }
     acc[stage] = list

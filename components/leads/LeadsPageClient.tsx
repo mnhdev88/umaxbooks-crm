@@ -198,7 +198,8 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
         l.name.toLowerCase().includes(q) ||
         l.company_name.toLowerCase().includes(q) ||
         (l.city || '').toLowerCase().includes(q) ||
-        (l.website_url || '').toLowerCase().includes(q)
+        (l.website_url || '').toLowerCase().includes(q) ||
+        (l.phone || '').toLowerCase().includes(q)
       )
     }
     if (srcFilter)    data = data.filter(l => l.source === srcFilter)
@@ -354,7 +355,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, company, city, website..."
+            placeholder="Search by name, company, city, website, phone..."
             className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
           />
         </div>

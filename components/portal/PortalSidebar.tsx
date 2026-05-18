@@ -4,22 +4,45 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut } from 'lucide-react'
+import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
+import { useEffect, useState } from 'react'
 
 const portalNav = [
-  { href: '/portal',              label: 'Overview',      icon: LayoutDashboard },
-  { href: '/portal/website',      label: 'My Website',    icon: Globe },
-  { href: '/portal/before-after', label: 'Results',       icon: GitCompare },
-  { href: '/portal/contract',     label: 'Contract',      icon: FileText },
-  { href: '/portal/support',      label: 'Support',       icon: LifeBuoy },
+  { href: '/portal',               label: 'Overview',       icon: LayoutDashboard },
+  { href: '/portal/website',       label: 'My Website',     icon: Globe },
+  { href: '/portal/before-after',  label: 'Results',        icon: GitCompare },
+  { href: '/portal/contract',      label: 'Contract',       icon: FileText },
+  { href: '/portal/support',       label: 'Support',        icon: LifeBuoy },
+  { href: '/portal/notifications', label: 'Notifications',  icon: Bell },
 ]
 
 export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Profile; isAdminPreview?: boolean }) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    fetchUnreadCount()
+    const channel = supabase
+      .channel('portal-sidebar-notifications')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, () => {
+        fetchUnreadCount()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profile.id])
+
+  async function fetchUnreadCount() {
+    const { count } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+      .eq('read', false)
+    setUnreadCount(count || 0)
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -60,6 +83,7 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {portalNav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/portal' && pathname.startsWith(href))
+          const showBadge = href === '/portal/notifications' && unreadCount > 0
           return (
             <Link
               key={href}
@@ -72,7 +96,12 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
               )}
             >
               <Icon size={16} />
-              {label}
+              <span className="flex-1">{label}</span>
+              {showBadge && (
+                <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}

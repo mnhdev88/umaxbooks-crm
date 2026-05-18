@@ -108,7 +108,8 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       list = list.filter(l =>
         l.company_name.toLowerCase().includes(q) ||
         l.name.toLowerCase().includes(q) ||
-        (l.city || '').toLowerCase().includes(q)
+        (l.city || '').toLowerCase().includes(q) ||
+        (l.phone || '').toLowerCase().includes(q)
       )
     }
     return list
@@ -165,7 +166,7 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search leads..."
+            placeholder="Search by name, company, phone..."
             className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
           />
         </div>

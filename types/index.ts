@@ -114,6 +114,7 @@ export interface Lead {
   custom_field_2_value?: string
   follow_up_step?: number
   follow_up_paused?: boolean
+  last_followup_sent_at?: string
   created_at: string
   updated_at: string
   slug: string
@@ -317,7 +318,9 @@ export interface Notification {
   message: string
   type: 'info' | 'success' | 'warning' | 'error'
   read: boolean
+  link?: string
   created_at: string
+  user?: { full_name: string; role: string } | null
 }
 
 export interface BeforeAfterComparison {

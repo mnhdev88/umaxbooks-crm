@@ -8,6 +8,7 @@ import { Send } from 'lucide-react'
 interface Props {
   leadId: string
   clientId: string
+  companyName?: string
 }
 
 type RequestType = 'revision' | 'bug' | 'content' | 'other'
@@ -19,7 +20,7 @@ const TYPE_OPTIONS: { value: RequestType; label: string }[] = [
   { value: 'other',    label: 'Other' },
 ]
 
-export function SupportRequestForm({ leadId, clientId }: Props) {
+export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props) {
   const [title, setTitle]     = useState('')
   const [description, setDesc] = useState('')
   const [type, setType]       = useState<RequestType>('revision')
@@ -43,6 +44,13 @@ export function SupportRequestForm({ leadId, clientId }: Props) {
 
     setLoading(false)
     if (!error) {
+      // Notify admins + sales agents in background (non-blocking)
+      fetch('/api/support/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId, ticket_title: title.trim(), company_name: companyName }),
+      }).catch(() => {})
+
       setTitle('')
       setDesc('')
       setType('revision')

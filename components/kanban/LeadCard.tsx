@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Lead, Profile } from '@/types'
-import { Star, UserCheck, Phone } from 'lucide-react'
+import { Star, UserCheck, Phone, MailWarning } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,12 @@ interface LeadCardProps {
   agents?: Profile[]
   onReassign?: (leadId: string, agentId: string) => void
   callbackDate?: string | null
+}
+
+const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost'])
+
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function getStaleDays(updatedAt: string): number {
@@ -70,11 +76,12 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
     transition,
   }
 
-  const staleDays = lead.updated_at ? getStaleDays(lead.updated_at) : 0
-  const isAmber   = staleDays >= 2 && staleDays < 5
-  const isRed     = staleDays >= 5
-  const isStale   = isAmber || isRed
-  const isAdmin   = userRole === 'admin'
+  const staleDays     = lead.updated_at ? getStaleDays(lead.updated_at) : 0
+  const isAmber       = staleDays >= 2 && staleDays < 5
+  const isRed         = staleDays >= 5
+  const isStale       = isAmber || isRed
+  const isAdmin       = userRole === 'admin'
+  const isFollowupDue = !FOLLOWUP_TERMINAL.has(lead.status) && daysSince(lead.created_at) >= 5
 
   function handleReassignSelect(e: React.ChangeEvent<HTMLSelectElement>) {
     const agentId = e.target.value
@@ -140,6 +147,16 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
           )}
         </div>
       </div>
+
+      {/* Follow-up Due badge */}
+      {isFollowupDue && (
+        <div className="mt-1.5">
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-300 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
+            <MailWarning size={9} />
+            Follow-up Due
+          </span>
+        </div>
+      )}
 
       {/* Reassign button — admin only, stale leads */}
       {isStale && isAdmin && (

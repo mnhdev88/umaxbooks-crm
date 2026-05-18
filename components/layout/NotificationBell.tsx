@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, X, Check } from 'lucide-react'
+import { Bell, X, Check, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Notification } from '@/types'
 import { timeAgo } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 const TYPE_COLORS = {
   info: 'border-blue-500',
@@ -95,7 +96,7 @@ export function NotificationBell({ userId }: { userId: string }) {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto divide-y divide-slate-800">
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
             {notifications.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-8">No notifications</p>
             ) : (
@@ -123,6 +124,18 @@ export function NotificationBell({ userId }: { userId: string }) {
                 </div>
               ))
             )}
+          </div>
+
+          {/* See all link */}
+          <div className="border-t border-slate-700 px-4 py-2.5">
+            <Link
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors font-medium"
+            >
+              See all notifications
+              <ArrowRight size={12} />
+            </Link>
           </div>
         </div>
       )}

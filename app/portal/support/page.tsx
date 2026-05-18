@@ -25,13 +25,13 @@ export default async function PortalSupportPage() {
 
   const { leadId } = await getPortalLeadId()
 
-  const { data: requests } = await supabase
-    .from('support_requests')
-    .select('*')
-    .eq('client_id', user.id)
-    .order('created_at', { ascending: false })
+  const [{ data: requests }, { data: lead }] = await Promise.all([
+    supabase.from('support_requests').select('*').eq('client_id', user.id).order('created_at', { ascending: false }),
+    leadId ? supabase.from('leads').select('company_name').eq('id', leadId).single() : Promise.resolve({ data: null }),
+  ])
 
-  const reqList = (requests ?? []) as SupportRequest[]
+  const reqList     = (requests ?? []) as SupportRequest[]
+  const companyName = (lead as any)?.company_name ?? ''
 
   return (
     <div className="p-8 max-w-3xl space-y-6">
@@ -43,7 +43,7 @@ export default async function PortalSupportPage() {
       </div>
 
       {leadId ? (
-        <SupportRequestForm leadId={leadId} clientId={user.id} />
+        <SupportRequestForm leadId={leadId} clientId={user.id} companyName={companyName} />
       ) : (
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 text-center text-slate-400">
           <LifeBuoy size={32} className="text-slate-700 mx-auto mb-2" />
