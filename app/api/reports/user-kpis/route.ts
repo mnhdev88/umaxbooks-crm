@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 function periodStart(period: string): string | null {
   const now = new Date()
+  if (period === 'today') { return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString() }
   if (period === '7d')    { const d = new Date(now); d.setDate(d.getDate() - 7);  return d.toISOString() }
   if (period === '30d')   { const d = new Date(now); d.setDate(d.getDate() - 30); return d.toISOString() }
   if (period === 'month') { return new Date(now.getFullYear(), now.getMonth(), 1).toISOString() }

@@ -4,8 +4,13 @@ import { Header } from '@/components/layout/Header'
 import { Lead, Profile } from '@/types'
 import { DevQueueClient } from '@/components/developer/DevQueueClient'
 
-export default async function DeveloperQueuePage() {
+interface PageProps {
+  searchParams: Promise<{ lead?: string }>
+}
+
+export default async function DeveloperQueuePage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const { lead: initialLeadId } = await searchParams
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -74,13 +79,32 @@ export default async function DeveloperQueuePage() {
     .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready')
     .map((l: any) => l.id)
 
+  // IDs of leads with an approved demo
+  const { data: approvedApprovals } = await supabase
+    .from('project_approvals')
+    .select('lead_id')
+    .eq('status', 'approved')
+
+  const rawApprovedIds = [...new Set((approvedApprovals || []).map((a: any) => a.lead_id))]
+  const newApprovedIds = rawApprovedIds.filter(id => !existingLeadIds.has(id))
+
+  let approvedLeads: any[] = []
+  if (newApprovedIds.length > 0) {
+    const { data } = await supabase
+      .from('leads')
+      .select(LEAD_SELECT)
+      .in('id', newApprovedIds)
+      .order('updated_at', { ascending: false })
+    approvedLeads = processLeads(data || [])
+  }
+
   // Leads with agent notes (from audit_notes thread table — migration 023)
   let agentNotesLeads: any[] = []
   let agentNotesLeadIds: string[] = []
   try {
     const { data: noteLeads, error: noteErr } = await supabase
       .from('audit_notes')
-      .select('lead_id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
+      .select('id, lead_id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
       .order('created_at', { ascending: true })
 
     if (!noteErr && noteLeads?.length) {
@@ -116,7 +140,52 @@ export default async function DeveloperQueuePage() {
     }
   } catch { /* migration 023 not yet applied — silently skip */ }
 
-  const allQueueLeads = [...allLeads, ...agentNotesLeads]
+  const seenIds = new Set<string>()
+  const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]
+    .filter((l: any) => {
+      if (seenIds.has(l.id)) return false
+      seenIds.add(l.id)
+      return true
+    })
+    .sort((a: any, b: any) =>
+      new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime()
+    )
+
+  const approvedLeadIds = rawApprovedIds.filter(id =>
+    allQueueLeads.some((l: any) => l.id === id)
+  )
+
+  // Fetch contact notes written by sales agents / agents for all leads in the queue
+  try {
+    const allQueueLeadIds = allQueueLeads.map((l: any) => l.id)
+    if (allQueueLeadIds.length > 0) {
+      const { data: salesNotes } = await supabase
+        .from('lead_contact_notes')
+        .select('id, lead_id, note, contact_date, created_at, author:profiles!user_id(full_name, role)')
+        .in('lead_id', allQueueLeadIds)
+        .order('created_at', { ascending: true })
+
+      if (salesNotes?.length) {
+        const notesByLead = new Map<string, any[]>()
+        for (const n of salesNotes) {
+          const role = (n.author as any)?.role
+          if (role === 'sales_agent' || role === 'agent') {
+            if (!notesByLead.has(n.lead_id)) notesByLead.set(n.lead_id, [])
+            notesByLead.get(n.lead_id)!.push(n)
+          }
+        }
+        for (const lead of allQueueLeads) {
+          const notes = notesByLead.get((lead as any).id)
+          if (notes?.length) {
+            (lead as any).sales_notes_list = notes
+            if (!agentNotesLeadIds.includes((lead as any).id)) {
+              agentNotesLeadIds.push((lead as any).id)
+            }
+          }
+        }
+      }
+    }
+  } catch { /* silently skip if table unavailable */ }
 
   return (
     <>
@@ -128,6 +197,8 @@ export default async function DeveloperQueuePage() {
         userId={user.id}
         declinedLeadIds={declinedLeadIds}
         agentNotesLeadIds={agentNotesLeadIds}
+        approvedLeadIds={approvedLeadIds}
+        initialSelectedId={initialLeadId}
       />
     </>
   )

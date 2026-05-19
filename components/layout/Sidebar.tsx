@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -43,12 +43,12 @@ const salesAgentSections: NavSection[] = [
 
 const developerSections: NavSection[] = [
   { items: [
-    { href: '/',                label: 'Pipeline',           icon: LayoutDashboard },
-    { href: '/leads',           label: 'All Leads',          icon: Users },
-    { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
-    { href: '/developer-queue', label: 'Dev Queue',          icon: Code2 },
-    { href: '/email-status',    label: 'Email Status',       icon: Mail },
-    { href: '/notifications',   label: 'Notifications',      icon: Bell },
+    { href: '/developer-pipeline', label: 'Pipeline',           icon: Kanban },
+    { href: '/leads',              label: 'All Leads',          icon: Users },
+    { href: '/audits',             label: 'Audits & Follow-up', icon: Activity },
+    { href: '/developer-queue',    label: 'Dev Queue',          icon: Code2 },
+    { href: '/email-status',       label: 'Email Status',       icon: Mail },
+    { href: '/notifications',      label: 'Notifications',      icon: Bell },
   ]},
 ]
 

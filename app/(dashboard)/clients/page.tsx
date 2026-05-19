@@ -46,9 +46,9 @@ export default async function ClientsPage() {
   const [{ data: liveSites }, { data: clientProfiles }] = await Promise.all([
     supabase
       .from('live_sites')
-      .select('lead_id, final_url, leads(id, company_name, name, email, status)')
+      .select('lead_id, final_url, created_at, leads(id, company_name, name, email, status)')
       .not('final_url', 'is', null)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: true }),
     supabase
       .from('profiles')
       .select('id, full_name, lead_id, created_at')
@@ -83,6 +83,7 @@ export default async function ClientsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700 bg-slate-800/60">
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Client ID</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-medium">Business</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-medium">Contact</th>
                   <th className="text-left px-5 py-3 text-slate-400 font-medium">Status</th>
@@ -91,13 +92,21 @@ export default async function ClientsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {rows.map(row => {
+                {rows.map((row, index) => {
                   const lead        = Array.isArray(row.leads) ? row.leads[0] ?? null : row.leads
                   const portalAcct  = lead ? portalMap.get(lead.id) : undefined
                   const leadId      = lead?.id ?? row.lead_id
+                  const clientId    = `CLT-${String(index + 1).padStart(3, '0')}`
 
                   return (
                     <tr key={row.lead_id} className="hover:bg-slate-800/30 transition-colors">
+
+                      {/* Client ID */}
+                      <td className="px-5 py-4">
+                        <span className="text-xs font-mono font-semibold px-2 py-1 rounded bg-slate-700/60 text-orange-400 border border-slate-600/40">
+                          {clientId}
+                        </span>
+                      </td>
 
                       {/* Business */}
                       <td className="px-5 py-4">

@@ -189,6 +189,12 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                 )}>
                   <StatusIcon size={11} />
                   {approval.status}
+                  {approval.status === 'approved' && approval.approved_by && (() => {
+                    const approver = salesAgents.find((a: Profile) => a.id === approval.approved_by)
+                    return approver
+                      ? <span className="font-normal opacity-75 capitalize">· by {approver.full_name}</span>
+                      : null
+                  })()}
                 </span>
               </div>
 

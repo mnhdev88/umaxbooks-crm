@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, Star, Globe, MapPin, FileText, User, Calendar, Bell, Lock } from 'lucide-react'
+import { ExternalLink, Star, Globe, MapPin, FileText, User, Calendar, Bell, Lock, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { US_TIMEZONES, formatDualTime } from '@/lib/timezone'
 
@@ -153,12 +153,34 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
             <Bell size={12} /> Agent Instructions ({lead.audit_notes_list.length})
           </p>
           <div className="space-y-2.5">
-            {lead.audit_notes_list.map((n: any) => (
-              <div key={n.id} className="bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2.5">
+            {lead.audit_notes_list.map((n: any, i: number) => (
+              <div key={n.id ?? i} className="bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2.5">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold text-orange-400">{n.author?.full_name ?? 'Agent'}</span>
                   <span className="text-[10px] text-slate-500">
                     {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{n.note}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contact notes from sales agents */}
+      {lead.sales_notes_list?.length > 0 && (
+        <div className="bg-sky-900/15 border border-sky-700/30 rounded-xl p-4">
+          <p className="text-xs font-semibold text-sky-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <MessageSquare size={12} /> Notes from Agent ({lead.sales_notes_list.length})
+          </p>
+          <div className="space-y-2.5">
+            {lead.sales_notes_list.map((n: any, i: number) => (
+              <div key={n.id ?? i} className="bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2.5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-sky-400">{n.author?.full_name ?? 'Agent'}</span>
+                  <span className="text-[10px] text-slate-500">
+                    {new Date(n.contact_date || n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
                 <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{n.note}</p>

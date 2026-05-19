@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
-  Eye, Edit2, Download, AlertCircle, CheckCircle,
+  Eye, Edit2, Download, AlertCircle, CheckCircle, Filter,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -137,9 +137,10 @@ interface Props {
   agents: Profile[]
   profile: Profile
   userId: string
+  filterBanner?: string
 }
 
-export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props) {
+export function LeadsPageClient({ initialLeads, agents, profile, userId, filterBanner }: Props) {
   const router = useRouter()
   const [search, setSearch]           = useState('')
   const [srcFilter, setSrcFilter]     = useState('')
@@ -313,6 +314,17 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId }: Props
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-5">
+
+      {/* Filter banner from Reports drill-down */}
+      {filterBanner && (
+        <div className="flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-2.5">
+          <Filter size={13} className="text-orange-400 shrink-0" />
+          <span className="text-sm text-orange-300 font-medium flex-1">{filterBanner}</span>
+          <Link href="/leads" className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1 transition-colors">
+            Clear filter
+          </Link>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

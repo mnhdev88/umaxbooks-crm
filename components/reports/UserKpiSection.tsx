@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Users, Calendar, Handshake, DollarSign, CheckCircle, Loader2, UserPlus } from 'lucide-react'
 
-type Period = '7d' | '30d' | 'month' | 'all'
+type Period = 'today' | '7d' | '30d' | 'month' | 'all'
 
 interface UserKpi {
   id: string
@@ -17,6 +18,7 @@ interface UserKpi {
 }
 
 const PERIOD_LABELS: Record<Period, string> = {
+  'today': 'Today',
   '7d':    'Last 7 Days',
   '30d':   'Last 30 Days',
   'month': 'This Month',
@@ -34,7 +36,7 @@ interface Props {
 }
 
 export function UserKpiSection({ isAdmin }: Props) {
-  const [period, setPeriod] = useState<Period>('month')
+  const [period, setPeriod] = useState<Period>('today')
   const [kpis, setKpis]     = useState<UserKpi[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -98,7 +100,7 @@ export function UserKpiSection({ isAdmin }: Props) {
 
               {/* KPI metrics */}
               <div className="grid grid-cols-2 gap-2.5">
-                <KpiMetric icon={UserPlus}     label="Leads Added"   value={u.leads_added}       color="text-sky-400"    bg="bg-sky-900/30" />
+                <KpiMetric icon={UserPlus}     label="Leads Added"   value={u.leads_added}       color="text-sky-400"    bg="bg-sky-900/30" href={`/leads?agent=${u.id}&period=${period}`} />
                 <KpiMetric icon={Users}        label="Assigned"      value={u.leads_assigned}     color="text-blue-400"   bg="bg-blue-900/30" />
                 <KpiMetric icon={Calendar}     label="Demos Booked"  value={u.demos_booked}       color="text-purple-400" bg="bg-purple-900/30" />
                 <KpiMetric icon={CheckCircle}  label="Completed"     value={u.leads_completed}    color="text-teal-400"   bg="bg-teal-900/30" />
@@ -113,11 +115,11 @@ export function UserKpiSection({ isAdmin }: Props) {
   )
 }
 
-function KpiMetric({ icon: Icon, label, value, color, bg }: {
-  icon: any; label: string; value: number | string; color: string; bg: string
+function KpiMetric({ icon: Icon, label, value, color, bg, href }: {
+  icon: any; label: string; value: number | string; color: string; bg: string; href?: string
 }) {
-  return (
-    <div className={`${bg} rounded-lg p-2.5 flex items-center gap-2.5`}>
+  const inner = (
+    <>
       <div className={`shrink-0 ${color}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
@@ -125,6 +127,18 @@ function KpiMetric({ icon: Icon, label, value, color, bg }: {
         <p className="text-xs text-slate-500 truncate">{label}</p>
         <p className={`text-sm font-bold ${color}`}>{value}</p>
       </div>
+    </>
+  )
+  if (href) {
+    return (
+      <Link href={href} className={`${bg} rounded-lg p-2.5 flex items-center gap-2.5 hover:ring-1 hover:ring-sky-500/50 transition-all cursor-pointer`}>
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <div className={`${bg} rounded-lg p-2.5 flex items-center gap-2.5`}>
+      {inner}
     </div>
   )
 }

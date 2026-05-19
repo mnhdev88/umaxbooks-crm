@@ -57,7 +57,7 @@ function TatPill({ lead }: { lead: any }) {
 }
 
 // ── Queue type filter ───────────────────────────────────────────────
-type Filter = 'all' | 'to-build' | 'submitted' | 'declined' | 'notes'
+type Filter = 'all' | 'to-build' | 'submitted' | 'declined' | 'notes' | 'approved'
 
 const FILTER_LABELS: Record<Filter, string> = {
   all:        'All',
@@ -65,14 +65,16 @@ const FILTER_LABELS: Record<Filter, string> = {
   submitted:  'Submitted',
   declined:   'Declined',
   notes:      'Agent Notes',
+  approved:   'Approved',
 }
 
-function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[]) {
+function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[]) {
   if (f === 'all') return true
   if (f === 'to-build') return lead.status === 'Demo Scheduled'
   if (f === 'submitted') return lead.status === 'Demo Done'
   if (f === 'declined') return declinedIds.includes(lead.id)
   if (f === 'notes') return notesIds.includes(lead.id)
+  if (f === 'approved') return approvedIds.includes(lead.id)
   return true
 }
 
@@ -93,16 +95,18 @@ interface Props {
   userId: string
   declinedLeadIds?: string[]
   agentNotesLeadIds?: string[]
+  approvedLeadIds?: string[]
+  initialSelectedId?: string
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [] }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], initialSelectedId }: Props) {
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<Filter>('all')
-  const [selectedId, setSelectedId] = useState<string | null>(initialLeads[0]?.id || null)
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId || initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
 
   const filtered = useMemo(() => {
-    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds))
+    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds))
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(l =>
@@ -113,21 +117,22 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       )
     }
     return list
-  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds])
+  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds])
 
   const counts = useMemo(() => ({
     all:        initialLeads.length,
-    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds, agentNotesLeadIds)).length,
-    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds, agentNotesLeadIds)).length,
+    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds, agentNotesLeadIds, approvedLeadIds)).length,
+    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds, agentNotesLeadIds, approvedLeadIds)).length,
     declined:   declinedLeadIds.length,
     notes:      agentNotesLeadIds.length,
-  }), [initialLeads, declinedLeadIds, agentNotesLeadIds])
+    approved:   approvedLeadIds.length,
+  }), [initialLeads, declinedLeadIds, agentNotesLeadIds, approvedLeadIds])
 
   const selectedLead = selectedId ? initialLeads.find(l => l.id === selectedId) as any : null
 
   function selectLead(id: string) {
     setSelectedId(id)
-    setActiveTab(declinedLeadIds.includes(id) ? 'demo' : 'brief')
+    setActiveTab(declinedLeadIds.includes(id) ? 'demo' : approvedLeadIds.includes(id) ? 'demo' : 'brief')
   }
 
   return (
@@ -198,7 +203,11 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                 </div>
                 <p className="text-xs text-slate-500 mb-2 truncate">{lead.name} · {lead.city || '—'}</p>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {declinedLeadIds.includes(lead.id) ? (
+                  {approvedLeadIds.includes(lead.id) ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-green-900/40 text-green-300 flex items-center gap-1">
+                      <CheckSquare size={8} /> Approved
+                    </span>
+                  ) : declinedLeadIds.includes(lead.id) ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-900/40 text-red-300">
                       Declined
                     </span>
