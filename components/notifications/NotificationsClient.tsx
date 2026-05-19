@@ -7,7 +7,7 @@ import { timeAgo } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import {
-  Bell, Check, Info, CheckCircle2, AlertTriangle, XCircle, ArrowUpRight,
+  Bell, Check, Info, CheckCircle2, AlertTriangle, XCircle, ArrowUpRight, RefreshCw,
 } from 'lucide-react'
 
 const TYPE_CONFIG = {
@@ -36,7 +36,20 @@ interface Props {
 export function NotificationsClient({ initialNotifications, userId, isAdmin }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [filter, setFilter] = useState<Filter>('all')
+  const [refreshing, setRefreshing] = useState(false)
   const supabase = createClient()
+
+  async function refresh() {
+    setRefreshing(true)
+    const q = supabase
+      .from('notifications')
+      .select('*, user:profiles!notifications_user_id_fkey(full_name, role)')
+      .order('created_at', { ascending: false })
+    if (!isAdmin) q.eq('user_id', userId)
+    const { data } = await q
+    if (data) setNotifications(data as Notification[])
+    setRefreshing(false)
+  }
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -103,17 +116,30 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
             {' · '}auto-deleted after 3 days
           </p>
         </div>
-        {unreadCount > 0 && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={markAllRead}
+            onClick={refresh}
+            disabled={refreshing}
+            title="Refresh notifications"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
-                       bg-orange-500/15 hover:bg-orange-500/25 text-orange-400
-                       transition-colors font-medium"
+                       bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200
+                       transition-colors disabled:opacity-50"
           >
-            <Check size={14} />
-            Mark all read
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
           </button>
-        )}
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllRead}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+                         bg-orange-500/15 hover:bg-orange-500/25 text-orange-400
+                         transition-colors font-medium"
+            >
+              <Check size={14} />
+              Mark all read
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter tabs */}

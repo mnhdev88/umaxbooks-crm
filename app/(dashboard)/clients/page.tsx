@@ -55,7 +55,10 @@ export default async function ClientsPage() {
       .eq('role', 'client'),
   ])
 
-  const rows = (liveSites ?? []) as LiveSiteRow[]
+  // Ascending order assigns stable IDs (CLT-001 = first client ever); reverse for newest-first display
+  const rowsAsc = (liveSites ?? []) as LiveSiteRow[]
+  const rows = [...rowsAsc].reverse()
+  const totalRows = rowsAsc.length
   const portalMap = new Map(
     ((clientProfiles ?? []) as ClientProfile[]).map(p => [p.lead_id, p])
   )
@@ -96,7 +99,7 @@ export default async function ClientsPage() {
                   const lead        = Array.isArray(row.leads) ? row.leads[0] ?? null : row.leads
                   const portalAcct  = lead ? portalMap.get(lead.id) : undefined
                   const leadId      = lead?.id ?? row.lead_id
-                  const clientId    = `CLT-${String(index + 1).padStart(3, '0')}`
+                  const clientId    = `CLT-${String(totalRows - index).padStart(3, '0')}`
 
                   return (
                     <tr key={row.lead_id} className="hover:bg-slate-800/30 transition-colors">
