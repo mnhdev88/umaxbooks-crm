@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell } from 'lucide-react'
+import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell, Receipt } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
@@ -14,6 +14,7 @@ const portalNav = [
   { href: '/portal/website',       label: 'My Website',     icon: Globe },
   { href: '/portal/before-after',  label: 'Results',        icon: GitCompare },
   { href: '/portal/contract',      label: 'Contract',       icon: FileText },
+  { href: '/portal/invoices',      label: 'Invoices',       icon: Receipt },
   { href: '/portal/support',       label: 'Support',        icon: LifeBuoy },
   { href: '/portal/notifications', label: 'Notifications',  icon: Bell },
 ]
