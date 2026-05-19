@@ -28,7 +28,8 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Public routes — no auth required
-  const isAuthPage    = path.startsWith('/login')
+  const isAuthPage    = path.startsWith('/login') || path.startsWith('/auth/')
+  const isPortal      = path.startsWith('/portal')
   const isPublicApi   = path.startsWith('/api/public')
   const isSigningPage = path.startsWith('/sign/')
   // /api/contracts/{token} and /api/contracts/{token}/sign — but NOT the bare /api/contracts (admin list/create)
@@ -40,10 +41,38 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthPage) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role
+    const PREVIEW_COOKIE = 'portal_preview_lead_id'
+    const hasPreviewCookie = !!request.cookies.get(PREVIEW_COOKIE)?.value
+
+    // Client users must stay inside /portal
+    if (role === 'client' && !isPortal && !isAuthPage) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/portal'
+      return NextResponse.redirect(url)
+    }
+
+    // Staff users can access /portal only with admin preview cookie
+    if (role !== 'client' && isPortal && !hasPreviewCookie) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+
+    // Logged-in user hitting an auth page — redirect away
+    // Allow /auth/set-password so invited users can complete signup
+    if (isAuthPage && path !== '/auth/set-password') {
+      const url = request.nextUrl.clone()
+      url.pathname = role === 'client' ? '/portal' : '/'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
