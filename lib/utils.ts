@@ -67,7 +67,7 @@ export const STATUS_COLORS: Record<string, string> = {
   'Audit Ready': 'bg-purple-600 text-purple-100',
   'Callback Booked': 'bg-cyan-600 text-cyan-100',
   'Demo Scheduled': 'bg-yellow-600 text-yellow-100',
-  'Demo Done': 'bg-orange-600 text-orange-100',
+  'Demo Done': 'bg-amber-600 text-amber-100',
   'Closed Won': 'bg-green-600 text-green-100',
   Revision: 'bg-pink-600 text-pink-100',
   Live: 'bg-teal-600 text-teal-100',

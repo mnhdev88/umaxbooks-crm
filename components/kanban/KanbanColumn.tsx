@@ -24,7 +24,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   'Audit Ready': 'border-purple-600',
   'Callback Booked': 'border-cyan-500',
   'Demo Scheduled': 'border-yellow-600',
-  'Demo Done': 'border-orange-600',
+  'Demo Done': 'border-amber-600',
   'Closed Won': 'border-green-600',
   Revision: 'border-pink-600',
   Live: 'border-teal-600',
