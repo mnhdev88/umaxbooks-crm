@@ -84,13 +84,21 @@ export default async function ClientsPage() {
         ) : (
           <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
+              <colgroup>
+                <col className="w-32" />
+                <col />
+                <col />
+                <col className="w-28" />
+                <col className="w-44" />
+                <col className="w-48" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-700 bg-slate-800/60">
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Client ID</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Business</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Contact</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Status</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium">Portal</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Client ID</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Business</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Contact</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Status</th>
+                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Portal</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
@@ -106,14 +114,14 @@ export default async function ClientsPage() {
 
                       {/* Client ID */}
                       <td className="px-5 py-4">
-                        <span className="text-xs font-mono font-semibold px-2 py-1 rounded bg-slate-700/60 text-orange-400 border border-slate-600/40">
+                        <span className="whitespace-nowrap text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-slate-700/60 text-orange-400 border border-slate-600/40">
                           {clientId}
                         </span>
                       </td>
 
                       {/* Business */}
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-700
                                           flex items-center justify-center text-white text-xs font-bold shrink-0">
                             {(lead?.company_name ?? lead?.name ?? '?').charAt(0).toUpperCase()}
@@ -126,10 +134,10 @@ export default async function ClientsPage() {
                               href={row.final_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-0.5 truncate"
+                              className="text-xs text-slate-500 hover:text-blue-400 flex items-center gap-0.5 truncate transition-colors"
                             >
-                              <Globe size={10} />
-                              {row.final_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                              <Globe size={10} className="shrink-0" />
+                              <span className="truncate">{row.final_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
                             </a>
                           </div>
                         </div>
@@ -139,14 +147,14 @@ export default async function ClientsPage() {
                       <td className="px-5 py-4">
                         <p className="text-slate-200 truncate">{lead?.name ?? '—'}</p>
                         {lead?.email && (
-                          <p className="text-slate-500 text-xs truncate">{lead.email}</p>
+                          <p className="text-slate-500 text-xs truncate mt-0.5">{lead.email}</p>
                         )}
                       </td>
 
                       {/* Lead status */}
                       <td className="px-5 py-4">
                         {lead?.status ? (
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium
+                          <span className={`inline-block whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium
                             ${STATUS_PILL[lead.status] ?? 'bg-slate-600/50 text-slate-300'}`}>
                             {lead.status}
                           </span>
@@ -159,8 +167,8 @@ export default async function ClientsPage() {
                       <td className="px-5 py-4">
                         {portalAcct ? (
                           <div className="flex items-center gap-1.5 text-xs text-green-400">
-                            <UserCheck size={13} />
-                            <span>
+                            <UserCheck size={13} className="shrink-0" />
+                            <span className="truncate">
                               {portalAcct.full_name}
                               <span className="text-slate-600 ml-1">
                                 · {new Date(portalAcct.created_at).toLocaleDateString('en-US', { dateStyle: 'short' })}
@@ -169,7 +177,7 @@ export default async function ClientsPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <UserX size={13} />
+                            <UserX size={13} className="shrink-0" />
                             No account
                           </div>
                         )}
@@ -185,7 +193,7 @@ export default async function ClientsPage() {
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
                                          bg-orange-500/15 hover:bg-orange-500/25 text-orange-400
-                                         transition-colors font-medium"
+                                         transition-colors font-medium whitespace-nowrap"
                             >
                               <ExternalLink size={11} />
                               View Portal
@@ -195,7 +203,7 @@ export default async function ClientsPage() {
                             href={`/leads/${leadId}?tab=website-details`}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
                                        bg-slate-700 hover:bg-slate-600 text-slate-200
-                                       transition-colors"
+                                       transition-colors whitespace-nowrap"
                           >
                             Manage
                             <ArrowRight size={11} />
