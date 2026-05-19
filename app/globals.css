@@ -256,3 +256,12 @@ html.light .border-slate-700\/50 { border-color: rgba(196,181,253,0.5) !importan
 .animate-in { animation-duration: 150ms; animation-fill-mode: both; }
 .fade-in { animation-name: fade-in; }
 .zoom-in-95 { animation-name: zoom-in-95; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

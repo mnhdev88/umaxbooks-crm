@@ -235,26 +235,26 @@ export function CloseDealTab({ leadId, userId, closing, onClose }: CloseDealTabP
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Payment & Authorization</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Payment type</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Payment type</label>
                 <select value={paymentType} onChange={e => setPaymentType(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer">
                   {PAYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Amount received (₹)</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Amount received (₹)</label>
                 <input value={tokenAmount} onChange={e => setTokenAmount(e.target.value)} type="number" placeholder="e.g. 5000"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Payment method</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Payment method</label>
                 <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer">
                   {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Transaction / ref ID</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Transaction / ref ID</label>
                 <input value={transactionId} onChange={e => setTransactionId(e.target.value)} placeholder="UPI ref or txn ID"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
@@ -284,17 +284,17 @@ export function CloseDealTab({ leadId, userId, closing, onClose }: CloseDealTabP
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Project Timeline</p>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Start date</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Start date</label>
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Delivery date</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Delivery date</label>
                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Duration</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Duration</label>
                 <input readOnly value={calcDuration()} placeholder="Auto-calculated"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-teal-400 focus:outline-none" />
               </div>
@@ -306,24 +306,24 @@ export function CloseDealTab({ leadId, userId, closing, onClose }: CloseDealTabP
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Client Info Collected on Call</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Client phone (confirmed)</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Client phone (confirmed)</label>
                 <input value={clientPhone} onChange={e => setClientPhone(e.target.value)} placeholder="+91 98XXXXXXXX"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Client email (confirmed)</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Client email (confirmed)</label>
                 <input value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@email.com"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
               </div>
             </div>
             <div className="mb-3">
-              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Client's revision notes / special requests</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Client's revision notes / special requests</label>
               <textarea value={revisionNotes} onChange={e => setRevisionNotes(e.target.value)} rows={3}
                 placeholder="Any specific photos, preferences, content, or changes the client requested during the call..."
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none" />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Closing call notes</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Closing call notes</label>
               <textarea value={closingCallNotes} onChange={e => setClosingCallNotes(e.target.value)} rows={2}
                 placeholder="How did the call go? Any hesitations? What convinced them?"
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none" />
@@ -341,26 +341,26 @@ export function CloseDealTab({ leadId, userId, closing, onClose }: CloseDealTabP
         <div className="bg-red-900/10 border border-red-900/30 rounded-xl p-5 space-y-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Log Reason — Not Closed</p>
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Primary reason</label>
+            <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Primary reason</label>
             <select value={lostReason} onChange={e => setLostReason(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer">
               {LOST_REASONS.map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Notes</label>
+            <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
             <textarea value={lostNotes} onChange={e => setLostNotes(e.target.value)} rows={3}
               placeholder="What did the client say? What objections came up?"
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Re-nurture date</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Re-nurture date</label>
               <input type="date" value={reNurtureDate} onChange={e => setReNurtureDate(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">Re-nurture action</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider block mb-1.5">Re-nurture action</label>
               <select value={reNurtureAction} onChange={e => setReNurtureAction(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-300 focus:outline-none focus:border-orange-500 cursor-pointer">
                 {RENURTURE_ACTIONS.map(a => <option key={a}>{a}</option>)}

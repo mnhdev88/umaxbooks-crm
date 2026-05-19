@@ -123,10 +123,10 @@ export function BeforeAfterViewTab({ comparison, metrics, lead }: BeforeAfterVie
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-900/80">
-                  <th className="text-left px-3 py-2.5 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">Metric</th>
-                  <th className="text-left px-3 py-2.5 text-red-400 font-semibold uppercase tracking-wider text-[10px]">Before</th>
-                  <th className="text-left px-3 py-2.5 text-green-400 font-semibold uppercase tracking-wider text-[10px]">After</th>
-                  <th className="text-left px-3 py-2.5 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">Business Impact</th>
+                  <th scope="col" className="text-left px-3 py-2.5 text-slate-500 font-semibold uppercase tracking-wider text-xs">Metric</th>
+                  <th scope="col" className="text-left px-3 py-2.5 text-red-400 font-semibold uppercase tracking-wider text-xs">Before</th>
+                  <th scope="col" className="text-left px-3 py-2.5 text-green-400 font-semibold uppercase tracking-wider text-xs">After</th>
+                  <th scope="col" className="text-left px-3 py-2.5 text-slate-500 font-semibold uppercase tracking-wider text-xs">Business Impact</th>
                 </tr>
               </thead>
               <tbody>

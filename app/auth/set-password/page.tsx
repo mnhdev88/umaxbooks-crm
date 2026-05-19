@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useId, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -26,12 +26,13 @@ function SetPasswordForm() {
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState<string | null>(null)
 
+  const passwordId = useId()
+  const confirmId  = useId()
+
   useEffect(() => {
     const code = searchParams.get('code')
 
     if (code) {
-      // PKCE flow — exchange the server-generated code for a session.
-      // Do NOT call signOut() first: it clears the PKCE code_verifier from storage.
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) {
           setExchangeError('This invite link has expired or already been used. Please ask your admin to send a new one.')
@@ -41,8 +42,6 @@ function SetPasswordForm() {
       return
     }
 
-    // Hash / implicit flow — @supabase/ssr sets detectSessionInUrl:false so the
-    // client does NOT auto-process the hash. Parse it manually and call setSession.
     const hash = window.location.hash
     if (hash.includes('access_token=')) {
       const params        = new URLSearchParams(hash.replace(/^#/, ''))
@@ -59,7 +58,6 @@ function SetPasswordForm() {
       return
     }
 
-    // No code and no hash token — invalid or direct navigation
     setExchangeError('Invalid invite link. Please ask your admin to send a new invite.')
     setExchanging(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,22 +85,21 @@ function SetPasswordForm() {
       return
     }
 
-    // Check role so admins testing in the same browser are not sent to the client portal.
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', user.id).single()
       if (profile?.role !== 'client') {
-        // Not a client session — sign out and let them log in normally
         await supabase.auth.signOut()
         window.location.href = '/login'
         return
       }
     }
 
-    // Hard navigation ensures the middleware re-reads fresh session cookies
     window.location.href = '/portal'
   }
+
+  const inputCls = 'w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus-visible:border-orange-500'
 
   return (
     <div className="min-h-screen bg-[#07061A] flex items-center justify-center p-4">
@@ -124,7 +121,7 @@ function SetPasswordForm() {
         <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
           {exchanging ? (
             <div className="flex items-center justify-center gap-3 py-6 text-slate-400 text-sm">
-              <svg className="animate-spin h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" aria-label="Verifying link" role="status">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -132,68 +129,69 @@ function SetPasswordForm() {
             </div>
           ) : exchangeError ? (
             <div className="text-center py-4 space-y-3">
-              <KeyRound size={32} className="text-slate-600 mx-auto" />
-              <p className="text-red-400 text-sm">{exchangeError}</p>
+              <KeyRound size={32} className="text-slate-600 mx-auto" aria-hidden="true" />
+              <p role="alert" className="text-red-400 text-sm">{exchangeError}</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="rounded-lg bg-red-900/30 border border-red-700 px-4 py-3 text-sm text-red-300 text-center">
+                <div role="alert" className="rounded-lg bg-red-900/30 border border-red-700 px-4 py-3 text-sm text-red-300 text-center">
                   {error}
                 </div>
               )}
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor={passwordId} className="text-[13px] font-medium text-slate-400">
                   New Password
                 </label>
                 <div className="relative">
                   <input
+                    id={passwordId}
                     type={showPass ? 'text' : 'password'}
                     required
                     minLength={8}
+                    autoComplete="new-password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Minimum 8 characters"
-                    className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 pr-10
-                               text-sm text-slate-100 placeholder:text-slate-500
-                               focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                    className={`${inputCls} pr-11`}
                   />
                   <button
                     type="button"
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPass}
                     onClick={() => setShowPass(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                    className="absolute right-0 top-0 h-full px-3 flex items-center text-slate-500 hover:text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 rounded-r-lg"
                   >
-                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    {showPass ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor={confirmId} className="text-[13px] font-medium text-slate-400">
                   Confirm Password
                 </label>
                 <input
+                  id={confirmId}
                   type={showPass ? 'text' : 'password'}
                   required
+                  autoComplete="new-password"
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
                   placeholder="Re-enter your password"
-                  className="w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5
-                             text-sm text-slate-100 placeholder:text-slate-500
-                             focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                  className={inputCls}
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5
-                           rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                           flex items-center justify-center gap-2 mt-2"
+                aria-busy={loading}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
               >
                 {loading && (
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-label="Setting up account" role="status">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>

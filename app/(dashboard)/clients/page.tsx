@@ -94,12 +94,12 @@ export default async function ClientsPage() {
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-700 bg-slate-800/60">
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Client ID</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Business</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Contact</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Status</th>
-                  <th className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Portal</th>
-                  <th className="px-5 py-3" />
+                  <th scope="col" className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Client ID</th>
+                  <th scope="col" className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Business</th>
+                  <th scope="col" className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Contact</th>
+                  <th scope="col" className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Status</th>
+                  <th scope="col" className="text-left px-5 py-3 text-slate-400 font-medium text-xs uppercase tracking-wide">Portal</th>
+                  <th scope="col" className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">

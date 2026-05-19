@@ -36,8 +36,12 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
               <Dialog.Title className="text-base font-semibold text-slate-100">
                 {title}
               </Dialog.Title>
-              <button onClick={onClose} className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
-                <X size={16} />
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
+              >
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
             <div className="flex-1 min-h-0 p-5 overflow-y-auto">{children}</div>

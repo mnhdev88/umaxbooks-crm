@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +43,19 @@ export default function RootLayout({
         `}} />
       </head>
       <body className="bg-[#0A0820] text-slate-100 min-h-screen">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:bg-orange-500 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-medium focus:text-sm"
+        >
+          Skip to main content
+        </a>
         <ThemeProvider>{children}</ThemeProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: { background: '#1e1b4b', border: '1px solid #3730a3', color: '#f1f5f9' },
+          }}
+        />
       </body>
     </html>
   );

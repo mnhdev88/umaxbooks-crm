@@ -400,13 +400,13 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
             <thead className="bg-slate-800/60">
               <tr>
                 {canEdit && (
-                  <th className="w-9 px-3 py-3">
+                  <th scope="col" className="w-9 px-3 py-3">
                     <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
                 {['Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Competitors','Status','Assigned','Added',''].map(h => (
-                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
+                  <th scope="col" key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
                     {h}
                   </th>
                 ))}
@@ -659,7 +659,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                         <thead>
                           <tr>
                             {csvHeaders.slice(0, 6).map(h => (
-                              <th key={h} className="px-3 py-2 text-left text-slate-500 border-b border-slate-700 font-medium">{h}</th>
+                              <th scope="col" key={h} className="px-3 py-2 text-left text-slate-500 border-b border-slate-700 font-medium">{h}</th>
                             ))}
                           </tr>
                         </thead>
@@ -684,9 +684,9 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-slate-800">
-                          <th className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Your Column</th>
-                          <th className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Sample</th>
-                          <th className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Map to CRM Field</th>
+                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Your Column</th>
+                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Sample</th>
+                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Map to CRM Field</th>
                         </tr>
                       </thead>
                       <tbody>

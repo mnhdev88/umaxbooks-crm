@@ -174,7 +174,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-100 truncate leading-tight">{profile.full_name}</p>
-            <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{formatRole(profile.role)}</p>
+            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">{formatRole(profile.role)}</p>
           </div>
         </div>
       </div>
@@ -210,7 +210,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
                     <Icon size={15} className="shrink-0" />
                     <span className="flex-1 truncate">{label}</span>
                     {badge > 0 && (
-                      <span className="bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none">
+                      <span className="bg-orange-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none">
                         {badge > 99 ? '99+' : badge}
                       </span>
                     )}

@@ -86,10 +86,10 @@ export default async function PortalBeforeAfterPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700 bg-slate-800/60">
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Metric</th>
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Before</th>
-                  <th className="text-left px-4 py-3 text-orange-400 font-medium">After</th>
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Impact</th>
+                  <th scope="col" className="text-left px-4 py-3 text-slate-400 font-medium">Metric</th>
+                  <th scope="col" className="text-left px-4 py-3 text-slate-400 font-medium">Before</th>
+                  <th scope="col" className="text-left px-4 py-3 text-orange-400 font-medium">After</th>
+                  <th scope="col" className="text-left px-4 py-3 text-slate-400 font-medium">Impact</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">

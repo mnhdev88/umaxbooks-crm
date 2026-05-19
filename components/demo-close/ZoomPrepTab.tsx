@@ -108,17 +108,17 @@ export function ZoomPrepTab({ lead, userId, closing, comparison, metrics, onChec
               )}
             </div>
             <div className="grid grid-cols-2 gap-4 text-xs mb-4">
-              <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-[10px]">Client</p><p className="text-slate-200 font-medium">{lead.name}</p></div>
-              <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-[10px]">Company</p><p className="text-slate-200 font-medium">{lead.company_name}</p></div>
+              <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-xs">Client</p><p className="text-slate-200 font-medium">{lead.name}</p></div>
+              <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-xs">Company</p><p className="text-slate-200 font-medium">{lead.company_name}</p></div>
               {demoUrl && (
-                <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-[10px]">Demo URL</p>
+                <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-xs">Demo URL</p>
                   <a href={demoUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 flex items-center gap-1">
                     {demoUrl.replace(/^https?:\/\//,'').substring(0, 30)}… <ExternalLink size={10} />
                   </a>
                 </div>
               )}
               {appointment?.zoom_link && (
-                <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-[10px]">Zoom link</p>
+                <div><p className="text-slate-500 mb-0.5 uppercase tracking-wider text-xs">Zoom link</p>
                   <a href={appointment.zoom_link} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 flex items-center gap-1">
                     Open Zoom <ExternalLink size={10} />
                   </a>

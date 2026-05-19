@@ -170,15 +170,15 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
               <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Lead</th>
-                <th className="px-4 py-3">To</th>
-                <th className="px-4 py-3">Subject</th>
-                <th className="px-4 py-3">Sent By</th>
-                <th className="px-4 py-3">Sent Date</th>
-                <th className="px-4 py-3">Open Status</th>
-                <th className="px-4 py-3">Opens</th>
-                <th className="px-4 py-3">Last Opened</th>
-                <th className="px-4 py-3"></th>
+                <th scope="col" className="px-4 py-3">Lead</th>
+                <th scope="col" className="px-4 py-3">To</th>
+                <th scope="col" className="px-4 py-3">Subject</th>
+                <th scope="col" className="px-4 py-3">Sent By</th>
+                <th scope="col" className="px-4 py-3">Sent Date</th>
+                <th scope="col" className="px-4 py-3">Open Status</th>
+                <th scope="col" className="px-4 py-3">Opens</th>
+                <th scope="col" className="px-4 py-3">Last Opened</th>
+                <th scope="col" className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
