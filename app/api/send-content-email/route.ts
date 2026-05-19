@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-    <div style="background:#0a1628;padding:28px 32px;">
+    <div style="background:#0E0B24;padding:28px 32px;">
       <div style="color:#f97316;font-size:20px;font-weight:700;letter-spacing:-0.5px;">${agencyName}</div>
       <div style="color:#94a3b8;font-size:12px;margin-top:4px;">Digital Marketing &amp; SEO Agency</div>
     </div>

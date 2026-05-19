@@ -303,7 +303,7 @@ export function ComposeModal({
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-6 px-4 pb-6 overflow-y-auto">
-        <div className="bg-[#0a1628] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
+        <div className="bg-[#0E0B24] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
@@ -442,7 +442,7 @@ export function ComposeModal({
                   value={htmlBody}
                   onChange={e => setHtmlBody(e.target.value)}
                   placeholder="Paste or type HTML here…"
-                  className="w-full bg-[#0a1628] text-slate-300 text-sm font-mono px-4 py-3 focus:outline-none resize-none min-h-[260px]"
+                  className="w-full bg-[#0E0B24] text-slate-300 text-sm font-mono px-4 py-3 focus:outline-none resize-none min-h-[260px]"
                   rows={14}
                 />
               ) : (
@@ -566,7 +566,7 @@ export function ComposeModal({
       {/* Storage file picker overlay */}
       {showFilePicker && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-[#0d1f3c] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
+          <div className="bg-[#160E32] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <h3 className="text-white font-medium text-sm">Pick from Uploaded Files</h3>
               <button onClick={() => setShowFilePicker(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>

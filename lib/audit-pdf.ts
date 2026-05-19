@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit'
 
-const DARK = '#0a1628'
+const DARK = '#0E0B24'
 const ORANGE = '#f97316'
 const GRAY = '#475569'
 const LIGHT_GRAY = '#94a3b8'
@@ -15,7 +15,7 @@ function header(doc: InstanceType<typeof PDFDocument>, title: string, businessNa
   doc.fillColor(LIGHT_GRAY).fontSize(9).text(date, doc.page.width - 150, 30, { width: 110, align: 'right' })
 
   // Report title block
-  doc.rect(0, 70, doc.page.width, 55).fill('#0d1f3c')
+  doc.rect(0, 70, doc.page.width, 55).fill('#160E32')
   doc.fillColor(WHITE).fontSize(15).font('Helvetica-Bold').text(title, 40, 84)
   doc.fillColor(ORANGE).fontSize(10).font('Helvetica').text(businessName, 40, 105)
 

@@ -64,7 +64,7 @@ export default async function ClientsPage() {
   )
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#060e1f]">
+    <div className="flex flex-col min-h-screen bg-[#07061A]">
       <Header title="Clients" profile={profile as Profile} />
 
       <div className="flex-1 p-6 max-w-5xl mx-auto w-full">

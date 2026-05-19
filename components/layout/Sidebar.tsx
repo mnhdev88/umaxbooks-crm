@@ -140,7 +140,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
 
   return (
     <aside className={cn(
-      'w-56 bg-[#0a1628] border-r border-slate-800/80 flex flex-col',
+      'w-56 bg-[#0E0B24] border-r border-slate-800/80 flex flex-col',
       'fixed inset-y-0 left-0 z-50 transition-transform duration-300',
       'md:relative md:translate-x-0 md:z-auto md:min-h-screen',
       isOpen ? 'translate-x-0' : '-translate-x-full'

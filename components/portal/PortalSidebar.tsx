@@ -51,7 +51,7 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
   }
 
   return (
-    <aside className="w-60 bg-[#0a1628] border-r border-slate-800 flex flex-col sticky top-0 h-screen shrink-0">
+    <aside className="w-60 bg-[#0E0B24] border-r border-slate-800 flex flex-col sticky top-0 h-screen shrink-0">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-slate-800">
         <div className="bg-white rounded-xl px-3 py-1.5 inline-block">

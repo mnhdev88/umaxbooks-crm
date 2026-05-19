@@ -160,7 +160,7 @@ export function EmailProviders() {
   }
 
   return (
-    <div className="bg-[#0d1f3c] border border-white/10 rounded-xl p-6">
+    <div className="bg-[#160E32] border border-white/10 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-slate-100 font-semibold text-lg">Email Providers</h2>
@@ -176,7 +176,7 @@ export function EmailProviders() {
       </div>
 
       {showForm && (
-        <div className="bg-[#0a1628] border border-white/10 rounded-xl p-5 mb-6 space-y-4">
+        <div className="bg-[#0E0B24] border border-white/10 rounded-xl p-5 mb-6 space-y-4">
           <h3 className="text-slate-100 font-medium text-sm">{editId ? 'Edit Email Provider' : 'New Email Provider'}</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -194,7 +194,7 @@ export function EmailProviders() {
               <select
                 value={form.provider}
                 onChange={e => setType(e.target.value as ProviderType)}
-                className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
+                className="w-full bg-[#0E0B24] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50"
               >
                 {(Object.keys(PROVIDER_PRESETS) as ProviderType[]).map(k => (
                   <option key={k} value={k}>{PROVIDER_PRESETS[k].label}</option>

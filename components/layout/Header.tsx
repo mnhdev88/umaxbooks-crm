@@ -17,7 +17,7 @@ export function Header({ title, profile, actions }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
 
   return (
-    <header className="h-14 bg-[#0d1f3c]/80 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
+    <header className="h-14 bg-[#160E32]/80 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
       <div className="flex items-center gap-3">
         <button
           onClick={toggle}

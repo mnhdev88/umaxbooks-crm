@@ -37,7 +37,7 @@ export default async function NotificationsPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#060e1f]">
+    <div className="flex flex-col min-h-screen bg-[#07061A]">
       <Header title="Notifications" profile={profile as Profile} />
       <NotificationsClient
         initialNotifications={notifications}

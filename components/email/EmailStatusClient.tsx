@@ -168,7 +168,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           </div>
         ) : (
           <table className="w-full text-sm border-collapse">
-            <thead className="sticky top-0 z-10 bg-[#0a1628] border-b border-slate-800">
+            <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
               <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 <th className="px-4 py-3">Lead</th>
                 <th className="px-4 py-3">To</th>

@@ -81,7 +81,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
   return (
     <div className="fixed inset-0 bg-[#0e1525] z-[500] flex flex-col">
       {/* Topbar */}
-      <div className="bg-[#0a1628] border-b border-slate-800 px-6 h-14 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#0E0B24] border-b border-slate-800 px-6 h-14 flex items-center justify-between flex-shrink-0">
         <p className="text-sm font-semibold text-slate-100">
           {lead?.company_name} — Demo Presentation
         </p>
@@ -121,7 +121,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
 
           {/* Slide 0: Intro */}
           {current === 0 && (
-            <div className="bg-[#0a1628] border border-slate-800 rounded-2xl p-8">
+            <div className="bg-[#0E0B24] border border-slate-800 rounded-2xl p-8">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Introduction</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-3 leading-tight">
                 {lead?.name?.split(' ')[0] ? `${lead.name.split(' ')[0]}, ` : ''}here's what we found — and what we built.
@@ -146,7 +146,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
 
           {/* Slide 1: Before/After */}
           {current === 1 && (
-            <div className="bg-[#0a1628] border border-slate-800 rounded-2xl p-8">
+            <div className="bg-[#0E0B24] border border-slate-800 rounded-2xl p-8">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Before vs After</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-2">Your old site vs the new demo</h2>
               <p className="text-slate-400 text-sm mb-6">Same business. Very different first impression — and very different Google ranking.</p>
@@ -179,7 +179,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
 
           {/* Slide 2: Metrics */}
           {current === 2 && (
-            <div className="bg-[#0a1628] border border-slate-800 rounded-2xl p-8">
+            <div className="bg-[#0E0B24] border border-slate-800 rounded-2xl p-8">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Performance Numbers</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-2">Every number that matters — improved.</h2>
               <p className="text-slate-400 text-sm mb-6">These aren't design changes. These are ranking and revenue changes.</p>
@@ -202,7 +202,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
 
           {/* Slide 3: Impact + Demo URL */}
           {current === 3 && (
-            <div className="bg-[#0a1628] border border-slate-800 rounded-2xl p-8">
+            <div className="bg-[#0E0B24] border border-slate-800 rounded-2xl p-8">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What This Means for Your Business</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-2">More visibility. More enquiries. More revenue.</h2>
               <p className="text-slate-400 text-sm mb-5">The numbers above translate directly into customers you're currently losing to competitors.</p>
@@ -240,7 +240,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
       </div>
 
       {/* Footer nav */}
-      <div className="bg-[#0a1628] border-t border-slate-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#0E0B24] border-t border-slate-800 px-6 py-3 flex items-center justify-between flex-shrink-0">
         <p className="text-xs text-slate-500">Slide {current + 1} of {TOTAL}</p>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={prev} disabled={current === 0}>

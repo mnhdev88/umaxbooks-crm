@@ -74,7 +74,7 @@ export function generateColdEmailBody(
     )
     .join('')
 
-  return `<div style="font-family:'Segoe UI',Arial,sans-serif;background:#080f1e;color:#e2e8f0;max-width:620px;margin:0 auto;border-radius:12px;overflow:hidden;border:1px solid #1e293b;">
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;background:#0A0820;color:#e2e8f0;max-width:620px;margin:0 auto;border-radius:12px;overflow:hidden;border:1px solid #1e293b;">
 
   <!-- Header -->
   <div style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:28px 32px;border-bottom:1px solid #1e293b;">

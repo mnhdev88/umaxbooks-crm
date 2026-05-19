@@ -21,7 +21,7 @@ interface Props {
 export function PortalShell({ profile, isAdminPreview = false, children }: Props) {
   return (
     <PortalProfileContext.Provider value={{ profile, isAdminPreview }}>
-      <div className="flex min-h-screen bg-[#060f1e]">
+      <div className="flex min-h-screen bg-[#07061A]">
         <PortalSidebar profile={profile} isAdminPreview={isAdminPreview} />
         <main className="flex-1 min-w-0">
           {isAdminPreview && (

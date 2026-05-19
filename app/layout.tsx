@@ -41,7 +41,7 @@ export default function RootLayout({
           } catch(e) { document.documentElement.classList.add('dark'); }
         `}} />
       </head>
-      <body className="bg-[#080f1e] text-slate-100 min-h-screen">
+      <body className="bg-[#0A0820] text-slate-100 min-h-screen">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

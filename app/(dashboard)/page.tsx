@@ -55,7 +55,7 @@ export default function PipelinePage() {
 
   return (
     <>
-      <div className="h-14 bg-[#0d1f3c]/80 border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-30">
+      <div className="h-14 bg-[#160E32]/80 border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-30">
         <h1 className="text-base font-semibold text-slate-100">Pipeline</h1>
         {profile?.role !== 'developer' && (
           <Link href="/leads/new">

@@ -35,7 +35,7 @@ export function DashboardShell({ userId, children }: { userId: string; children:
   if (!profile) {
     return (
       <div className="flex min-h-screen">
-        <div className="hidden md:block w-60 min-h-screen bg-[#0a1628] border-r border-slate-800" />
+        <div className="hidden md:block w-60 min-h-screen bg-[#0E0B24] border-r border-slate-800" />
         <main className="flex-1 flex items-center justify-center">
           <svg className="animate-spin h-7 w-7 text-orange-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>

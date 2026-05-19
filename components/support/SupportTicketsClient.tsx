@@ -167,7 +167,7 @@ export function SupportTicketsClient({ initialTickets, profile }: Props) {
     <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
 
       {/* ── Left panel: ticket list ── */}
-      <div className="w-80 shrink-0 border-r border-slate-800 flex flex-col bg-[#0a1628]">
+      <div className="w-80 shrink-0 border-r border-slate-800 flex flex-col bg-[#0E0B24]">
 
         {/* Search */}
         <div className="p-3 border-b border-slate-800">

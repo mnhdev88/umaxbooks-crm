@@ -135,7 +135,7 @@ export function AuditFollowupClient({ initialLeads, agents, profile, userId }: P
     <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
 
       {/* ── Left Panel: Lead List ─────────────────────────── */}
-      <div className="w-80 flex-shrink-0 border-r border-slate-800 flex flex-col bg-[#0a1628]">
+      <div className="w-80 flex-shrink-0 border-r border-slate-800 flex flex-col bg-[#0E0B24]">
         {/* Header */}
         <div className="px-4 py-3.5 border-b border-slate-800">
           <p className="text-sm font-semibold text-slate-100">Leads in Audit / Follow-up</p>
