@@ -14,6 +14,7 @@ const ROLE_OPTIONS = [
   { value: 'sales_agent', label: 'Sales Agent' },
   { value: 'developer',   label: 'Developer' },
   { value: 'admin',       label: 'Admin' },
+  { value: 'client',      label: 'Client' },
 ]
 
 const ROLE_COLORS: Record<string, string> = {
@@ -21,6 +22,7 @@ const ROLE_COLORS: Record<string, string> = {
   agent:       'text-blue-400 bg-blue-900/30',
   sales_agent: 'text-green-400 bg-green-900/30',
   developer:   'text-purple-400 bg-purple-900/30',
+  client:      'text-green-400 bg-green-900/30',
 }
 
 interface UserManagementProps {
@@ -269,12 +271,7 @@ function UserForm({ form, setForm, error, loading, onSubmit, onCancel, submitLab
       />
       <Select
         label="Role"
-        options={[
-          { value: 'agent', label: 'Agent' },
-          { value: 'sales_agent', label: 'Sales Agent' },
-          { value: 'developer', label: 'Developer' },
-          { value: 'admin', label: 'Admin' },
-        ]}
+        options={ROLE_OPTIONS}
         value={form.role}
         onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
       />

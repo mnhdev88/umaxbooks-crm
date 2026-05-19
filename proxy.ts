@@ -52,8 +52,8 @@ export async function proxy(request: NextRequest) {
     const PREVIEW_COOKIE = 'portal_preview_lead_id'
     const hasPreviewCookie = !!request.cookies.get(PREVIEW_COOKIE)?.value
 
-    // Client users must stay inside /portal
-    if (role === 'client' && !isPortal && !isAuthPage) {
+    // Client users must stay inside /portal (allow API routes so portal can make API calls)
+    if (role === 'client' && !isPortal && !isAuthPage && !path.startsWith('/api/')) {
       const url = request.nextUrl.clone()
       url.pathname = '/portal'
       return NextResponse.redirect(url)
