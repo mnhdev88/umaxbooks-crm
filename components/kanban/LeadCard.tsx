@@ -149,7 +149,7 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
       </div>
 
       {/* Follow-up Due badge */}
-      {isFollowupDue && (
+      {isFollowupDue && (userRole === 'admin' || userRole === 'sales_agent') && (
         <div className="mt-1.5">
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-300 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full">
             <MailWarning size={9} />
