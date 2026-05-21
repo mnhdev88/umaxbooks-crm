@@ -16,7 +16,17 @@ export default async function EmailStatusPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: sends } = await supabase
+  // For sales agents, scope to leads they are assigned to
+  let leadIdFilter: string[] | null = null
+  if (profile?.role === 'sales_agent') {
+    const { data: assignedLeads } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('assigned_agent_id', user.id)
+    leadIdFilter = (assignedLeads || []).map((l: any) => l.id)
+  }
+
+  let sendsQuery = supabase
     .from('email_sends')
     .select(`
       id, lead_id, to_email, subject, status, sent_at, tracking_token, created_at,
@@ -25,6 +35,21 @@ export default async function EmailStatusPage() {
     `)
     .eq('status', 'sent')
     .order('sent_at', { ascending: false })
+
+  if (leadIdFilter !== null) {
+    if (leadIdFilter.length === 0) {
+      // Agent has no assigned leads — return empty
+      return (
+        <>
+          <Header title="Email Status" profile={profile as Profile} />
+          <EmailStatusClient initialSends={[]} initialTrackingMap={{}} userId={user.id} />
+        </>
+      )
+    }
+    sendsQuery = sendsQuery.in('lead_id', leadIdFilter)
+  }
+
+  const { data: sends } = await sendsQuery
 
   const tokens = (sends || [])
     .map((s: any) => s.tracking_token)
