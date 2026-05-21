@@ -27,6 +27,7 @@ export default function PipelinePage() {
           : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
         const q = supabase.from('leads').select(select).order('updated_at', { ascending: false })
         if (currentProfile.role === 'developer') q.in('status', ['Contacted', 'Audit Ready'])
+        if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') q.eq('assigned_agent_id', currentProfile.id)
         return q
       }
 
