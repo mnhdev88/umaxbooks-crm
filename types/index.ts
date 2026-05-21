@@ -29,6 +29,7 @@ export type PipelineStatus =
   | 'Live'
   | 'Completed'
   | 'Lost'
+  | 'Disqualified'
 
 export const PIPELINE_STAGES: PipelineStatus[] = [
   'New',
@@ -41,6 +42,7 @@ export const PIPELINE_STAGES: PipelineStatus[] = [
   'Revision',
   'Live',
   'Completed',
+  'Disqualified',
 ]
 
 export type PaymentStatus = 'Pending' | 'Partial' | 'Paid' | 'Overdue'

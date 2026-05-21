@@ -30,6 +30,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   Live: 'border-teal-600',
   Completed: 'border-emerald-600',
   Lost: 'border-red-700',
+  Disqualified: 'border-slate-500',
 }
 
 export function KanbanColumn({ status, leads, userRole, agents, onReassign }: KanbanColumnProps) {

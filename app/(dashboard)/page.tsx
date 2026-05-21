@@ -26,8 +26,11 @@ export default function PipelinePage() {
           ? '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)'
           : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
         const q = supabase.from('leads').select(select).order('updated_at', { ascending: false })
-        if (currentProfile.role === 'developer') q.not('status', 'in', '("New","Callback Booked")')
-        if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') q.eq('assigned_agent_id', currentProfile.id)
+        if (currentProfile.role === 'developer') q.not('status', 'in', '("New","Callback Booked","Disqualified")')
+        if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') {
+          q.eq('assigned_agent_id', currentProfile.id)
+          q.neq('status', 'Disqualified')
+        }
         return q
       }
 
@@ -81,7 +84,13 @@ export default function PipelinePage() {
             initialLeads={leads}
             userRole={profile?.role || ''}
             userId={profile?.id || ''}
-            stages={profile?.role === 'developer' ? PIPELINE_STAGES.filter(s => s !== 'New' && s !== 'Callback Booked') : undefined}
+            stages={
+              profile?.role === 'admin'
+                ? undefined
+                : profile?.role === 'developer'
+                  ? PIPELINE_STAGES.filter(s => s !== 'New' && s !== 'Callback Booked' && s !== 'Disqualified')
+                  : PIPELINE_STAGES.filter(s => s !== 'Disqualified')
+            }
           />
         )}
       </div>

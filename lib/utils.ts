@@ -73,4 +73,5 @@ export const STATUS_COLORS: Record<string, string> = {
   Live: 'bg-teal-600 text-teal-100',
   Completed: 'bg-emerald-600 text-emerald-100',
   Lost: 'bg-red-700 text-red-100',
+  Disqualified: 'bg-slate-600 text-slate-300',
 }

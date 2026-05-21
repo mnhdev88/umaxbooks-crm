@@ -54,7 +54,7 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
 
   const visibleStages = stages ?? PIPELINE_STAGES
 
-  const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost'])
+  const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost', 'Disqualified'])
   const FOLLOWUP_DAYS     = 5
 
   function isFollowupDue(lead: Lead): boolean {

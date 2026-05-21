@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
 
-const TERMINAL_STATUSES = ['Live', 'Completed', 'Lost']
+const TERMINAL_STATUSES = ['Live', 'Completed', 'Lost', 'Disqualified']
 const FOLLOWUP_INTERVAL_DAYS = 5
 
 export async function GET(req: NextRequest) {

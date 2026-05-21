@@ -17,7 +17,7 @@ interface LeadCardProps {
   callbackDate?: string | null
 }
 
-const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost'])
+const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost', 'Disqualified'])
 
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))

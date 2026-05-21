@@ -72,6 +72,7 @@ const STATUS_CLS: Record<string, string> = {
   'Live':           'bg-teal-900/40 text-teal-300 border border-teal-800/40',
   'Completed':      'bg-emerald-900/40 text-emerald-300 border border-emerald-800/40',
   'Lost':           'bg-red-900/40 text-red-300 border border-red-800/40',
+  'Disqualified':   'bg-slate-700/40 text-slate-400 border border-slate-600/40',
 }
 
 const PRIORITY_CLS: Record<string, string> = {
@@ -373,7 +374,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
         </div>
         {[
           { val: srcFilter,    set: setSrcFilter,    opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
-          { val: statusFilter, set: setStatusFilter, opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost'], placeholder: 'All Status' },
+          { val: statusFilter, set: setStatusFilter, opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost','Disqualified'], placeholder: 'All Status' },
           { val: agentFilter,  set: setAgentFilter,  opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
           { val: cityFilter,   set: setCityFilter,   opts: cities as string[], placeholder: 'All Cities' },
         ].map((f, i) => (
