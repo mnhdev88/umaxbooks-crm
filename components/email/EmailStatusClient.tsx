@@ -1,7 +1,7 @@
 'use client'
 import { useState, useMemo } from 'react'
 import {
-  Search, MailCheck, MailOpen, Mail, RefreshCw, Pen,
+  Search, MailCheck, MailOpen, Mail, RefreshCw, Pen, RotateCcw,
   Building2, User, Calendar, Eye,
 } from 'lucide-react'
 import { ComposeModal } from '@/components/email/ComposeModal'
@@ -17,6 +17,7 @@ interface EmailSendRow {
   lead_id: string
   to_email: string
   subject: string
+  html_body?: string | null
   status: string
   sent_at: string | null
   tracking_token: string | null
@@ -58,6 +59,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
   const [search, setSearch]           = useState('')
   const [tab, setTab]                 = useState<FilterTab>('all')
   const [composeLead, setComposeLead] = useState<EmailSendRow | null>(null)
+  const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
   const [refreshKey, setRefreshKey]   = useState(0)
 
   const filtered = useMemo(() => {
@@ -170,15 +172,12 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
               <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <th scope="col" className="px-4 py-3">Lead</th>
-                <th scope="col" className="px-4 py-3">To</th>
+                <th scope="col" className="px-4 py-3 w-[220px]">Lead</th>
                 <th scope="col" className="px-4 py-3">Subject</th>
-                <th scope="col" className="px-4 py-3">Sent By</th>
-                <th scope="col" className="px-4 py-3">Sent Date</th>
-                <th scope="col" className="px-4 py-3">Open Status</th>
-                <th scope="col" className="px-4 py-3">Opens</th>
-                <th scope="col" className="px-4 py-3">Last Opened</th>
-                <th scope="col" className="px-4 py-3"></th>
+                <th scope="col" className="px-4 py-3 w-[100px]">Sent By</th>
+                <th scope="col" className="px-4 py-3 w-[110px]">Sent Date</th>
+                <th scope="col" className="px-4 py-3 w-[140px]">Open Status</th>
+                <th scope="col" className="px-4 py-3 w-[160px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -187,26 +186,27 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                 const opened   = !!tracking?.first_opened_at
                 return (
                   <tr key={s.id} className="hover:bg-slate-800/30 transition-colors group">
-                    {/* Lead */}
+                    {/* Lead — name / company / email stacked */}
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5 text-slate-200 font-medium">
                           <User size={12} className="text-slate-500 shrink-0" />
-                          <span className="truncate max-w-[140px]">{s.lead?.name || '—'}</span>
+                          <span className="truncate max-w-[180px]">{s.lead?.name || '—'}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-500 text-xs">
                           <Building2 size={11} className="shrink-0" />
-                          <span className="truncate max-w-[140px]">{s.lead?.company_name || '—'}</span>
+                          <span className="truncate max-w-[180px]">{s.lead?.company_name || '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                          <Mail size={11} className="shrink-0" />
+                          <span className="truncate max-w-[180px]">{s.to_email}</span>
                         </div>
                       </div>
                     </td>
 
-                    {/* To email */}
-                    <td className="px-4 py-3 text-slate-400 text-xs">{s.to_email}</td>
-
                     {/* Subject */}
                     <td className="px-4 py-3">
-                      <span className="text-slate-300 truncate max-w-[200px] block" title={s.subject}>
+                      <span className="text-slate-300 truncate max-w-xs block" title={s.subject}>
                         {s.subject}
                       </span>
                     </td>
@@ -224,48 +224,48 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                       </div>
                     </td>
 
-                    {/* Open status */}
+                    {/* Open status — includes count + last opened */}
                     <td className="px-4 py-3">
-                      {!s.tracking_token ? (
-                        <span className="text-xs text-slate-600">No tracking</span>
-                      ) : opened ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          <MailCheck className="w-3 h-3" />
-                          Opened
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          <MailOpen className="w-3 h-3" />
-                          Not opened
-                        </span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {!s.tracking_token ? (
+                          <span className="text-xs text-slate-600">No tracking</span>
+                        ) : opened ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+                            <MailCheck className="w-3 h-3" />
+                            Opened {tracking?.opened_count ? `· ${tracking.opened_count}×` : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+                            <MailOpen className="w-3 h-3" />
+                            Not opened
+                          </span>
+                        )}
+                        {tracking?.last_opened_at && (
+                          <span className="text-[10px] text-slate-500" title={fmtDateTime(tracking.last_opened_at)}>
+                            Last: {timeAgo(tracking.last_opened_at)}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
-                    {/* Open count */}
-                    <td className="px-4 py-3 text-center">
-                      {tracking?.opened_count ? (
-                        <span className="text-green-400 font-semibold text-xs">{tracking.opened_count}×</span>
-                      ) : (
-                        <span className="text-slate-600 text-xs">—</span>
-                      )}
-                    </td>
-
-                    {/* Last opened */}
-                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
-                      {tracking?.last_opened_at ? (
-                        <span title={fmtDateTime(tracking.last_opened_at)}>{timeAgo(tracking.last_opened_at)}</span>
-                      ) : '—'}
-                    </td>
-
-                    {/* Compose action */}
+                    {/* Actions — always visible */}
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => setComposeLead(s)}
-                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-800/40 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
-                      >
-                        <Pen size={11} />
-                        Compose
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setResendTarget(s)}
+                          className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                        >
+                          <RotateCcw size={11} />
+                          Resend
+                        </button>
+                        <button
+                          onClick={() => setComposeLead(s)}
+                          className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                        >
+                          <Pen size={11} />
+                          Compose
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -285,6 +285,21 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           userId={userId}
           onClose={() => setComposeLead(null)}
           onSent={() => { setComposeLead(null); setRefreshKey(k => k + 1) }}
+        />
+      )}
+
+      {/* Resend modal — pre-filled with the original email */}
+      {resendTarget && (
+        <ComposeModal
+          leadId={resendTarget.lead_id}
+          leadEmail={resendTarget.to_email}
+          leadName={resendTarget.lead?.name || ''}
+          businessName={resendTarget.lead?.company_name || ''}
+          userId={userId}
+          initialSubject={resendTarget.subject}
+          initialBody={resendTarget.html_body || ''}
+          onClose={() => setResendTarget(null)}
+          onSent={() => { setResendTarget(null); setRefreshKey(k => k + 1) }}
         />
       )}
     </div>

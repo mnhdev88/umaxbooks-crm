@@ -98,47 +98,62 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     approvedLeads = processLeads(data || [])
   }
 
-  // Leads with agent notes (from audit_notes thread table — migration 023)
+  // Leads with agent notes — status-independent, no FK join to avoid silent failures
   let agentNotesLeads: any[] = []
   let agentNotesLeadIds: string[] = []
   try {
-    const { data: noteLeads, error: noteErr } = await supabase
+    const { data: noteRows } = await supabase
       .from('audit_notes')
-      .select('id, lead_id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
+      .select('id, lead_id, note, created_at, user_id')
       .order('created_at', { ascending: true })
 
-    if (!noteErr && noteLeads?.length) {
-      // Group notes by lead_id
+    if (noteRows?.length) {
+      // Fetch author names separately to avoid FK join failures
+      const authorIds = [...new Set(noteRows.map((n: any) => n.user_id).filter(Boolean))]
+      const { data: authorProfiles } = authorIds.length
+        ? await supabase.from('profiles').select('id, full_name').in('id', authorIds)
+        : { data: [] }
+      const authorMap = new Map((authorProfiles || []).map((p: any) => [p.id, p.full_name]))
+
+      // Group notes by lead_id with author resolved
       const notesByLead = new Map<string, any[]>()
-      for (const n of noteLeads) {
+      for (const n of noteRows) {
         if (!notesByLead.has(n.lead_id)) notesByLead.set(n.lead_id, [])
-        notesByLead.get(n.lead_id)!.push(n)
+        notesByLead.get(n.lead_id)!.push({
+          ...n,
+          author: { full_name: authorMap.get(n.user_id) ?? null },
+        })
       }
 
-      const notedLeadIds = [...notesByLead.keys()]
+      // Fetch leads with notes not already in allLeads (any pipeline status)
+      const newLeadIds = [...notesByLead.keys()]
         .filter(id => !allLeads.some((l: any) => l.id === id))
 
-      if (notedLeadIds.length > 0) {
+      if (newLeadIds.length > 0) {
         const { data: notedLeadData } = await supabase
           .from('leads')
           .select(LEAD_SELECT)
-          .in('id', notedLeadIds)
+          .in('id', newLeadIds)
           .order('updated_at', { ascending: false })
         agentNotesLeads = processLeads(notedLeadData || []).map((l: any) => ({
           ...l,
           audit_notes_list: notesByLead.get(l.id) || [],
         }))
-        agentNotesLeadIds = agentNotesLeads.map((l: any) => l.id)
       }
 
-      // Attach notes to existing leads too
+      // Attach notes to allLeads entries too
       for (const lead of allLeads) {
         if (notesByLead.has((lead as any).id)) {
           (lead as any).audit_notes_list = notesByLead.get((lead as any).id) || []
         }
       }
+
+      // ALL leads with notes go into agentNotesLeadIds (badge + filter)
+      agentNotesLeadIds = [...notesByLead.keys()].filter(id =>
+        [...allLeads, ...agentNotesLeads].some((l: any) => l.id === id)
+      )
     }
-  } catch { /* migration 023 not yet applied — silently skip */ }
+  } catch { /* audit_notes table not available */ }
 
   const seenIds = new Set<string>()
   const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]

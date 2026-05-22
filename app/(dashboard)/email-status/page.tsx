@@ -29,7 +29,7 @@ export default async function EmailStatusPage() {
   let sendsQuery = supabase
     .from('email_sends')
     .select(`
-      id, lead_id, to_email, subject, status, sent_at, tracking_token, created_at,
+      id, lead_id, to_email, subject, html_body, status, sent_at, tracking_token, created_at,
       sender:sent_by(full_name),
       lead:leads(id, name, company_name, email, phone)
     `)

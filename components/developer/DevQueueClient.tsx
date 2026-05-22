@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Lead, Profile } from '@/types'
 import { cn } from '@/lib/utils'
@@ -100,10 +101,23 @@ interface Props {
 }
 
 export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], initialSelectedId }: Props) {
+  const router = useRouter()
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<Filter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId || initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
+
+  // Refresh queue when any agent saves a note via "Save & Notify Developer"
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('dev-queue-audit-notes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_notes' }, () => {
+        router.refresh()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
 
   const filtered = useMemo(() => {
     let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds))
