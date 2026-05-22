@@ -13,9 +13,11 @@ async function fetchAttachment(url: string, name: string) {
 }
 
 function injectTrackingPixel(html: string, pixelUrl: string): string {
+  // Strip any tracking pixel from a previous send before injecting the fresh one
+  const stripped = html.replace(/<img[^>]+\/api\/track\/open\/[^"'>]+[^>]*>/gi, '')
   const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;border:0;width:1px;height:1px;" alt="" />`
-  if (html.includes('</body>')) return html.replace('</body>', `${pixel}</body>`)
-  return html + pixel
+  if (stripped.includes('</body>')) return stripped.replace('</body>', `${pixel}</body>`)
+  return stripped + pixel
 }
 
 export async function POST(req: NextRequest) {

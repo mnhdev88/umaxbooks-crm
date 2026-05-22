@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Search, MailCheck, MailOpen, Mail, RefreshCw, Pen, RotateCcw,
   Building2, User, Calendar, Eye,
@@ -56,11 +57,11 @@ function timeAgo(iso: string | null) {
 }
 
 export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: Props) {
+  const router = useRouter()
   const [search, setSearch]           = useState('')
   const [tab, setTab]                 = useState<FilterTab>('all')
   const [composeLead, setComposeLead] = useState<EmailSendRow | null>(null)
   const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
-  const [refreshKey, setRefreshKey]   = useState(0)
 
   const filtered = useMemo(() => {
     let data = initialSends
@@ -152,8 +153,8 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
             ))}
           </div>
           <button
-            onClick={() => setRefreshKey(k => k + 1)}
-            title="Refresh (reload the page to get latest data)"
+            onClick={() => router.refresh()}
+            title="Refresh to get latest open status"
             className="p-2 text-slate-500 hover:text-slate-300 border border-slate-700 rounded-lg transition-colors"
           >
             <RefreshCw size={14} />
@@ -284,7 +285,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           businessName={composeLead.lead?.company_name || ''}
           userId={userId}
           onClose={() => setComposeLead(null)}
-          onSent={() => { setComposeLead(null); setRefreshKey(k => k + 1) }}
+          onSent={() => { setComposeLead(null); router.refresh() }}
         />
       )}
 
@@ -299,7 +300,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
           initialSubject={resendTarget.subject}
           initialBody={resendTarget.html_body || ''}
           onClose={() => setResendTarget(null)}
-          onSent={() => { setResendTarget(null); setRefreshKey(k => k + 1) }}
+          onSent={() => { setResendTarget(null); router.refresh() }}
         />
       )}
     </div>
