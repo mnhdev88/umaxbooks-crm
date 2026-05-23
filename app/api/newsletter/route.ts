@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const headers = corsHeaders(origin)
 
   const apiKey = req.headers.get('x-api-key')
-  if (!apiKey || apiKey !== process.env.NEWSLETTER_API_KEY) {
+  if (!apiKey || apiKey !== process.env.CRM_API_KEY) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers })
   }
 
