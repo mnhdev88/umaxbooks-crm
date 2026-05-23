@@ -8,11 +8,12 @@ export type LeadSource =
   | 'Referral'
   | 'Cold Call'
   | 'Website Form'
+  | 'Subscriber'
   | 'Other'
 
 export const LEAD_SOURCES: LeadSource[] = [
   'GMB', 'Facebook', 'LinkedIn', 'WhatsApp',
-  'Referral', 'Cold Call', 'Website Form', 'Other',
+  'Referral', 'Cold Call', 'Website Form', 'Subscriber', 'Other',
 ]
 
 export type LeadPriority = 'Normal' | 'High' | 'Urgent' | 'Low'
