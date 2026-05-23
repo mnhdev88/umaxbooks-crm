@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { slugify } from '@/lib/utils'
 
 const ALLOWED_ORIGINS = [
   'https://noveliotech.com',
@@ -53,9 +54,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Already subscribed' }, { status: 200, headers })
   }
 
+  const company_name = 'Newsletter Subscriber'
   const { error } = await supabase.from('leads').insert({
     name,
-    company_name: 'Newsletter Subscriber',
+    company_name,
+    slug: slugify(company_name) + '-' + Date.now(),
     email,
     source: 'Subscriber',
     status: 'New',
