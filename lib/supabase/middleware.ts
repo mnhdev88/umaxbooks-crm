@@ -30,10 +30,11 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage   = pathname.startsWith('/login') || pathname.startsWith('/auth/')
   const isPortal     = pathname.startsWith('/portal')
   const isSignRoute  = pathname.startsWith('/sign')
-  const isPublicApi  = pathname.startsWith('/api/public')
-  const isCronApi    = pathname.startsWith('/api/cron')
+  const isPublicApi        = pathname.startsWith('/api/public')
+  const isCronApi          = pathname.startsWith('/api/cron')
+  const isNewsletterApi    = pathname.startsWith('/api/newsletter')
 
-  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi) {
+  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi && !isNewsletterApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
