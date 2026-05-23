@@ -30,12 +30,13 @@ export async function proxy(request: NextRequest) {
   // Public routes — no auth required
   const isAuthPage    = path.startsWith('/login') || path.startsWith('/auth/')
   const isPortal      = path.startsWith('/portal')
-  const isPublicApi   = path.startsWith('/api/public')
-  const isSigningPage = path.startsWith('/sign/')
+  const isPublicApi      = path.startsWith('/api/public')
+  const isSigningPage    = path.startsWith('/sign/')
+  const isNewsletterApi  = path.startsWith('/api/newsletter')
   // /api/contracts/{token} and /api/contracts/{token}/sign — but NOT the bare /api/contracts (admin list/create)
   const isSigningApi  = /^\/api\/contracts\/[^/]/.test(path)
 
-  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi) {
+  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
