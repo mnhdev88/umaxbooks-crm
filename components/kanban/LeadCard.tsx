@@ -31,31 +31,27 @@ function getStaleDays(updatedAt: string): number {
   return Math.round((today.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-function formatCallbackDate(iso: string): { label: string; urgent: boolean; today: boolean } {
+type CallbackLevel = 'overdue' | 'today' | 'tomorrow' | 'future'
+
+function formatCallbackDate(iso: string): { label: string; level: CallbackLevel } {
   const IST = 'Asia/Kolkata'
   const date = new Date(iso)
 
-  const todayIST     = new Date().toLocaleDateString('en-CA', { timeZone: IST })
-  const tomorrowIST  = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: IST })
-  const dateIST      = date.toLocaleDateString('en-CA', { timeZone: IST })
+  const nowIST      = new Date()
+  const tomorrowDate = new Date(nowIST)
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+
+  const todayIST    = nowIST.toLocaleDateString('en-CA', { timeZone: IST })
+  const tomorrowIST = tomorrowDate.toLocaleDateString('en-CA', { timeZone: IST })
+  const dateIST     = date.toLocaleDateString('en-CA', { timeZone: IST })
 
   const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: IST })
 
-  if (dateIST < todayIST) {
-    return { label: `Overdue · ${dateStr}`, urgent: true, today: false }
-  }
-  if (dateIST === todayIST) {
-    return { label: `Today · ${timeStr} IST`, urgent: true, today: true }
-  }
-  if (dateIST === tomorrowIST) {
-    return { label: `Tomorrow · ${timeStr} IST`, urgent: false, today: false }
-  }
-  return {
-    label: `${dateStr} · ${timeStr} IST`,
-    urgent: false,
-    today: false,
-  }
+  if (dateIST < todayIST)     return { label: `Overdue · ${dateStr}`,           level: 'overdue'  }
+  if (dateIST === todayIST)   return { label: `Today · ${timeStr} IST`,          level: 'today'    }
+  if (dateIST === tomorrowIST) return { label: `Tomorrow · ${timeStr} IST`,      level: 'tomorrow' }
+  return                              { label: `${dateStr} · ${timeStr} IST`,     level: 'future'   }
 }
 
 export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, callbackDate }: LeadCardProps) {
@@ -81,7 +77,10 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
   const isRed         = staleDays >= 5
   const isStale       = isAmber || isRed
   const isAdmin       = userRole === 'admin'
-  const isFollowupDue = !FOLLOWUP_TERMINAL.has(lead.status) && daysSince(lead.created_at) >= 5
+  const callbackInfo   = callbackDate ? formatCallbackDate(callbackDate) : null
+  const callbackLevel  = callbackInfo?.level ?? null
+  const callbackUrgent = callbackLevel === 'overdue' || callbackLevel === 'today'
+  const isFollowupDue  = !FOLLOWUP_TERMINAL.has(lead.status) && lead.updated_at && daysSince(lead.updated_at) >= 5 && !callbackUrgent
 
   function handleReassignSelect(e: React.ChangeEvent<HTMLSelectElement>) {
     const agentId = e.target.value
@@ -123,16 +122,15 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-slate-400 truncate">{lead.name}</p>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {callbackDate && (() => {
-            const { label, urgent, today } = formatCallbackDate(callbackDate)
+          {callbackInfo && callbackLevel && (() => {
+            const { label } = callbackInfo
             return (
               <span className={cn(
                 'flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border',
-                urgent
-                  ? 'bg-red-900/50 text-red-300 border-red-700/50'
-                  : today
-                    ? 'bg-cyan-900/50 text-cyan-300 border-cyan-700/50'
-                    : 'bg-slate-700/60 text-slate-400 border-slate-600/40'
+                callbackLevel === 'overdue'   && 'bg-red-900/50 text-red-300 border-red-700/50',
+                callbackLevel === 'today'     && 'bg-amber-900/50 text-amber-300 border-amber-700/50',
+                callbackLevel === 'tomorrow'  && 'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
+                callbackLevel === 'future'    && 'bg-slate-700/60 text-slate-400 border-slate-600/40',
               )}>
                 <Phone size={8} />
                 {label}
