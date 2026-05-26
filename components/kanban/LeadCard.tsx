@@ -48,7 +48,11 @@ function formatCallbackDate(iso: string): { label: string; level: CallbackLevel 
   const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })
   const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: IST })
 
-  if (dateIST < todayIST)     return { label: `Overdue · ${dateStr}`,           level: 'overdue'  }
+  if (dateIST < todayIST) {
+    const daysLate = Math.round((new Date(todayIST).getTime() - new Date(dateIST).getTime()) / (1000 * 60 * 60 * 24))
+    const lateLabel = daysLate === 1 ? '1 day overdue' : `${daysLate} days overdue`
+    return { label: lateLabel, level: 'overdue' }
+  }
   if (dateIST === todayIST)   return { label: `Today · ${timeStr} IST`,          level: 'today'    }
   if (dateIST === tomorrowIST) return { label: `Tomorrow · ${timeStr} IST`,      level: 'tomorrow' }
   return                              { label: `${dateStr} · ${timeStr} IST`,     level: 'future'   }

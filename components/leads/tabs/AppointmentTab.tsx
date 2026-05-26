@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { US_TIMEZONES, getTimezoneFromZip, localToUTC, formatDualTime } from '@/lib/timezone'
-import { Phone, Calendar, Video, FileText, ClipboardList, Globe, MapPin, Info, Bell } from 'lucide-react'
+import { Phone, Calendar, Video, FileText, ClipboardList, Globe, MapPin, Info, Bell, Clock, CheckCircle2 } from 'lucide-react'
 
 interface AppointmentTabProps {
   leadId: string
@@ -50,6 +50,7 @@ function DualTimeDisplay({ isoStr, timezone }: { isoStr: string; timezone?: stri
 
 export function AppointmentTab({ leadId, userId, userRole, zipCode }: AppointmentTabProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [followUps, setFollowUps] = useState<any[]>([])
   const [showCallModal, setShowCallModal] = useState(false)
   const [showDemoModal, setShowDemoModal] = useState(false)
   const [loadingCall, setLoadingCall] = useState(false)
@@ -101,7 +102,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
   }, [callForm.follow_up_date, callForm.follow_up_time, selectedTz, tzInfo.abbr])
 
-  useEffect(() => { fetchAppointments() }, [leadId])
+  useEffect(() => { fetchAppointments(); fetchFollowUps() }, [leadId])
 
   async function fetchAppointments() {
     const { data } = await supabase
@@ -110,6 +111,15 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
     if (data) setAppointments(data)
+  }
+
+  async function fetchFollowUps() {
+    const { data } = await supabase
+      .from('follow_ups')
+      .select('*, author:profiles(full_name)')
+      .eq('lead_id', leadId)
+      .order('scheduled_at', { ascending: true })
+    if (data) setFollowUps(data)
   }
 
   async function handleSaveCall() {
@@ -171,6 +181,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     setShowCallModal(false)
     setLoadingCall(false)
     fetchAppointments()
+    fetchFollowUps()
   }
 
   async function handleSaveDemo() {
@@ -243,9 +254,61 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
         </div>
       )}
 
-      {appointments.length === 0 ? (
+      {/* ── Scheduled Callbacks ───────────────────────────────── */}
+      {followUps.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Scheduled Callbacks</p>
+          {followUps.map((f) => {
+            const isPending = f.status === 'pending'
+            const ist = new Date(f.scheduled_at).toLocaleString('en-US', {
+              timeZone: 'Asia/Kolkata',
+              month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true,
+            })
+            const isOverdue = isPending && new Date(f.scheduled_at) < new Date()
+            return (
+              <div key={f.id} className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                isPending
+                  ? isOverdue
+                    ? 'bg-red-900/20 border-red-700/40'
+                    : 'bg-slate-800 border-slate-700'
+                  : 'bg-slate-900/40 border-slate-800 opacity-60'
+              }`}>
+                <div className="mt-0.5 flex-shrink-0">
+                  {isPending
+                    ? <Clock size={14} className={isOverdue ? 'text-red-400' : 'text-orange-400'} />
+                    : <CheckCircle2 size={14} className="text-green-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-sm font-semibold ${isOverdue ? 'text-red-300' : isPending ? 'text-slate-200' : 'text-slate-500'}`}>
+                      {ist} IST
+                    </span>
+                    {isOverdue && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50">
+                        Overdue
+                      </span>
+                    )}
+                    {!isPending && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-900/30 text-green-400 border border-green-800/40">
+                        Completed
+                      </span>
+                    )}
+                  </div>
+                  {f.notes && <p className="text-xs text-slate-400 mt-0.5">{f.notes}</p>}
+                  {f.author?.full_name && (
+                    <p className="text-[11px] text-slate-600 mt-0.5">Set by {f.author.full_name}</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {appointments.length === 0 && followUps.length === 0 ? (
         <div className="text-center py-12 text-slate-500 text-sm">No calls or appointments logged yet.</div>
-      ) : (
+      ) : appointments.length === 0 ? null : (
         <div className="space-y-3">
           {appointments.map((apt) => (
             <div key={apt.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">

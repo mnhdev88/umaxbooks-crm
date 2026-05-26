@@ -41,12 +41,17 @@ export function NotesTab({ leadId, userId, userRole }: NotesTabProps) {
   async function handleSave() {
     if (!form.note.trim()) return
     setLoading(true)
-    await supabase.from('lead_contact_notes').insert({
+    const { error } = await supabase.from('lead_contact_notes').insert({
       lead_id: leadId,
       user_id: userId,
       contact_date: form.contact_date,
       note: form.note.trim(),
     })
+    if (error) {
+      alert('Failed to save note: ' + error.message)
+      setLoading(false)
+      return
+    }
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
       user_id: userId,
@@ -87,7 +92,6 @@ export function NotesTab({ leadId, userId, userRole }: NotesTabProps) {
           <Input
             label="Contact Date"
             type="date"
-            min={new Date().toISOString().split('T')[0]}
             value={form.contact_date}
             onChange={(e) => setForm((f) => ({ ...f, contact_date: e.target.value }))}
           />

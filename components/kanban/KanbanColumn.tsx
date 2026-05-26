@@ -72,8 +72,7 @@ export function KanbanColumn({ status, leads, userRole, agents, onReassign }: Ka
                 .filter((f: any) => f.status === 'pending' && f.scheduled_at)
                 .map((f: any) => f.scheduled_at)
                 .sort()
-              // Fall back to updated_at so cards always show a date
-              nextCallback = pending[0] ?? lead.updated_at ?? null
+              nextCallback = pending[0] ?? null
             }
             return (
               <LeadCard
