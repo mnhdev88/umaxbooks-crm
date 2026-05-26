@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
     if (tracking) trackingToken = tracking.token
   }
 
-  // Inject tracking pixel into HTML body
-  // Use NEXT_PUBLIC_APP_URL so the pixel URL works when sending from localhost
-  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  // Use the actual request origin (reflects Host header — correct on live and custom domains).
+  // Fall back to NEXT_PUBLIC_APP_URL only if origin is somehow missing.
+  const origin = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
   const finalHtml = trackingToken && html_body
     ? injectTrackingPixel(html_body, `${origin}/api/track/open/${trackingToken}`)
     : html_body
