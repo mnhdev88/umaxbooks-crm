@@ -255,7 +255,7 @@ export function EmailHistory({ leadId, refreshKey, onOpenDraft }: Props) {
                   {expanded === s.id && s.html_body && (
                     <div className="border-t border-white/10">
                       <iframe
-                        srcDoc={s.html_body}
+                        srcDoc={s.html_body.replace(/<img[^>]+\/api\/track\/open\/[^"'>]+[^>]*>/gi, '')}
                         className="w-full min-h-[300px] border-0 bg-white"
                         sandbox="allow-same-origin"
                       />

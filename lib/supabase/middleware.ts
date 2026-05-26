@@ -33,8 +33,9 @@ export async function updateSession(request: NextRequest) {
   const isPublicApi        = pathname.startsWith('/api/public')
   const isCronApi          = pathname.startsWith('/api/cron')
   const isNewsletterApi    = pathname.startsWith('/api/newsletter')
+  const isTrackingApi      = pathname.startsWith('/api/track')
 
-  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi && !isNewsletterApi) {
+  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi && !isNewsletterApi && !isTrackingApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
