@@ -211,7 +211,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       const res = await fetch(`/api/fetch-template?url=${encodeURIComponent(url)}`)
       const { html } = await res.json()
       if (html) {
-        setTemplateHtml(html)
+        setTemplateHtml(applyTemplatePlaceholders(html))
         setChannel('email')
       }
     } finally {
