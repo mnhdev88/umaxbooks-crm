@@ -452,10 +452,10 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                   <td className="px-3 py-3 text-sm text-slate-400">
                     {lead.city || <span className="text-slate-600">—</span>}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 max-w-[160px]">
                     {lead.website_url
-                      ? <a href={lead.website_url} target="_blank" rel="noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300 hover:underline">
+                      ? <a href={lead.website_url} target="_blank" rel="noreferrer" title={lead.website_url}
+                          className="text-xs text-blue-400 hover:text-blue-300 hover:underline block truncate">
                           {lead.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>
                       : <span className="text-slate-600 text-xs">No website</span>
