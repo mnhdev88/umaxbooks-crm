@@ -90,14 +90,16 @@ export async function POST(req: NextRequest) {
     if (tracking) trackingToken = tracking.token
   }
 
-  // Tracking pixel: use request origin (same-server request, Host header is correct).
-  // Unsubscribe link: must use the public app URL — it's clicked from an external email client,
-  // so req.nextUrl.origin resolves to the internal server address (0.0.0.0) which is unreachable.
-  const origin       = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
-  const publicOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || origin
+  // Build the public-facing base URL from request headers.
+  // req.nextUrl.origin resolves to 0.0.0.0 behind a reverse proxy, so we read
+  // x-forwarded-host / x-forwarded-proto which the proxy always sets correctly.
+  const fwdHost     = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
+  const fwdProto    = req.headers.get('x-forwarded-proto')?.split(',')[0].trim() || 'https'
+  const publicOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    || (fwdHost ? `${fwdProto}://${fwdHost}` : req.nextUrl.origin)
   let finalHtml = html_body
   if (trackingToken && finalHtml) {
-    finalHtml = injectTrackingPixel(finalHtml, `${origin}/api/track/open/${trackingToken}`)
+    finalHtml = injectTrackingPixel(finalHtml, `${publicOrigin}/api/track/open/${trackingToken}`)
     finalHtml = injectUnsubscribeFooter(finalHtml, `${publicOrigin}/api/unsubscribe/${trackingToken}`)
   }
 
