@@ -280,6 +280,26 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
   }
 
+  function applyTemplatePlaceholders(html: string): string {
+    const map: Record<string, string> = {
+      business_name:   lead.company_name    || '',
+      company_name:    lead.company_name    || '',
+      business_type:   (lead as any).business_type || '',
+      name:            lead.name            || '',
+      contact_name:    lead.name            || '',
+      city:            lead.city            || '',
+      phone:           lead.phone           || '',
+      email:           lead.email           || '',
+      whatsapp:        lead.whatsapp_number || '',
+      whatsapp_number: lead.whatsapp_number || '',
+      website:         lead.website_url     || '',
+      website_url:     lead.website_url     || '',
+      address:         lead.address         || '',
+      country:         lead.country         || '',
+    }
+    return html.replace(/\{\{(\w+)\}\}/g, (_, key) => map[key.toLowerCase()] ?? '')
+  }
+
   async function handleSend() {
     if (selected.size === 0) return
     setSending(true)
@@ -313,7 +333,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             businessName: lead.company_name,
             message: message.trim(),
             links: selectedItems.map(i => ({ title: i.title, url: i.url || i.file_url })),
-            htmlBody: templateHtml || undefined,
+            htmlBody: templateHtml ? applyTemplatePlaceholders(templateHtml) : undefined,
             leadId: lead.id,
             userId,
           }),
