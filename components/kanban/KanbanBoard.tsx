@@ -77,9 +77,10 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
       list.sort((a, b) => {
         const da = getNextCallback(a)
         const db = getNextCallback(b)
-        if (!da && !db) return 0
-        if (!da) return 1
-        if (!db) return -1
+        // Leads with no callback scheduled float to top (need scheduling — most recently updated first)
+        if (!da && !db) return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        if (!da) return -1
+        if (!db) return 1
         return new Date(da).getTime() - new Date(db).getTime()
       })
     } else {

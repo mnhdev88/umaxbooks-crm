@@ -8,7 +8,7 @@ import { LeadCard } from './LeadCard'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/utils'
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 20
 
 interface KanbanColumnProps {
   status: PipelineStatus

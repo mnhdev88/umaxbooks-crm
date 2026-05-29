@@ -87,6 +87,7 @@ export interface Lead {
   id: string
   name: string
   company_name: string
+  business_type?: string
   address?: string
   zip_code?: string
   city?: string

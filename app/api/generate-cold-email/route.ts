@@ -42,8 +42,9 @@ export async function POST(req: NextRequest) {
 Business details:
 - Business name: ${lead.company_name}
 - Contact name: ${lead.name || 'Business Owner'}
-- Category: ${lead.gmb_category || 'local business'}
+- Business type: ${lead.business_type || lead.gmb_category || 'local business'}
 - City: ${lead.city || ''}
+- Our WhatsApp contact: ${process.env.AGENT_WHATSAPP || ''}
 - Website: ${lead.website_url || 'None'}
 - Website status: ${lead.website_status || 'Unknown'}
 - GMB rating: ${lead.gmb_review_rating || 'Not found'} ${lead.number_of_reviews ? `(${lead.number_of_reviews} reviews)` : ''}
@@ -56,7 +57,7 @@ Write a cold email that:
 1. Opens with a specific observation about their business (mention the pain point naturally, not aggressively)
 2. Briefly explains the impact (lost customers, revenue, visibility)
 3. Introduces Novelio Technologies as the solution (we help local businesses grow online through website design, GMB optimization, SEO, and Google Ads)
-4. Ends with a soft CTA — ask for a 15-minute call to share ideas, no pressure
+4. Ends with a soft CTA — ask for a 15-minute call to share ideas, no pressure${process.env.AGENT_WHATSAPP ? `. Mention they can reply via WhatsApp at ${process.env.AGENT_WHATSAPP} if easier` : ''}
 5. Keep it under 180 words — concise and conversational, not salesy
 6. Use plain text, no markdown, no bullet points in the email body
 7. Sign off as "The Novelio Team"

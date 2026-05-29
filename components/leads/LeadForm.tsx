@@ -34,6 +34,7 @@ const PRIORITIES = ['Normal', 'High', 'Urgent', 'Low']
 const schema = z.object({
   name:                  z.string().min(1, 'Required'),
   company_name:          z.string().min(1, 'Required'),
+  business_type:         z.string().optional(),
   phone:                 z.string().optional(),
   email:                 z.string().email('Invalid email').optional().or(z.literal('')),
   address:               z.string().optional(),
@@ -93,6 +94,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     defaultValues: {
       name:                 lead?.name || '',
       company_name:         lead?.company_name || '',
+      business_type:        lead?.business_type || '',
       phone:                lead?.phone || '',
       email:                lead?.email || '',
       address:              lead?.address || '',
@@ -411,6 +413,10 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           <label className={L}>Company / Business Name <span className="text-orange-500">*</span></label>
           <input {...register('company_name')} className={cn(F, errors.company_name && 'border-red-600')} placeholder="Sharma Dental Clinic" />
           {errors.company_name && <p className="text-xs text-red-400 mt-1">{errors.company_name.message}</p>}
+        </div>
+        <div>
+          <label className={L}>Business Type</label>
+          <input {...register('business_type')} className={F} placeholder="e.g. Dental Clinic, Restaurant, Gym…" />
         </div>
         <div>
           <label className={L}>Phone Number</label>
