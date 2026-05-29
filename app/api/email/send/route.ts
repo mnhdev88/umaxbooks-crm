@@ -90,13 +90,15 @@ export async function POST(req: NextRequest) {
     if (tracking) trackingToken = tracking.token
   }
 
-  // Use the actual request origin (reflects Host header — correct on live and custom domains).
-  // Fall back to NEXT_PUBLIC_APP_URL only if origin is somehow missing.
-  const origin = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+  // Tracking pixel: use request origin (same-server request, Host header is correct).
+  // Unsubscribe link: must use the public app URL — it's clicked from an external email client,
+  // so req.nextUrl.origin resolves to the internal server address (0.0.0.0) which is unreachable.
+  const origin       = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+  const publicOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || origin
   let finalHtml = html_body
   if (trackingToken && finalHtml) {
     finalHtml = injectTrackingPixel(finalHtml, `${origin}/api/track/open/${trackingToken}`)
-    finalHtml = injectUnsubscribeFooter(finalHtml, `${origin}/api/unsubscribe/${trackingToken}`)
+    finalHtml = injectUnsubscribeFooter(finalHtml, `${publicOrigin}/api/unsubscribe/${trackingToken}`)
   }
 
   // Fetch attachment buffers
