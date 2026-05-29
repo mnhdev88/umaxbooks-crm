@@ -26,6 +26,8 @@ interface Props {
   leadEmail?: string
   leadName?: string
   businessName?: string
+  businessType?: string
+  city?: string
   auditPdfUrl?: string
   auditPdfName?: string
   storageFolder?: string
@@ -38,7 +40,7 @@ interface Props {
 }
 
 export function ComposeModal({
-  leadId, leadEmail = '', leadName = '', businessName = '' ,
+  leadId, leadEmail = '', leadName = '', businessName = '', businessType = '', city = '',
   auditPdfUrl, auditPdfName, storageFolder, userId, onClose, onSent,
   initialSubject, initialBody, initialDraft,
 }: Props) {
@@ -209,15 +211,23 @@ export function ComposeModal({
     const agencyPhone   = process.env.NEXT_PUBLIC_AGENCY_PHONE   || ''
     const agencyWebsite = process.env.NEXT_PUBLIC_AGENCY_WEBSITE || 'noveliotech.com'
 
-    const replacePlaceholders = (str: string) => str
-      .replace(/\{\{client_name\}\}/g,    leadName     || 'there')
-      .replace(/\{\{business_name\}\}/g,  businessName || 'your business')
-      .replace(/\{\{report_url\}\}/g,     auditPdfUrl  || '')
-      .replace(/\{\{agent_name\}\}/g,     agentName    || agencyName)
-      .replace(/\{\{agent_email\}\}/g,    agentEmail   || '')
-      .replace(/\{\{agent_phone\}\}/g,    agencyPhone)
-      .replace(/\{\{agency_name\}\}/g,    agencyName)
-      .replace(/\{\{agency_website\}\}/g, agencyWebsite)
+    const replacePlaceholders = (str: string) => {
+      const pairs: [string, string][] = [
+        ['{{client_name}}',    leadName      || 'there'],
+        ['{{business_name}}',  businessName  || 'your business'],
+        ['{{company_name}}',   businessName  || 'your business'],
+        ['{{business_type}}',  businessType  || ''],
+        ['{{city}}',           city          || ''],
+        ['{{report_url}}',     auditPdfUrl   || ''],
+        ['{{agent_name}}',     agentName     || agencyName],
+        ['{{agent_email}}',    agentEmail    || ''],
+        ['{{agent_phone}}',    agencyPhone],
+        ['{{agency_name}}',    agencyName],
+        ['{{agency_website}}', agencyWebsite],
+        ['{{agent_whatsapp}}', process.env.NEXT_PUBLIC_AGENT_WHATSAPP || ''],
+      ]
+      return pairs.reduce((s, [key, val]) => s.split(key).join(val), str)
+    }
 
     setHtmlBody(replacePlaceholders(t.html_body))
     setHtmlBodyVersion(v => v + 1)

@@ -27,6 +27,7 @@ interface AuditTabProps {
   userRole: string
   websiteUrl?: string
   businessName?: string
+  businessType?: string
   city?: string
   leadEmail?: string
   leadName?: string
@@ -180,7 +181,7 @@ function Tag({ children, color = 'slate' }: { children: React.ReactNode; color?:
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, city, leadEmail, leadName, leadStatus, leadNotes }: AuditTabProps) {
+export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, businessType, city, leadEmail, leadName, leadStatus, leadNotes }: AuditTabProps) {
   const supabase = createClient()
 
   // Current audit (latest record for this lead)
@@ -877,6 +878,8 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           leadEmail={leadEmail}
           leadName={leadName}
           businessName={businessName}
+          businessType={businessType}
+          city={city}
           auditPdfUrl={audit?.audit_short_pdf_url}
           auditPdfName={audit?.file_names?.short || 'summary-report.pdf'}
           storageFolder={audit?.audit_short_pdf_url ? extractStorageFolder(audit.audit_short_pdf_url) : undefined}
