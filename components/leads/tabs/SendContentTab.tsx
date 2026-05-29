@@ -80,23 +80,28 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const canUploadTemplate = canEdit || isDeveloper
 
   function applyTemplatePlaceholders(html: string): string {
-    const map: Record<string, string> = {
-      business_name:   lead.company_name         || '',
-      company_name:    lead.company_name         || '',
-      business_type:   (lead as any).business_type || '',
-      name:            lead.name                 || '',
-      contact_name:    lead.name                 || '',
-      city:            lead.city                 || '',
-      phone:           lead.phone                || '',
-      email:           lead.email                || '',
-      whatsapp:        lead.whatsapp_number      || '',
-      whatsapp_number: lead.whatsapp_number      || '',
-      website:         lead.website_url          || '',
-      website_url:     lead.website_url          || '',
-      address:         lead.address              || '',
-      country:         lead.country              || '',
+    const values: Record<string, string> = {
+      business_name:   lead.company_name              || '',
+      company_name:    lead.company_name              || '',
+      business_type:   (lead as any).business_type   || '',
+      name:            lead.name                      || '',
+      contact_name:    lead.name                      || '',
+      city:            lead.city                      || '',
+      phone:           lead.phone                     || '',
+      email:           lead.email                     || '',
+      whatsapp:        lead.whatsapp_number           || '',
+      whatsapp_number: lead.whatsapp_number           || '',
+      website:         lead.website_url               || '',
+      website_url:     lead.website_url               || '',
+      address:         lead.address                   || '',
+      country:         lead.country                   || '',
     }
-    return html.replace(/\{\{(\w+)\}\}/g, (_, key) => map[key.toLowerCase()] ?? '')
+    console.log('[Template] lead values for placeholders:', values)
+    let result = html
+    for (const [key, value] of Object.entries(values)) {
+      result = result.split(`{{${key}}}`).join(value)
+    }
+    return result
   }
 
   useEffect(() => { fetchItems(); fetchEmailTemplate(); fetchEmailLogs() }, [lead.id])
