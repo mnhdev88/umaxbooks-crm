@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { sendEmail } from '@/lib/email'
 
+function getPublicOrigin(req: NextRequest): string {
+  const fwdHost  = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
+  const fwdProto = req.headers.get('x-forwarded-proto')?.split(',')[0].trim() || 'https'
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    || (fwdHost ? `${fwdProto}://${fwdHost}` : req.nextUrl.origin)
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const origin = req.nextUrl.origin
+  const origin = getPublicOrigin(req)
 
   const supabase = createServiceClient()
 
