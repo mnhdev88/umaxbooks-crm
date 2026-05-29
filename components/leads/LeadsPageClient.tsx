@@ -131,7 +131,7 @@ const CRM_FIELDS = [
   'website_url', 'gmb_url', 'gmb_review_rating', 'number_of_reviews', 'gmb_category', '— Skip —',
 ]
 
-const PER_PAGE = 10
+const PER_PAGE = 25
 
 interface Props {
   initialLeads: Lead[]

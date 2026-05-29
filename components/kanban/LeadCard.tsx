@@ -158,19 +158,29 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
         </div>
       )}
 
-      {/* Reassign button — admin only, stale leads */}
-      {isStale && isAdmin && (
+      {/* Assign / Reassign button — admin only */}
+      {isAdmin && (isStale || lead.status === 'New') && (
         <div
-          className="flex justify-end mt-1.5"
+          className="flex items-center justify-between gap-2 mt-1.5"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
+          {/* Current assignee */}
+          {(lead as any).assigned_agent?.full_name ? (
+            <span className="text-[10px] text-slate-500 truncate">
+              {(lead as any).assigned_agent.full_name}
+            </span>
+          ) : (
+            <span className="text-[10px] text-slate-600 italic">Unassigned</span>
+          )}
+
           {!showReassign ? (
             <button
               onClick={() => setShowReassign(true)}
-              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-orange-400 bg-slate-700/60 hover:bg-slate-700 px-1.5 py-0.5 rounded-full border border-slate-600/40 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-orange-400 bg-slate-700/60 hover:bg-slate-700 px-1.5 py-0.5 rounded-full border border-slate-600/40 transition-colors whitespace-nowrap flex-shrink-0"
             >
-              <UserCheck size={9} /> Reassign
+              <UserCheck size={9} />
+              {(lead as any).assigned_agent?.full_name ? 'Reassign' : 'Assign'}
             </button>
           ) : (
             <select
