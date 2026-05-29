@@ -20,6 +20,16 @@ function injectTrackingPixel(html: string, pixelUrl: string): string {
   return stripped + pixel
 }
 
+function injectUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
+  const footer = `
+<div style="margin-top:24px;padding-top:12px;border-top:1px solid #334155;text-align:center;font-family:sans-serif;font-size:11px;color:#64748b;">
+  Don't want to receive these emails?
+  <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline;margin-left:4px;">Unsubscribe</a>
+</div>`
+  if (html.includes('</body>')) return html.replace('</body>', `${footer}</body>`)
+  return html + footer
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,6 +43,16 @@ export async function POST(req: NextRequest) {
   }
 
   const service = createServiceClient()
+
+  // Block send if lead has unsubscribed
+  const { data: leadCheck } = await service
+    .from('leads')
+    .select('email_unsubscribed')
+    .eq('id', lead_id)
+    .single()
+  if (leadCheck?.email_unsubscribed) {
+    return NextResponse.json({ error: 'This lead has unsubscribed from emails.' }, { status: 403 })
+  }
 
   // Get provider + agent profile in parallel
   const [{ data: provider }, { data: agentProfile }] = await Promise.all([
@@ -73,9 +93,11 @@ export async function POST(req: NextRequest) {
   // Use the actual request origin (reflects Host header — correct on live and custom domains).
   // Fall back to NEXT_PUBLIC_APP_URL only if origin is somehow missing.
   const origin = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
-  const finalHtml = trackingToken && html_body
-    ? injectTrackingPixel(html_body, `${origin}/api/track/open/${trackingToken}`)
-    : html_body
+  let finalHtml = html_body
+  if (trackingToken && finalHtml) {
+    finalHtml = injectTrackingPixel(finalHtml, `${origin}/api/track/open/${trackingToken}`)
+    finalHtml = injectUnsubscribeFooter(finalHtml, `${origin}/api/unsubscribe/${trackingToken}`)
+  }
 
   // Fetch attachment buffers
   let attachmentData: any[] = []

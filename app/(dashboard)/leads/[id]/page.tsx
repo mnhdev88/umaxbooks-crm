@@ -9,7 +9,7 @@ import { formatDate } from '@/lib/utils'
 import {
   Globe, Phone, Mail, MapPin, Star, Building2,
   MessageCircle, Share2, Calendar, Users, Flag,
-  FileText, Tag, Lock, ExternalLink, Layers,
+  FileText, Tag, Lock, ExternalLink, Layers, MailX,
 } from 'lucide-react'
 import { CopyButton } from '@/components/ui/CopyButton'
 
@@ -107,6 +107,11 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                   </span>
                 )}
                 <StatusBadge status={lead.status} />
+                {lead.email_unsubscribed && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-red-950/60 text-red-400 border border-red-800/50">
+                    <MailX size={10} /> Unsubscribed
+                  </span>
+                )}
                 {lead.priority && lead.priority !== 'Normal' && (
                   <span className={`text-xs font-semibold ${PRIORITY_CLS[lead.priority] || 'text-slate-400'}`}>
                     ↑ {lead.priority}

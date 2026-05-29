@@ -5,7 +5,6 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Lead, Profile } from '@/types'
 import { Star, UserCheck, Phone, MailWarning } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 interface LeadCardProps {
@@ -59,7 +58,6 @@ function formatCallbackDate(iso: string): { label: string; level: CallbackLevel 
 }
 
 export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, callbackDate }: LeadCardProps) {
-  const router = useRouter()
   const [showReassign, setShowReassign] = useState(false)
 
   const {
@@ -99,7 +97,7 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => router.push(`/leads/${lead.id}`)}
+      onClick={() => window.open(`/leads/${lead.id}`, '_blank')}
       className={cn(
         'bg-slate-800 border border-slate-700 rounded-xl p-2.5 group',
         'hover:border-orange-500/40 transition-all duration-150',

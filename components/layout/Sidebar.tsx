@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -19,25 +19,27 @@ interface NavSection { label?: string; items: NavItem[] }
 
 const agentSections: NavSection[] = [
   { items: [
-    { href: '/',              label: 'Pipeline',           icon: LayoutDashboard },
-    { href: '/leads',         label: 'All Leads',          icon: Users },
-    { href: '/audits',        label: 'Audits & Follow-up', icon: Activity },
-    { href: '/email-status',  label: 'Email Status',       icon: Mail },
-    { href: '/reports',       label: 'Reports',            icon: BarChart3 },
-    { href: '/notifications', label: 'Notifications',      icon: Bell },
+    { href: '/',               label: 'Pipeline',           icon: LayoutDashboard },
+    { href: '/leads',          label: 'All Leads',          icon: Users },
+    { href: '/audits',         label: 'Audits & Follow-up', icon: Activity },
+    { href: '/email-status',   label: 'Email Status',       icon: Mail },
+    { href: '/unsubscribes',   label: 'Unsubscribes',       icon: MailX },
+    { href: '/reports',        label: 'Reports',            icon: BarChart3 },
+    { href: '/notifications',  label: 'Notifications',      icon: Bell },
   ]},
 ]
 
 const salesAgentSections: NavSection[] = [
   { items: [
-    { href: '/',              label: 'Pipeline',           icon: LayoutDashboard },
-    { href: '/leads',         label: 'All Leads',          icon: Users },
-    { href: '/audits',        label: 'Audits & Follow-up', icon: Activity },
-    { href: '/demo-close',    label: 'Demo & Close',       icon: MonitorPlay },
-    { href: '/email-status',  label: 'Email Status',       icon: Mail },
-    { href: '/support-tickets', label: 'Support Tickets', icon: LifeBuoy },
-    { href: '/reports',       label: 'Reports',            icon: BarChart3 },
-    { href: '/notifications', label: 'Notifications',      icon: Bell },
+    { href: '/',                label: 'Pipeline',           icon: LayoutDashboard },
+    { href: '/leads',           label: 'All Leads',          icon: Users },
+    { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
+    { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/email-status',    label: 'Email Status',       icon: Mail },
+    { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
+    { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
+    { href: '/reports',         label: 'Reports',            icon: BarChart3 },
+    { href: '/notifications',   label: 'Notifications',      icon: Bell },
   ]},
 ]
 
@@ -48,6 +50,7 @@ const developerSections: NavSection[] = [
     { href: '/audits',             label: 'Audits & Follow-up', icon: Activity },
     { href: '/developer-queue',    label: 'Dev Queue',          icon: Code2 },
     { href: '/email-status',       label: 'Email Status',       icon: Mail },
+    { href: '/unsubscribes',       label: 'Unsubscribes',       icon: MailX },
     { href: '/notifications',      label: 'Notifications',      icon: Bell },
   ]},
 ]
@@ -63,6 +66,7 @@ const adminSections: NavSection[] = [
     { href: '/developer-queue', label: 'Dev Queue',          icon: Code2 },
     { href: '/approvals',        label: 'Approvals',         icon: ClipboardList },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },
+    { href: '/unsubscribes',     label: 'Unsubscribes',      icon: MailX },
     { href: '/support-tickets',  label: 'Support Tickets',   icon: LifeBuoy },
   ]},
   { label: 'Analytics', items: [
