@@ -540,7 +540,10 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
             {/* Scaled preview */}
             <div className="relative border-b border-slate-700 bg-white h-44 overflow-hidden">
               <iframe
-                src={(emailTemplate.file_url || emailTemplate.url) as string}
+                {...(templateHtml
+                  ? { srcdoc: templateHtml }
+                  : { src: (emailTemplate.file_url || emailTemplate.url) as string }
+                )}
                 sandbox="allow-same-origin"
                 className="absolute top-0 left-0 w-[167%] h-[167%] pointer-events-none"
                 style={{ transform: 'scale(0.6)', transformOrigin: 'top left' }}
@@ -645,7 +648,10 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
           </div>
           <div className="flex-1 bg-white overflow-auto" onClick={e => e.stopPropagation()}>
             <iframe
-              src={(emailTemplate.file_url || emailTemplate.url) as string}
+              {...(templateHtml
+                ? { srcdoc: templateHtml }
+                : { src: (emailTemplate.file_url || emailTemplate.url) as string }
+              )}
               sandbox="allow-same-origin"
               className="w-full h-full min-h-screen"
               title="Email Template Full Preview"
