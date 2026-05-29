@@ -79,6 +79,26 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const canEdit = userRole === 'admin' || userRole === 'sales_agent'
   const canUploadTemplate = canEdit || isDeveloper
 
+  function applyTemplatePlaceholders(html: string): string {
+    const map: Record<string, string> = {
+      business_name:   lead.company_name         || '',
+      company_name:    lead.company_name         || '',
+      business_type:   (lead as any).business_type || '',
+      name:            lead.name                 || '',
+      contact_name:    lead.name                 || '',
+      city:            lead.city                 || '',
+      phone:           lead.phone                || '',
+      email:           lead.email                || '',
+      whatsapp:        lead.whatsapp_number      || '',
+      whatsapp_number: lead.whatsapp_number      || '',
+      website:         lead.website_url          || '',
+      website_url:     lead.website_url          || '',
+      address:         lead.address              || '',
+      country:         lead.country              || '',
+    }
+    return html.replace(/\{\{(\w+)\}\}/g, (_, key) => map[key.toLowerCase()] ?? '')
+  }
+
   useEffect(() => { fetchItems(); fetchEmailTemplate(); fetchEmailLogs() }, [lead.id])
 
   async function fetchItems() {
@@ -158,6 +178,13 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       .limit(1)
       .maybeSingle()
     setEmailTemplate(data as ContentItem | null)
+    // Auto-load and process template HTML so previews show real values immediately
+    const url = (data as any)?.file_url || (data as any)?.url
+    if (url) {
+      const res = await fetch(`/api/fetch-template?url=${encodeURIComponent(url)}`)
+      const { html } = await res.json()
+      if (html) setTemplateHtml(applyTemplatePlaceholders(html))
+    }
   }
 
   async function handleHtmlUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -278,26 +305,6 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
     const text = [message.trim(), links].filter(Boolean).join('\n\n')
     const phone = (lead.phone || '').replace(/\D/g, '')
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
-  }
-
-  function applyTemplatePlaceholders(html: string): string {
-    const map: Record<string, string> = {
-      business_name:   lead.company_name    || '',
-      company_name:    lead.company_name    || '',
-      business_type:   (lead as any).business_type || '',
-      name:            lead.name            || '',
-      contact_name:    lead.name            || '',
-      city:            lead.city            || '',
-      phone:           lead.phone           || '',
-      email:           lead.email           || '',
-      whatsapp:        lead.whatsapp_number || '',
-      whatsapp_number: lead.whatsapp_number || '',
-      website:         lead.website_url     || '',
-      website_url:     lead.website_url     || '',
-      address:         lead.address         || '',
-      country:         lead.country         || '',
-    }
-    return html.replace(/\{\{(\w+)\}\}/g, (_, key) => map[key.toLowerCase()] ?? '')
   }
 
   async function handleSend() {
