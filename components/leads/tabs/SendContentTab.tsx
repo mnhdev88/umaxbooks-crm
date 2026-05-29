@@ -183,12 +183,19 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
       .limit(1)
       .maybeSingle()
     setEmailTemplate(data as ContentItem | null)
-    // Auto-load and process template HTML so previews show real values immediately
     const url = (data as any)?.file_url || (data as any)?.url
+    console.log('[Template] DB row:', data)
+    console.log('[Template] url:', url)
+    console.log('[Template] lead city:', lead.city, '| business_type:', (lead as any).business_type)
     if (url) {
-      const res = await fetch(`/api/fetch-template?url=${encodeURIComponent(url)}`)
-      const { html } = await res.json()
-      if (html) setTemplateHtml(applyTemplatePlaceholders(html))
+      try {
+        const res = await fetch(`/api/fetch-template?url=${encodeURIComponent(url)}`)
+        const json = await res.json()
+        console.log('[Template] fetch ok:', res.ok, '| html length:', json.html?.length, '| error:', json.error)
+        if (json.html) setTemplateHtml(applyTemplatePlaceholders(json.html))
+      } catch (e) {
+        console.error('[Template] fetch threw:', e)
+      }
     }
   }
 
