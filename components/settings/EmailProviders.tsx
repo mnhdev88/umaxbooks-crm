@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Trash2, Star, Wifi, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
 
-type ProviderType = 'gmail' | 'aws_ses' | 'resend' | 'custom'
+type ProviderType = 'gmail' | 'aws_ses' | 'resend' | 'sendgrid' | 'custom'
 
 interface EmailProvider {
   id: string
@@ -22,16 +22,18 @@ interface EmailProvider {
 }
 
 const PROVIDER_PRESETS: Record<ProviderType, { label: string; host: string; port: number; secure: boolean }> = {
-  gmail:   { label: 'Gmail',        host: 'smtp.gmail.com',                         port: 587, secure: false },
-  aws_ses: { label: 'AWS SES',      host: 'email-smtp.us-east-1.amazonaws.com',     port: 587, secure: false },
-  resend:  { label: 'Resend API',   host: '',                                        port: 0,   secure: false },
-  custom:  { label: 'Custom SMTP',  host: '',                                        port: 587, secure: false },
+  gmail:     { label: 'Gmail',        host: 'smtp.gmail.com',                         port: 587, secure: false },
+  aws_ses:   { label: 'AWS SES',      host: 'email-smtp.us-east-1.amazonaws.com',     port: 587, secure: false },
+  resend:    { label: 'Resend API',   host: '',                                        port: 0,   secure: false },
+  sendgrid:  { label: 'SendGrid',     host: 'smtp.sendgrid.net',                       port: 587, secure: false },
+  custom:    { label: 'Custom SMTP',  host: '',                                        port: 587, secure: false },
 }
 
 const PROVIDER_HINTS: Partial<Record<ProviderType, string>> = {
-  gmail:   'Requires a 16-digit App Password — not your regular password. Enable 2FA → Google Account → Security → App Passwords.',
-  aws_ses: 'Use SMTP credentials from AWS SES console (not IAM access keys). Adjust region in the host if needed.',
-  resend:  'Enter your Resend API key (starts with re_). Get one free at resend.com — 3,000 emails/month.',
+  gmail:     'Requires a 16-digit App Password — not your regular password. Enable 2FA → Google Account → Security → App Passwords.',
+  aws_ses:   'Use SMTP credentials from AWS SES console (not IAM access keys). Adjust region in the host if needed.',
+  resend:    'Enter your Resend API key (starts with re_). Get one free at resend.com — 3,000 emails/month.',
+  sendgrid:  'Username is always "apikey". Password is your SendGrid API key (starts with SG.). Create one at app.sendgrid.com → Settings → API Keys → Mail Send permission.',
 }
 
 const EMPTY: Omit<EmailProvider, 'id' | 'is_active'> = {
@@ -80,7 +82,7 @@ export function EmailProviders() {
 
   function setType(type: ProviderType) {
     const p = PROVIDER_PRESETS[type]
-    setForm(f => ({ ...f, provider: type, host: p.host, port: p.port, secure: p.secure }))
+    setForm(f => ({ ...f, provider: type, host: p.host, port: p.port, secure: p.secure, username: type === 'sendgrid' ? 'apikey' : f.username }))
     setFormTestResult(null)
   }
 
@@ -240,18 +242,19 @@ export function EmailProviders() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-slate-400 mb-1.5 block">
-                  {form.provider === 'aws_ses' ? 'SES SMTP Username' : 'Username / Email'}
+                  {form.provider === 'aws_ses' ? 'SES SMTP Username' : form.provider === 'sendgrid' ? 'Username (fixed)' : 'Username / Email'}
                 </label>
                 <input
                   value={form.username ?? ''}
                   onChange={e => field('username', e.target.value)}
+                  readOnly={form.provider === 'sendgrid'}
                   placeholder={form.provider === 'gmail' ? 'you@gmail.com' : 'SMTP Username'}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
+                  className={`w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50 ${form.provider === 'sendgrid' ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1.5 block">
-                  {form.provider === 'gmail' ? 'App Password (16 digits)' : form.provider === 'aws_ses' ? 'SES SMTP Password' : 'Password'}
+                  {form.provider === 'gmail' ? 'App Password (16 digits)' : form.provider === 'aws_ses' ? 'SES SMTP Password' : form.provider === 'sendgrid' ? 'API Key (SG.xxxxx)' : 'Password'}
                 </label>
                 <input
                   type="password"
