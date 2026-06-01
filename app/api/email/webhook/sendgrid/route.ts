@@ -22,6 +22,11 @@ function extractMessageId(sgMessageId: string): string {
   return sgMessageId.split('.')[0]
 }
 
+// Health check — browser GET returns 200 so you can verify the route is live
+export async function GET() {
+  return NextResponse.json({ ok: true, message: 'SendGrid webhook endpoint is live. Awaiting POST events.' })
+}
+
 export async function POST(req: NextRequest) {
   // Optional: verify shared secret to prevent spoofed webhook calls
   const secret = process.env.SENDGRID_WEBHOOK_SECRET
