@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
-import sgMail from '@sendgrid/mail'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -138,24 +137,32 @@ export async function POST(req: NextRequest) {
       })
       if (error) throw new Error(error.message)
     } else if (provider.provider === 'sendgrid') {
-      // SendGrid Web API — gives delivery/bounce webhooks unlike SMTP
-      sgMail.setApiKey(provider.password!)
-      const [response] = await sgMail.send({
-        from: { email: fromEmail!, name: agentDisplayName },
-        to: to_email,
-        cc: cc || undefined,
-        bcc: bcc || undefined,
-        subject,
-        html: finalHtml || '',
-        attachments: attachmentData.map(a => ({
-          filename: a.filename,
-          content: a.content.toString('base64'),
-          type: a.contentType,
-          disposition: 'attachment' as const,
-        })),
+      // SendGrid Web API via fetch — no SDK needed, gives delivery/bounce webhooks unlike SMTP
+      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${provider.password}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: { email: fromEmail, name: agentDisplayName },
+          personalizations: [{ to: [{ email: to_email }], ...(cc ? { cc: [{ email: cc }] } : {}), ...(bcc ? { bcc: [{ email: bcc }] } : {}) }],
+          subject,
+          content: [{ type: 'text/html', value: finalHtml || '' }],
+          attachments: attachmentData.length ? attachmentData.map(a => ({
+            filename: a.filename,
+            content: a.content.toString('base64'),
+            type: a.contentType,
+            disposition: 'attachment',
+          })) : undefined,
+        }),
       })
+      if (!sgRes.ok) {
+        const err = await sgRes.json().catch(() => ({}))
+        throw new Error((err as any)?.errors?.[0]?.message || `SendGrid error ${sgRes.status}`)
+      }
       // Store message ID so webhook events can be matched back to this send
-      sgMessageId = (response.headers['x-message-id'] as string) || null
+      sgMessageId = sgRes.headers.get('x-message-id') || null
     } else {
       const transporter = nodemailer.createTransport({
         host: provider.host,
