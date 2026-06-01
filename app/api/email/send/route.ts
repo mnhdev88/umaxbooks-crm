@@ -156,6 +156,9 @@ export async function POST(req: NextRequest) {
       tracking_token: trackingToken,
     })
 
+    // Promote New leads to Contacted on first email
+    await service.from('leads').update({ status: 'Contacted' }).eq('id', lead_id).eq('status', 'New')
+
     // Activity log
     const attNames = attachments.map((a: any) => a.name).join(', ')
     await service.from('activity_logs').insert({
