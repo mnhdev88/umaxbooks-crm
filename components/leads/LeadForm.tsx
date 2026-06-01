@@ -450,6 +450,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
             <select {...register('country')} className={cn(F, 'cursor-pointer')}>
               <option>India</option>
               <option>USA</option>
+              <option>Canada</option>
               <option>UAE</option>
               <option>UK</option>
               <option>Other</option>

@@ -201,7 +201,8 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
         l.company_name.toLowerCase().includes(q) ||
         (l.city || '').toLowerCase().includes(q) ||
         (l.website_url || '').toLowerCase().includes(q) ||
-        (l.phone || '').toLowerCase().includes(q)
+        (l.phone || '').toLowerCase().includes(q) ||
+        (l.lead_number != null && String(l.lead_number).includes(q))
       )
     }
     if (srcFilter)    data = data.filter(l => l.source === srcFilter)
