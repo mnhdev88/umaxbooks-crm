@@ -13,9 +13,10 @@ interface NotesTabProps {
   leadId: string
   userId: string
   userRole: string
+  readOnly?: boolean
 }
 
-export function NotesTab({ leadId, userId, userRole }: NotesTabProps) {
+export function NotesTab({ leadId, userId, userRole, readOnly = false }: NotesTabProps) {
   const [notes, setNotes] = useState<LeadContactNote[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -81,13 +82,15 @@ export function NotesTab({ leadId, userId, userRole }: NotesTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-          <Plus size={14} /> Add Note
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Plus size={14} /> Add Note
+          </Button>
+        </div>
+      )}
 
-      {showForm && (
+      {!readOnly && showForm && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
           <Input
             label="Contact Date"
@@ -139,7 +142,7 @@ export function NotesTab({ leadId, userId, userRole }: NotesTabProps) {
                       <div key={n.id} className="px-4 py-3 space-y-1 group">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm text-slate-200 whitespace-pre-wrap flex-1">{n.note}</p>
-                          {(n.user_id === userId || userRole === 'admin') && (
+                          {!readOnly && (n.user_id === userId || userRole === 'admin') && (
                             <button
                               onClick={() => handleDelete(n.id)}
                               className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all flex-shrink-0 mt-0.5"

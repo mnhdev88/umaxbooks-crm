@@ -7,16 +7,17 @@ import { createClient } from '@/lib/supabase/client'
 import { Lead, Profile } from '@/types'
 import { cn } from '@/lib/utils'
 import { DevBriefTab } from './DevBriefTab'
-import { DevAuditTab } from './DevAuditTab'
+import { AuditTab } from '@/components/leads/tabs/AuditTab'
 import { DevDemoTab } from './DevDemoTab'
 import { DevBeforeAfterTab } from './DevBeforeAfterTab'
 import { DevApprovalTab } from './DevApprovalTab'
 import { ActivityTab } from '@/components/leads/tabs/ActivityTab'
+import { NotesTab } from '@/components/leads/tabs/NotesTab'
 import { Button } from '@/components/ui/Button'
 import {
   Search, ExternalLink, Code2, Plus,
   FileText, Monitor, BarChart2, CheckSquare, Activity,
-  Star, Bell,
+  Star, Bell, StickyNote,
 } from 'lucide-react'
 
 // ── Status display ──────────────────────────────────────────────────
@@ -82,6 +83,7 @@ function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: st
 // ── Tabs ──────────────────────────────────────────────────────────
 const TABS = [
   { id: 'brief',      label: 'Lead Brief',     icon: FileText },
+  { id: 'notes',      label: 'Notes',          icon: StickyNote },
   { id: 'audit',      label: 'Audit Reports',  icon: FileText },
   { id: 'demo',       label: 'Demo Site',      icon: Monitor },
   { id: 'beforeafter',label: 'Before/After',   icon: BarChart2 },
@@ -311,14 +313,28 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
 
             <div className="flex-1 overflow-y-auto p-5" key={selectedLead.id + '-' + activeTab}>
               {activeTab === 'brief' && <DevBriefTab lead={selectedLead} />}
+              {activeTab === 'notes' && (
+                <NotesTab
+                  leadId={selectedLead.id}
+                  userId={userId}
+                  userRole={profile.role}
+                  readOnly
+                />
+              )}
               {activeTab === 'audit' && (
-                <DevAuditTab
+                <AuditTab
                   leadId={selectedLead.id}
                   leadSlug={selectedLead.slug}
                   userId={userId}
+                  userRole={profile.role}
                   websiteUrl={selectedLead.website_url}
                   businessName={selectedLead.company_name}
+                  businessType={selectedLead.business_type}
                   city={selectedLead.city}
+                  leadEmail={selectedLead.email}
+                  leadName={selectedLead.name}
+                  leadStatus={selectedLead.status}
+                  leadNotes={selectedLead.notes}
                 />
               )}
               {activeTab === 'demo' && (
