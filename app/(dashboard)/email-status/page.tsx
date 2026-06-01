@@ -30,10 +30,11 @@ export default async function EmailStatusPage() {
     .from('email_sends')
     .select(`
       id, lead_id, to_email, subject, html_body, status, sent_at, tracking_token, created_at,
+      delivered_at, bounced_at,
       sender:sent_by(full_name),
       lead:leads(id, name, company_name, email, phone)
     `)
-    .eq('status', 'sent')
+    .neq('status', 'scheduled')
     .order('sent_at', { ascending: false })
 
   if (leadIdFilter !== null) {
