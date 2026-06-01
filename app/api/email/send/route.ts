@@ -62,10 +62,14 @@ export async function POST(req: NextRequest) {
   if (!provider) return NextResponse.json({ error: 'Email provider not found' }, { status: 400 })
 
   const providerEmail = provider.provider === 'gmail' ? provider.username : provider.from_email
-  // Show agent's name to the receiver, but send through the configured SMTP address
   const agentDisplayName = agentProfile?.full_name || provider.from_name
-  const from    = `${agentDisplayName} <${providerEmail}>`
-  const replyTo = agentProfile?.email ? `${agentDisplayName} <${agentProfile.email}>` : undefined
+  // Gmail enforces the authenticated account as from — all other providers (SendGrid, SES, custom)
+  // allow using the agent's own email so the lead sees who actually sent it.
+  const fromEmail = provider.provider === 'gmail'
+    ? providerEmail
+    : (agentProfile?.email || providerEmail)
+  const from    = `${agentDisplayName} <${fromEmail}>`
+  const replyTo = undefined // from IS the agent's email, no need for a separate reply-to
 
   // If scheduling — save to email_sends and return (no tracking pixel for scheduled emails)
   if (scheduled_at) {
