@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
+import sgMail from '@sendgrid/mail'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -117,6 +118,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 400 })
   }
 
+  let sgMessageId: string | null = null
+
   try {
     if (provider.provider === 'resend') {
       const resend = new Resend(provider.api_key)
@@ -134,6 +137,25 @@ export async function POST(req: NextRequest) {
         })),
       })
       if (error) throw new Error(error.message)
+    } else if (provider.provider === 'sendgrid') {
+      // SendGrid Web API — gives delivery/bounce webhooks unlike SMTP
+      sgMail.setApiKey(provider.password!)
+      const [response] = await sgMail.send({
+        from: { email: fromEmail!, name: agentDisplayName },
+        to: to_email,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
+        subject,
+        html: finalHtml || '',
+        attachments: attachmentData.map(a => ({
+          filename: a.filename,
+          content: a.content.toString('base64'),
+          type: a.contentType,
+          disposition: 'attachment' as const,
+        })),
+      })
+      // Store message ID so webhook events can be matched back to this send
+      sgMessageId = (response.headers['x-message-id'] as string) || null
     } else {
       const transporter = nodemailer.createTransport({
         host: provider.host,
@@ -158,6 +180,7 @@ export async function POST(req: NextRequest) {
       subject, html_body: finalHtml, attachments,
       status: 'sent', sent_at: new Date().toISOString(),
       tracking_token: trackingToken,
+      sendgrid_message_id: sgMessageId,
     })
 
     // Promote New leads to Contacted on first email

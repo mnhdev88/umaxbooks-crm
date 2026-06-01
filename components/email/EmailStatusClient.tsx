@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, MailCheck, MailOpen, Mail, RefreshCw, Pen, RotateCcw,
-  Building2, User, Calendar, Eye,
+  Building2, User, Calendar, Eye, CheckCircle2, XCircle, AlertTriangle,
 } from 'lucide-react'
 import { ComposeModal } from '@/components/email/ComposeModal'
 
@@ -34,6 +34,34 @@ interface Props {
 }
 
 type FilterTab = 'all' | 'opened' | 'not_opened'
+
+function DeliveryBadge({ status }: { status: string }) {
+  if (status === 'delivered') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <CheckCircle2 className="w-3 h-3" /> Delivered
+    </span>
+  )
+  if (status === 'bounced') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 bg-red-900/30 border border-red-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <XCircle className="w-3 h-3" /> Bounced
+    </span>
+  )
+  if (status === 'spam') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-900/30 border border-amber-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <AlertTriangle className="w-3 h-3" /> Spam
+    </span>
+  )
+  if (status === 'failed') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 bg-red-900/30 border border-red-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <XCircle className="w-3 h-3" /> Failed
+    </span>
+  )
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <Mail className="w-3 h-3" /> Sent
+    </span>
+  )
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
@@ -177,6 +205,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                 <th scope="col" className="px-4 py-3">Subject</th>
                 <th scope="col" className="px-4 py-3 w-[100px]">Sent By</th>
                 <th scope="col" className="px-4 py-3 w-[110px]">Sent Date</th>
+                <th scope="col" className="px-4 py-3 w-[120px]">Delivery</th>
                 <th scope="col" className="px-4 py-3 w-[140px]">Open Status</th>
                 <th scope="col" className="px-4 py-3 w-[160px]">Actions</th>
               </tr>
@@ -223,6 +252,11 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                         <Calendar size={11} className="text-slate-600" />
                         {fmtDate(s.sent_at || s.created_at)}
                       </div>
+                    </td>
+
+                    {/* Delivery status — from SendGrid webhook */}
+                    <td className="px-4 py-3">
+                      <DeliveryBadge status={s.status} />
                     </td>
 
                     {/* Open status — includes count + last opened */}
