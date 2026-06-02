@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Lead, Profile } from '@/types'
@@ -14,6 +15,10 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Service client bypasses RLS — used only for lead lookups where the developer
+  // role's RLS policy would otherwise hide leads in certain statuses (e.g. Callback Booked)
+  const service = createServiceClient()
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
@@ -134,7 +139,9 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         .filter(id => !allLeads.some((l: any) => l.id === id))
 
       if (newLeadIds.length > 0) {
-        const { data: notedLeadData } = await supabase
+        // Use service client so RLS doesn't silently drop leads in statuses
+        // the developer role can't normally see (e.g. Callback Booked, New)
+        const { data: notedLeadData } = await service
           .from('leads')
           .select(LEAD_SELECT)
           .in('id', newLeadIds)
