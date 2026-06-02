@@ -362,12 +362,31 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   async function handleSaveNote() {
     if (!newNoteText.trim()) return
     setSavingNotes(true)
+
+    // Stages where notifying the developer should also move the lead to Audit Ready
+    const EARLY_STAGES = new Set(['New', 'Contacted', 'Callback Booked'])
+    const shouldPromote = leadStatus && EARLY_STAGES.has(leadStatus)
+
     try {
       await supabase.from('audit_notes').insert({
         lead_id: leadId,
         user_id: userId,
         note: newNoteText.trim(),
       })
+
+      // Move lead to Audit Ready so it appears in the Dev Queue immediately
+      if (shouldPromote) {
+        await supabase
+          .from('leads')
+          .update({ status: 'Audit Ready', updated_at: new Date().toISOString() })
+          .eq('id', leadId)
+
+        await supabase.from('activity_logs').insert({
+          lead_id: leadId, user_id: userId,
+          action: 'Status Changed',
+          details: `Status moved to Audit Ready — developer notified`,
+        })
+      }
 
       // Notify all developers
       const preview = newNoteText.trim().slice(0, 120) + (newNoteText.length > 120 ? '…' : '')
@@ -377,12 +396,13 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           devs.map(d => ({
             user_id: d.id,
             lead_id: leadId,
-            title: `Agent Note — ${businessName || 'Lead'}`,
+            title: `${shouldPromote ? '🟡 Audit Ready — ' : ''}Agent Note — ${businessName || 'Lead'}`,
             message: preview,
             type: 'info',
           }))
         )
       }
+
       await supabase.from('activity_logs').insert({
         lead_id: leadId, user_id: userId,
         action: 'Audit Note Added',
