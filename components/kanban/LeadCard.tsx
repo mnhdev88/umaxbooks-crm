@@ -252,7 +252,11 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
           businessName={lead.company_name}
           userId={userId}
           onClose={() => setComposing(false)}
-          onSent={() => { setComposing(false); router.refresh() }}
+          onSent={() => {
+            setComposing(false)
+            // Notify pipeline pages to re-fetch so the card moves to Contacted immediately
+            window.dispatchEvent(new CustomEvent('crm:lead-updated'))
+          }}
         />
       )}
     </>

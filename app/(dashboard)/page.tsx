@@ -71,13 +71,16 @@ export default function PipelinePage() {
     fetchLeads()
 
     // Refetch when user returns to this tab (covers bfcache restore + tab switching)
-    const onFocus = () => fetchLeads()
+    const onFocus    = () => fetchLeads()
     const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) fetchLeads() }
+    const onLeadUpdated = () => fetchLeads()
     window.addEventListener('focus', onFocus)
     window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('crm:lead-updated', onLeadUpdated)
     return () => {
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('crm:lead-updated', onLeadUpdated)
     }
   }, [profile])
 
