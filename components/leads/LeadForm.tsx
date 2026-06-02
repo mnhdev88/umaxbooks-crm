@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { slugify, cn } from '@/lib/utils'
 import { Lead, LeadSource, Profile, PIPELINE_STAGES } from '@/types'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react'
+import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 
 const SOURCES = [
   { id: 'GMB',          label: 'GMB',          icon: '📍' },
@@ -89,6 +89,11 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
   const savedGmbUrl                         = useRef(lead?.gmb_url || '')
   const [findingEmail, setFindingEmail]     = useState(false)
   const [emailFindMsg, setEmailFindMsg]     = useState<string | null>(null)
+  const [validatingEmail, setValidatingEmail] = useState(false)
+  const [emailValidation, setEmailValidation] = useState<{
+    verdict: string; score: number; suggestion: string | null;
+    checks: { isDisposable: boolean; isRoleAddress: boolean; hasKnownBounces: boolean; hasMxRecord: boolean }
+  } | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -226,6 +231,30 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       setEmailFindMsg('Could not complete search')
     } finally {
       setFindingEmail(false)
+    }
+  }
+
+  async function validateEmail() {
+    const email = watch('email')?.trim()
+    if (!email) return
+    setValidatingEmail(true)
+    setEmailValidation(null)
+    try {
+      const res  = await fetch('/api/email/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setEmailValidation({ verdict: 'Error', score: 0, suggestion: data.error || 'Validation failed', checks: { isDisposable: false, isRoleAddress: false, hasKnownBounces: false, hasMxRecord: false } })
+      } else {
+        setEmailValidation(data)
+      }
+    } catch {
+      setEmailValidation({ verdict: 'Error', score: 0, suggestion: 'Could not reach validation service', checks: { isDisposable: false, isRoleAddress: false, hasKnownBounces: false, hasMxRecord: false } })
+    } finally {
+      setValidatingEmail(false)
     }
   }
 
@@ -464,24 +493,79 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
         <div>
           <label className={L}>Email ID</label>
           <div className="flex gap-2">
-            <input {...register('email')} type="email" className={cn(F, 'flex-1', errors.email && 'border-red-600')} placeholder="dr@email.com" />
+            <input
+              {...register('email')}
+              type="email"
+              className={cn(F, 'flex-1', errors.email && 'border-red-600')}
+              placeholder="dr@email.com"
+              onChange={() => setEmailValidation(null)}
+            />
             <button
               type="button"
               onClick={findEmail}
               disabled={findingEmail || (!watchedWebsiteUrl && !watchedCompany)}
               title={
                 watchedWebsiteUrl ? 'Scrape email from website' :
-                watchedCompany    ? 'Search web for email (no website — will open Google if not found)' :
+                watchedCompany    ? 'Search web for email' :
                 'Add a company name or website URL first'
               }
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-violet-400 hover:text-violet-300 bg-violet-900/20 hover:bg-violet-900/30 border border-violet-800/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             >
-              {findingEmail
-                ? <Loader2 size={12} className="animate-spin" />
-                : <Sparkles size={12} />}
+              {findingEmail ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
               {findingEmail ? 'Finding…' : 'Find Email'}
             </button>
+            <button
+              type="button"
+              onClick={validateEmail}
+              disabled={validatingEmail || !watch('email')?.trim()}
+              title="Validate email deliverability via SendGrid"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+            >
+              {validatingEmail ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+              {validatingEmail ? 'Checking…' : 'Validate'}
+            </button>
           </div>
+
+          {/* Validation verdict badge */}
+          {emailValidation && (
+            <div className="mt-1.5 flex flex-col gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {emailValidation.verdict === 'Valid' && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-2 py-0.5 rounded-full">
+                    <ShieldCheck size={11} /> Valid — safe to send
+                  </span>
+                )}
+                {emailValidation.verdict === 'Risky' && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-900/30 border border-amber-800/40 px-2 py-0.5 rounded-full">
+                    <ShieldAlert size={11} /> Risky — may not deliver
+                  </span>
+                )}
+                {(emailValidation.verdict === 'Invalid' || emailValidation.verdict === 'Error') && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-400 bg-red-900/30 border border-red-800/40 px-2 py-0.5 rounded-full">
+                    <ShieldX size={11} /> {emailValidation.verdict === 'Error' ? 'Error' : 'Invalid — do not send'}
+                  </span>
+                )}
+                {emailValidation.score > 0 && (
+                  <span className="text-xs text-slate-500">Score: {Math.round(emailValidation.score * 100)}%</span>
+                )}
+                {emailValidation.checks?.isDisposable  && <span className="text-xs text-amber-500">Disposable address</span>}
+                {emailValidation.checks?.hasKnownBounces && <span className="text-xs text-red-500">Known bounces</span>}
+                {emailValidation.checks?.isRoleAddress  && <span className="text-xs text-slate-400">Role address (e.g. info@)</span>}
+                {!emailValidation.checks?.hasMxRecord   && emailValidation.verdict !== 'Error' && (
+                  <span className="text-xs text-red-500">No MX record</span>
+                )}
+              </div>
+              {emailValidation.suggestion && (
+                <p className="text-xs text-sky-400">
+                  💡 Did you mean <button type="button" onClick={() => { setValue('email', emailValidation.suggestion!); setEmailValidation(null) }} className="underline hover:text-sky-300">{emailValidation.suggestion}</button>?
+                </p>
+              )}
+              {emailValidation.verdict === 'Error' && emailValidation.suggestion && (
+                <p className="text-xs text-slate-500">{emailValidation.suggestion}</p>
+              )}
+            </div>
+          )}
+
           {emailFindMsg && (
             <p className={`text-xs mt-1 ${emailFindMsg.startsWith('✓') ? 'text-emerald-400' : 'text-slate-500'}`}>
               {emailFindMsg}
