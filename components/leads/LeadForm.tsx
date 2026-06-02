@@ -82,11 +82,13 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     const n = lead?.gmb_review_rating || 0
     return '★'.repeat(Math.min(Math.floor(n), 5)) + '☆'.repeat(Math.max(0, 5 - Math.floor(n)))
   })
-  const [extracting, setExtracting]     = useState(false)
+  const [extracting, setExtracting]         = useState(false)
   const [extractSuccess, setExtractSuccess] = useState(false)
-  const [extractError, setExtractError] = useState<string | null>(null)
-  const extractTimerRef                 = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savedGmbUrl                     = useRef(lead?.gmb_url || '')
+  const [extractError, setExtractError]     = useState<string | null>(null)
+  const extractTimerRef                     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedGmbUrl                         = useRef(lead?.gmb_url || '')
+  const [findingEmail, setFindingEmail]     = useState(false)
+  const [emailFindMsg, setEmailFindMsg]     = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -125,7 +127,8 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     },
   })
 
-  const watchedGmbUrl = watch('gmb_url')
+  const watchedGmbUrl     = watch('gmb_url')
+  const watchedWebsiteUrl = watch('website_url')
 
   function updateStars(val: string) {
     const n = parseFloat(val)
@@ -190,6 +193,31 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       setExtractError('Network error — please try again')
     } finally {
       setExtracting(false)
+    }
+  }
+
+  async function findEmail() {
+    const url = watchedWebsiteUrl?.trim()
+    if (!url) return
+    setFindingEmail(true)
+    setEmailFindMsg(null)
+    try {
+      const res  = await fetch('/api/extract-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteUrl: url }),
+      })
+      const data = await res.json()
+      if (data.email) {
+        setValue('email', data.email, { shouldDirty: true })
+        setEmailFindMsg('✓ Email found')
+      } else {
+        setEmailFindMsg('No email found on this website')
+      }
+    } catch {
+      setEmailFindMsg('Could not reach the website')
+    } finally {
+      setFindingEmail(false)
     }
   }
 
@@ -427,7 +455,26 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
         </div>
         <div>
           <label className={L}>Email ID</label>
-          <input {...register('email')} type="email" className={cn(F, errors.email && 'border-red-600')} placeholder="dr@email.com" />
+          <div className="flex gap-2">
+            <input {...register('email')} type="email" className={cn(F, 'flex-1', errors.email && 'border-red-600')} placeholder="dr@email.com" />
+            <button
+              type="button"
+              onClick={findEmail}
+              disabled={findingEmail || !watchedWebsiteUrl}
+              title={watchedWebsiteUrl ? 'Scrape email from website' : 'Add a website URL first'}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-violet-400 hover:text-violet-300 bg-violet-900/20 hover:bg-violet-900/30 border border-violet-800/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+            >
+              {findingEmail
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Sparkles size={12} />}
+              {findingEmail ? 'Finding…' : 'Find Email'}
+            </button>
+          </div>
+          {emailFindMsg && (
+            <p className={`text-xs mt-1 ${emailFindMsg.startsWith('✓') ? 'text-emerald-400' : 'text-slate-500'}`}>
+              {emailFindMsg}
+            </p>
+          )}
           {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>}
         </div>
       </div>
