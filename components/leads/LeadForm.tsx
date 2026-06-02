@@ -555,13 +555,13 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
                   <span className="text-xs text-red-500">No MX record</span>
                 )}
               </div>
-              {emailValidation.suggestion && (
+              {emailValidation.verdict === 'Error' && emailValidation.suggestion && (
+                <p className="text-xs text-slate-500">{emailValidation.suggestion}</p>
+              )}
+              {emailValidation.verdict !== 'Error' && emailValidation.suggestion && (
                 <p className="text-xs text-sky-400">
                   💡 Did you mean <button type="button" onClick={() => { setValue('email', emailValidation.suggestion!); setEmailValidation(null) }} className="underline hover:text-sky-300">{emailValidation.suggestion}</button>?
                 </p>
-              )}
-              {emailValidation.verdict === 'Error' && emailValidation.suggestion && (
-                <p className="text-xs text-slate-500">{emailValidation.suggestion}</p>
               )}
             </div>
           )}
