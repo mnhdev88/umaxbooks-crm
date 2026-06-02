@@ -71,10 +71,14 @@ const FILTER_LABELS: Record<Filter, string> = {
   approved:     'Approved',
 }
 
+function hasDemoLink(lead: any): boolean {
+  return (lead.demos || []).some((d: any) => !!d.temp_url)
+}
+
 function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[]) {
   if (f === 'all')        return true
-  if (f === 'to-build')   return auditReadyIds.includes(lead.id)
-  if (f === 'demo-build') return lead.status === 'Demo Scheduled'
+  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && !hasDemoLink(lead)
+  if (f === 'demo-build') return lead.status === 'Demo Scheduled' || hasDemoLink(lead)
   if (f === 'submitted')  return lead.status === 'Demo Done'
   if (f === 'declined')   return declinedIds.includes(lead.id)
   if (f === 'notes')      return notesIds.includes(lead.id)
@@ -150,8 +154,8 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
 
   const counts = useMemo(() => ({
     all:          initialLeads.length,
-    'to-build':   auditReadyLeadIds.length,
-    'demo-build': initialLeads.filter(l => l.status === 'Demo Scheduled').length,
+    'to-build':   initialLeads.filter(l => matchesFilter(l, 'to-build',   declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds)).length,
+    'demo-build': initialLeads.filter(l => matchesFilter(l, 'demo-build', declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds)).length,
     submitted:    initialLeads.filter(l => l.status === 'Demo Done').length,
     declined:     declinedLeadIds.length,
     notes:        agentNotesLeadIds.length,
