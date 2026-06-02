@@ -75,10 +75,10 @@ function hasDemoLink(lead: any): boolean {
   return (lead.demos || []).some((d: any) => !!d.temp_url)
 }
 
-function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[]) {
+function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[], resubmittedIds: string[]) {
   if (f === 'all')        return true
-  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && !hasDemoLink(lead)
-  if (f === 'demo-build') return lead.status === 'Demo Scheduled' || hasDemoLink(lead)
+  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && !hasDemoLink(lead) && !resubmittedIds.includes(lead.id)
+  if (f === 'demo-build') return resubmittedIds.includes(lead.id) || lead.status === 'Demo Scheduled' || (hasDemoLink(lead) && !declinedIds.includes(lead.id))
   if (f === 'submitted')  return lead.status === 'Demo Done'
   if (f === 'declined')   return declinedIds.includes(lead.id)
   if (f === 'notes')      return notesIds.includes(lead.id)
@@ -103,6 +103,7 @@ interface Props {
   profile: Profile
   userId: string
   declinedLeadIds?: string[]
+  resubmittedLeadIds?: string[]
   agentNotesLeadIds?: string[]
   approvedLeadIds?: string[]
   auditReadyLeadIds?: string[]
@@ -110,7 +111,7 @@ interface Props {
   initialFilter?: string
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], auditReadyLeadIds = [], initialSelectedId, initialFilter }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], resubmittedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], auditReadyLeadIds = [], initialSelectedId, initialFilter }: Props) {
   const router = useRouter()
   const [search, setSearch]   = useState('')
   const validFilters: Filter[] = ['all', 'to-build', 'demo-build', 'submitted', 'declined', 'notes', 'approved']
@@ -139,7 +140,7 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
   }, [router])
 
   const filtered = useMemo(() => {
-    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds))
+    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds, resubmittedLeadIds))
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(l =>
@@ -150,17 +151,17 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       )
     }
     return list
-  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
+  }, [initialLeads, search, filter, declinedLeadIds, resubmittedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
 
   const counts = useMemo(() => ({
     all:          initialLeads.length,
-    'to-build':   initialLeads.filter(l => matchesFilter(l, 'to-build',   declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds)).length,
-    'demo-build': initialLeads.filter(l => matchesFilter(l, 'demo-build', declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds)).length,
+    'to-build':   initialLeads.filter(l => matchesFilter(l, 'to-build',   declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds, resubmittedLeadIds)).length,
+    'demo-build': initialLeads.filter(l => matchesFilter(l, 'demo-build', declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds, resubmittedLeadIds)).length,
     submitted:    initialLeads.filter(l => l.status === 'Demo Done').length,
     declined:     declinedLeadIds.length,
     notes:        agentNotesLeadIds.length,
     approved:     approvedLeadIds.length,
-  }), [initialLeads, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
+  }), [initialLeads, declinedLeadIds, resubmittedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
 
   const selectedLead = selectedId ? initialLeads.find(l => l.id === selectedId) as any : null
 

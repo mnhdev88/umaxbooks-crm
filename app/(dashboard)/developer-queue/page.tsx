@@ -37,15 +37,21 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     .in('status', ['Demo Scheduled', 'Demo Done'])
     .order('updated_at', { ascending: false })
 
-  // Also fetch leads that were declined (status = Audit Ready + have a declined approval)
-  const { data: declinedApprovals } = await supabase
-    .from('project_approvals')
-    .select('lead_id')
-    .eq('status', 'declined')
+  // Fetch declined and pending approvals together
+  const [{ data: declinedApprovals }, { data: pendingApprovals }] = await Promise.all([
+    supabase.from('project_approvals').select('lead_id').eq('status', 'declined'),
+    supabase.from('project_approvals').select('lead_id').eq('status', 'pending'),
+  ])
 
-  const existingLeadIds = new Set((leads || []).map((l: any) => l.id))
-  const rawDeclinedIds = [...new Set((declinedApprovals || []).map((a: any) => a.lead_id))]
-  const newDeclinedIds = rawDeclinedIds.filter(id => !existingLeadIds.has(id))
+  const existingLeadIds  = new Set((leads || []).map((l: any) => l.id))
+  const rawDeclinedIds   = [...new Set((declinedApprovals || []).map((a: any) => a.lead_id))]
+  const rawPendingIds    = new Set((pendingApprovals || []).map((a: any) => a.lead_id))
+
+  // Resubmitted = declined AND a new pending approval exists (developer re-uploaded demo)
+  const rawResubmittedIds = rawDeclinedIds.filter(id => rawPendingIds.has(id))
+
+  const newDeclinedIds = rawDeclinedIds
+    .filter(id => !existingLeadIds.has(id) && !rawPendingIds.has(id))  // exclude resubmitted
 
   let declinedLeads: any[] = []
   if (newDeclinedIds.length > 0) {
@@ -56,6 +62,18 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       .eq('status', 'Audit Ready')
       .order('updated_at', { ascending: false })
     declinedLeads = data || []
+  }
+
+  // Fetch resubmitted leads (may be any status — use service client to bypass RLS)
+  let resubmittedLeads: any[] = []
+  const newResubmittedIds = rawResubmittedIds.filter(id => !existingLeadIds.has(id))
+  if (newResubmittedIds.length > 0) {
+    const { data } = await service
+      .from('leads')
+      .select(LEAD_SELECT)
+      .in('id', newResubmittedIds)
+      .order('updated_at', { ascending: false })
+    resubmittedLeads = processLeads(data || [])
   }
 
   const { data: agents } = await supabase
@@ -77,12 +95,17 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     ),
   }))
 
-  const allLeads = [...processLeads(leads || []), ...processLeads(declinedLeads)]
+  const allLeads = [...processLeads(leads || []), ...processLeads(declinedLeads), ...resubmittedLeads]
 
-  // IDs of leads currently in "Audit Ready" that have a declined approval
+  // Declined = has a declined approval, status is Audit Ready, and NOT resubmitted
   const declinedLeadIds = allLeads
-    .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready')
+    .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready' && !rawPendingIds.has(l.id))
     .map((l: any) => l.id)
+
+  // Resubmitted = has declined approval AND a new pending approval (demo re-uploaded)
+  const resubmittedLeadIds = rawResubmittedIds.filter(id =>
+    allLeads.some((l: any) => l.id === id)
+  )
 
   // IDs of leads with an approved demo
   const { data: approvedApprovals } = await supabase
@@ -227,6 +250,7 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         profile={profile as Profile}
         userId={user.id}
         declinedLeadIds={declinedLeadIds}
+        resubmittedLeadIds={resubmittedLeadIds}
         agentNotesLeadIds={agentNotesLeadIds}
         approvedLeadIds={approvedLeadIds}
         auditReadyLeadIds={auditReadyLeadIds}
