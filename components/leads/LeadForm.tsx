@@ -86,6 +86,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
   const [extractSuccess, setExtractSuccess] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const extractTimerRef                 = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedGmbUrl                     = useRef(lead?.gmb_url || '')
   const router = useRouter()
   const supabase = createClient()
 
@@ -193,8 +194,10 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
   }
 
   // Watch GMB URL and auto-extract after 600 ms debounce
+  // Skip if the URL hasn't changed from the saved value — prevents API call on edit open
   useEffect(() => {
     if (!watchedGmbUrl || !isGmbUrl(watchedGmbUrl)) return
+    if (watchedGmbUrl === savedGmbUrl.current) return
     if (extractTimerRef.current) clearTimeout(extractTimerRef.current)
     setExtractSuccess(false)
     setExtractError(null)
