@@ -40,13 +40,16 @@ export async function POST(req: NextRequest) {
   })
 
   if (!res.ok) {
-    if (res.status === 403) {
+    const err = await res.json().catch(() => ({}))
+    const msg = (err as any)?.errors?.[0]?.message || res.statusText || 'Validation failed'
+    console.error('[email/validate] SendGrid error', res.status, msg, 'key prefix:', apiKey.slice(0, 12))
+
+    if (res.status === 403 || res.status === 401) {
       return NextResponse.json({
-        error: 'Email Validation is not enabled on your SendGrid plan. Enable it under SendGrid → Settings → Email Validation.',
+        error: `SendGrid auth error (${res.status}): ${msg}. Check the API key has Email Address Validation permission.`,
       }, { status: 402 })
     }
-    const err = await res.json().catch(() => ({}))
-    return NextResponse.json({ error: (err as any)?.errors?.[0]?.message || 'Validation failed' }, { status: 500 })
+    return NextResponse.json({ error: `${res.status}: ${msg}` }, { status: 500 })
   }
 
   const data = await res.json()
