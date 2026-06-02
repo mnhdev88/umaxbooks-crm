@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Lead, Profile } from '@/types'
-import { Star, UserCheck, Phone, MailWarning } from 'lucide-react'
+import { Star, UserCheck, Phone, MailWarning, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LeadCardProps {
@@ -14,6 +14,8 @@ interface LeadCardProps {
   agents?: Profile[]
   onReassign?: (leadId: string, agentId: string) => void
   callbackDate?: string | null
+  emailSent?: boolean
+  callLogged?: boolean
 }
 
 const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost', 'Disqualified'])
@@ -57,7 +59,7 @@ function formatCallbackDate(iso: string): { label: string; level: CallbackLevel 
   return                              { label: `${dateStr} · ${timeStr} IST`,     level: 'future'   }
 }
 
-export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, callbackDate }: LeadCardProps) {
+export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, callbackDate, emailSent, callLogged }: LeadCardProps) {
   const [showReassign, setShowReassign] = useState(false)
 
   const {
@@ -155,6 +157,22 @@ export function LeadCard({ lead, overlay, userRole, agents = [], onReassign, cal
             <MailWarning size={9} />
             Follow-up Due
           </span>
+        </div>
+      )}
+
+      {/* Email / Call activity indicators — Contacted column only */}
+      {(emailSent || callLogged) && (
+        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+          {emailSent && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-sky-400 bg-sky-900/30 border border-sky-800/40 px-1.5 py-0.5 rounded-full">
+              <Mail size={8} /> Emailed
+            </span>
+          )}
+          {callLogged && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-1.5 py-0.5 rounded-full">
+              <Phone size={8} /> Called
+            </span>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { Lead, PipelineStatus } from '@/types'
+import { ActivityMap } from '@/app/(dashboard)/page'
 
 const KanbanBoard = dynamic(
   () => import('./KanbanBoard').then(m => m.KanbanBoard),
@@ -21,6 +22,7 @@ const KanbanBoard = dynamic(
 
 interface Props {
   initialLeads: Lead[]
+  activityMap?: ActivityMap
   userRole: string
   userId: string
   stages?: PipelineStatus[]

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
 import { Lead, PipelineStatus } from '@/types'
+import { ActivityMap } from '@/app/(dashboard)/page'
 
 const DEV_STAGES: PipelineStatus[] = [
   'Contacted',
@@ -19,8 +20,9 @@ const DEV_STAGES: PipelineStatus[] = [
 
 export default function DevPipelinePage() {
   const profile = useProfile()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
+  const [leads, setLeads]             = useState<Lead[]>([])
+  const [activityMap, setActivityMap] = useState<ActivityMap>({})
+  const [loading, setLoading]         = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
@@ -42,7 +44,27 @@ export default function DevPipelinePage() {
       if (error) {
         ;({ data, error } = await buildQuery(false))
       }
-      if (data) setLeads(data as unknown as Lead[])
+      if (data) {
+        setLeads(data as unknown as Lead[])
+
+        const contactedIds = (data as any[]).filter(l => l.status === 'Contacted').map(l => l.id)
+        if (contactedIds.length > 0) {
+          const { data: logs } = await supabase
+            .from('activity_logs')
+            .select('lead_id, action')
+            .in('lead_id', contactedIds)
+            .in('action', ['Email Sent to Client', 'Auto Follow-up Email Sent', 'Call Logged'])
+          const map: ActivityMap = {}
+          for (const log of (logs || []) as any[]) {
+            if (!map[log.lead_id]) map[log.lead_id] = { emailSent: false, callLogged: false }
+            if (log.action === 'Email Sent to Client' || log.action === 'Auto Follow-up Email Sent')
+              map[log.lead_id].emailSent = true
+            if (log.action === 'Call Logged')
+              map[log.lead_id].callLogged = true
+          }
+          setActivityMap(map)
+        }
+      }
       setLoading(false)
     }
 
@@ -75,6 +97,7 @@ export default function DevPipelinePage() {
         ) : (
           <KanbanBoardClient
             initialLeads={leads}
+            activityMap={activityMap}
             userRole={profile?.role || ''}
             userId={profile?.id || ''}
             stages={DEV_STAGES}

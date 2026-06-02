@@ -10,10 +10,13 @@ import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { FollowUpsWidget } from '@/components/dashboard/FollowUpsWidget'
 
+export type ActivityMap = Record<string, { emailSent: boolean; callLogged: boolean }>
+
 export default function PipelinePage() {
   const profile = useProfile()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
+  const [leads, setLeads]           = useState<Lead[]>([])
+  const [activityMap, setActivityMap] = useState<ActivityMap>({})
+  const [loading, setLoading]       = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
@@ -40,7 +43,28 @@ export default function PipelinePage() {
         console.warn('follow_ups join failed, retrying without:', error.message)
         ;({ data, error } = await buildQuery(false))
       }
-      if (data) setLeads(data as unknown as Lead[])
+      if (data) {
+        setLeads(data as unknown as Lead[])
+
+        // Fetch email/call activity flags for Contacted leads only
+        const contactedIds = (data as any[]).filter(l => l.status === 'Contacted').map(l => l.id)
+        if (contactedIds.length > 0) {
+          const { data: logs } = await supabase
+            .from('activity_logs')
+            .select('lead_id, action')
+            .in('lead_id', contactedIds)
+            .in('action', ['Email Sent to Client', 'Auto Follow-up Email Sent', 'Call Logged'])
+          const map: ActivityMap = {}
+          for (const log of (logs || []) as any[]) {
+            if (!map[log.lead_id]) map[log.lead_id] = { emailSent: false, callLogged: false }
+            if (log.action === 'Email Sent to Client' || log.action === 'Auto Follow-up Email Sent')
+              map[log.lead_id].emailSent = true
+            if (log.action === 'Call Logged')
+              map[log.lead_id].callLogged = true
+          }
+          setActivityMap(map)
+        }
+      }
       setLoading(false)
     }
 
@@ -82,6 +106,7 @@ export default function PipelinePage() {
         ) : (
           <KanbanBoardClient
             initialLeads={leads}
+            activityMap={activityMap}
             userRole={profile?.role || ''}
             userId={profile?.id || ''}
             stages={

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Lead, PipelineStatus, Profile } from '@/types'
+import { ActivityMap } from '@/app/(dashboard)/page'
 import { LeadCard } from './LeadCard'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/utils'
@@ -16,6 +17,7 @@ interface KanbanColumnProps {
   userRole?: string
   agents?: Profile[]
   onReassign?: (leadId: string, agentId: string) => void
+  activityMap?: ActivityMap
 }
 
 const STATUS_COLUMN_COLORS: Record<string, string> = {
@@ -33,7 +35,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   Disqualified: 'border-slate-500',
 }
 
-export function KanbanColumn({ status, leads, userRole, agents, onReassign }: KanbanColumnProps) {
+export function KanbanColumn({ status, leads, userRole, agents, onReassign, activityMap }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
@@ -82,6 +84,8 @@ export function KanbanColumn({ status, leads, userRole, agents, onReassign }: Ka
                 agents={agents}
                 onReassign={onReassign}
                 callbackDate={nextCallback}
+                emailSent={activityMap?.[lead.id]?.emailSent}
+                callLogged={activityMap?.[lead.id]?.callLogged}
               />
             )
           })}

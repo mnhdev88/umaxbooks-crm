@@ -13,6 +13,7 @@ import {
   closestCorners,
 } from '@dnd-kit/core'
 import { Lead, PipelineStatus, PIPELINE_STAGES, Profile } from '@/types'
+import { ActivityMap } from '@/app/(dashboard)/page'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { createClient } from '@/lib/supabase/client'
@@ -20,12 +21,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface KanbanBoardProps {
   initialLeads: Lead[]
+  activityMap?: ActivityMap
   userRole: string
   userId: string
   stages?: PipelineStatus[]
 }
 
-export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBoardProps) {
+export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, stages }: KanbanBoardProps) {
   const [leads, setLeads]   = useState<Lead[]>(initialLeads)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Profile[]>([])
@@ -200,6 +202,7 @@ export function KanbanBoard({ initialLeads, userRole, userId, stages }: KanbanBo
               userRole={userRole}
               agents={agents}
               onReassign={handleReassign}
+              activityMap={stage === 'Contacted' ? activityMap : undefined}
             />
           ))}
         </div>
