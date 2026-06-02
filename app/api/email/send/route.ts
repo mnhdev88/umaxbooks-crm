@@ -54,6 +54,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { lead_id, provider_id, to_email, cc, bcc, subject, html_body, attachments = [], scheduled_at } = body
 
+  // Support comma-separated multiple CC/BCC addresses
+  const ccEmails  = cc  ? cc.split(',').map((e: string) => e.trim()).filter(Boolean)  : []
+  const bccEmails = bcc ? bcc.split(',').map((e: string) => e.trim()).filter(Boolean) : []
+
   if (!lead_id || !to_email || !subject) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -143,8 +147,8 @@ export async function POST(req: NextRequest) {
         from,
         replyTo,
         to: [to_email],
-        cc: cc ? [cc] : undefined,
-        bcc: bcc ? [bcc] : undefined,
+        cc: ccEmails.length ? ccEmails : undefined,
+        bcc: bccEmails.length ? bccEmails : undefined,
         subject,
         html: finalHtml,
         attachments: attachmentData.map(a => ({
@@ -163,7 +167,11 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           from: { email: fromEmail, name: agentDisplayName },
-          personalizations: [{ to: [{ email: to_email }], ...(cc ? { cc: [{ email: cc }] } : {}), ...(bcc ? { bcc: [{ email: bcc }] } : {}) }],
+          personalizations: [{
+            to: [{ email: to_email }],
+            ...(ccEmails.length  ? { cc:  ccEmails.map(e  => ({ email: e })) } : {}),
+            ...(bccEmails.length ? { bcc: bccEmails.map(e => ({ email: e })) } : {}),
+          }],
           subject,
           content: [{ type: 'text/html', value: finalHtml || '' }],
           attachments: attachmentData.length ? attachmentData.map(a => ({

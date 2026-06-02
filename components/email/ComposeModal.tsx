@@ -379,7 +379,7 @@ export function ComposeModal({
                   <input
                     value={cc}
                     onChange={e => setCc(e.target.value)}
-                    placeholder="cc@example.com"
+                    placeholder="cc1@example.com, cc2@example.com"
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
                   />
                 </div>
@@ -388,7 +388,7 @@ export function ComposeModal({
                   <input
                     value={bcc}
                     onChange={e => setBcc(e.target.value)}
-                    placeholder="bcc@example.com"
+                    placeholder="bcc1@example.com, bcc2@example.com"
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
                   />
                 </div>
