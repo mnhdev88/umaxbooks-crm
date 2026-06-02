@@ -103,12 +103,16 @@ interface Props {
   approvedLeadIds?: string[]
   auditReadyLeadIds?: string[]
   initialSelectedId?: string
+  initialFilter?: string
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], auditReadyLeadIds = [], initialSelectedId }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], auditReadyLeadIds = [], initialSelectedId, initialFilter }: Props) {
   const router = useRouter()
   const [search, setSearch]   = useState('')
-  const [filter, setFilter]   = useState<Filter>('all')
+  const validFilters: Filter[] = ['all', 'to-build', 'demo-build', 'submitted', 'declined', 'notes', 'approved']
+  const [filter, setFilter]   = useState<Filter>(
+    validFilters.includes(initialFilter as Filter) ? (initialFilter as Filter) : 'all'
+  )
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId || initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
 

@@ -7,10 +7,10 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
 
@@ -45,13 +45,14 @@ const salesAgentSections: NavSection[] = [
 
 const developerSections: NavSection[] = [
   { items: [
-    { href: '/developer-pipeline', label: 'Pipeline',           icon: Kanban },
-    { href: '/leads',              label: 'All Leads',          icon: Users },
-    { href: '/audits',             label: 'Audits & Follow-up', icon: Activity },
-    { href: '/developer-queue',    label: 'Dev Queue',          icon: Code2 },
-    { href: '/email-status',       label: 'Email Status',       icon: Mail },
-    { href: '/unsubscribes',       label: 'Unsubscribes',       icon: MailX },
-    { href: '/notifications',      label: 'Notifications',      icon: Bell },
+    { href: '/developer-pipeline',             label: 'Pipeline',           icon: Kanban },
+    { href: '/leads',                          label: 'All Leads',          icon: Users },
+    { href: '/audits',                         label: 'Audits & Follow-up', icon: Activity },
+    { href: '/developer-queue',                label: 'Dev Queue',          icon: Code2 },
+    { href: '/developer-queue?filter=to-build', label: 'To Build',          icon: Hammer },
+    { href: '/email-status',                   label: 'Email Status',       icon: Mail },
+    { href: '/unsubscribes',                   label: 'Unsubscribes',       icon: MailX },
+    { href: '/notifications',                  label: 'Notifications',      icon: Bell },
   ]},
 ]
 
@@ -63,8 +64,9 @@ const adminSections: NavSection[] = [
   { label: 'Workflow', items: [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
-    { href: '/developer-queue', label: 'Dev Queue',          icon: Code2 },
-    { href: '/approvals',        label: 'Approvals',         icon: ClipboardList },
+    { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
+    { href: '/developer-queue?filter=to-build', label: 'To Build',   icon: Hammer },
+    { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },
     { href: '/unsubscribes',     label: 'Unsubscribes',      icon: MailX },
     { href: '/support-tickets',  label: 'Support Tickets',   icon: LifeBuoy },
@@ -90,8 +92,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
-  const pathname = usePathname()
-  const router   = useRouter()
+  const pathname     = usePathname()
+  const searchParams = useSearchParams()
+  const router       = useRouter()
   const supabase = createClient()
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
@@ -194,7 +197,11 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
             )}
             <div className="space-y-0.5">
               {section.items.map(({ href, label, icon: Icon }) => {
-                const active = pathname === href || (href !== '/' && pathname.startsWith(href))
+                const [hrefPath, hrefQuery] = href.split('?')
+                const hrefParams = hrefQuery ? new URLSearchParams(hrefQuery) : null
+                const active = hrefParams
+                  ? pathname === hrefPath && searchParams.get('filter') === hrefParams.get('filter')
+                  : pathname === href || (href !== '/' && pathname.startsWith(href))
                 const badge =
                   href === '/approvals'    && pendingCount > 0 ? pendingCount :
                   href === '/notifications' && unreadCount  > 0 ? unreadCount  :

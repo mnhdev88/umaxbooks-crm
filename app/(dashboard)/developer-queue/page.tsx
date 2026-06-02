@@ -5,12 +5,12 @@ import { Lead, Profile } from '@/types'
 import { DevQueueClient } from '@/components/developer/DevQueueClient'
 
 interface PageProps {
-  searchParams: Promise<{ lead?: string }>
+  searchParams: Promise<{ lead?: string; filter?: string }>
 }
 
 export default async function DeveloperQueuePage({ searchParams }: PageProps) {
   const supabase = await createClient()
-  const { lead: initialLeadId } = await searchParams
+  const { lead: initialLeadId, filter: initialFilter } = await searchParams
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -228,6 +228,7 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         approvedLeadIds={approvedLeadIds}
         auditReadyLeadIds={auditReadyLeadIds}
         initialSelectedId={initialLeadId}
+        initialFilter={initialFilter}
       />
     </>
   )
