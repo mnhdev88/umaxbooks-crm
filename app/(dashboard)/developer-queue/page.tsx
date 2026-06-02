@@ -101,6 +101,7 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
   // Leads with agent notes — status-independent, no FK join to avoid silent failures
   let agentNotesLeads: any[] = []
   let agentNotesLeadIds: string[] = []
+  let auditNotifiedIds: string[] = []   // leads where Save & Notify Developer was clicked
   try {
     const { data: noteRows } = await supabase
       .from('audit_notes')
@@ -125,8 +126,11 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         })
       }
 
+      // All lead IDs where Save & Notify Developer was used (regardless of pipeline status)
+      auditNotifiedIds = [...notesByLead.keys()]
+
       // Fetch leads with notes not already in allLeads (any pipeline status)
-      const newLeadIds = [...notesByLead.keys()]
+      const newLeadIds = auditNotifiedIds
         .filter(id => !allLeads.some((l: any) => l.id === id))
 
       if (newLeadIds.length > 0) {
@@ -149,25 +153,14 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       }
 
       // ALL leads with notes go into agentNotesLeadIds (badge + filter)
-      agentNotesLeadIds = [...notesByLead.keys()].filter(id =>
+      agentNotesLeadIds = auditNotifiedIds.filter(id =>
         [...allLeads, ...agentNotesLeads].some((l: any) => l.id === id)
       )
     }
   } catch { /* audit_notes table not available */ }
 
-  // Fetch Audit Ready leads that are NOT declined — these are agent-notified leads needing audit/proposal work
-  const { data: auditReadyData } = await supabase
-    .from('leads')
-    .select(LEAD_SELECT)
-    .eq('status', 'Audit Ready')
-    .order('updated_at', { ascending: false })
-
-  const auditReadyLeads = processLeads(
-    (auditReadyData || []).filter((l: any) => !rawDeclinedIds.includes(l.id))
-  )
-
   const seenIds = new Set<string>()
-  const allQueueLeads = [...allLeads, ...auditReadyLeads, ...agentNotesLeads, ...approvedLeads]
+  const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]
     .filter((l: any) => {
       if (seenIds.has(l.id)) return false
       seenIds.add(l.id)
@@ -177,7 +170,10 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime()
     )
 
-  const auditReadyLeadIds = auditReadyLeads.map((l: any) => l.id)
+  // To Build = every lead where Save & Notify Developer was clicked, regardless of pipeline status
+  const auditReadyLeadIds = auditNotifiedIds.filter(id =>
+    allQueueLeads.some((l: any) => l.id === id)
+  )
 
   const approvedLeadIds = rawApprovedIds.filter(id =>
     allQueueLeads.some((l: any) => l.id === id)
