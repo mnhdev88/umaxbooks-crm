@@ -37,21 +37,23 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     .in('status', ['Demo Scheduled', 'Demo Done'])
     .order('updated_at', { ascending: false })
 
-  // Fetch declined and pending approvals together
-  const [{ data: declinedApprovals }, { data: pendingApprovals }] = await Promise.all([
+  // Fetch all approval statuses together
+  const [{ data: declinedApprovals }, { data: pendingApprovals }, { data: approvedApprovalsEarly }] = await Promise.all([
     supabase.from('project_approvals').select('lead_id').eq('status', 'declined'),
     supabase.from('project_approvals').select('lead_id').eq('status', 'pending'),
+    supabase.from('project_approvals').select('lead_id').eq('status', 'approved'),
   ])
 
   const existingLeadIds  = new Set((leads || []).map((l: any) => l.id))
   const rawDeclinedIds   = [...new Set((declinedApprovals || []).map((a: any) => a.lead_id))]
   const rawPendingIds    = new Set((pendingApprovals || []).map((a: any) => a.lead_id))
+  const rawApprovedIdsEarly = new Set((approvedApprovalsEarly || []).map((a: any) => a.lead_id))
 
   // Resubmitted = declined AND a new pending approval exists (developer re-uploaded demo)
   const rawResubmittedIds = rawDeclinedIds.filter(id => rawPendingIds.has(id))
 
   const newDeclinedIds = rawDeclinedIds
-    .filter(id => !existingLeadIds.has(id) && !rawPendingIds.has(id))  // exclude resubmitted
+    .filter(id => !existingLeadIds.has(id) && !rawPendingIds.has(id) && !rawApprovedIdsEarly.has(id))  // exclude resubmitted + approved
 
   let declinedLeads: any[] = []
   if (newDeclinedIds.length > 0) {
@@ -97,9 +99,14 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
 
   const allLeads = [...processLeads(leads || []), ...processLeads(declinedLeads), ...resubmittedLeads]
 
-  // Declined = has a declined approval, status is Audit Ready, and NOT resubmitted
+  // Declined = has a declined approval, status is Audit Ready, NOT resubmitted, NOT approved
   const declinedLeadIds = allLeads
-    .filter((l: any) => rawDeclinedIds.includes(l.id) && l.status === 'Audit Ready' && !rawPendingIds.has(l.id))
+    .filter((l: any) =>
+      rawDeclinedIds.includes(l.id) &&
+      l.status === 'Audit Ready' &&
+      !rawPendingIds.has(l.id) &&
+      !rawApprovedIdsEarly.has(l.id)
+    )
     .map((l: any) => l.id)
 
   // Resubmitted = has declined approval AND a new pending approval (demo re-uploaded)

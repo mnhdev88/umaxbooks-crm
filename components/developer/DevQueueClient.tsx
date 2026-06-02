@@ -80,7 +80,7 @@ function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: st
   if (f === 'to-build')   return auditReadyIds.includes(lead.id) && !hasDemoLink(lead) && !resubmittedIds.includes(lead.id)
   if (f === 'demo-build') return resubmittedIds.includes(lead.id) || lead.status === 'Demo Scheduled' || (hasDemoLink(lead) && !declinedIds.includes(lead.id))
   if (f === 'submitted')  return lead.status === 'Demo Done'
-  if (f === 'declined')   return declinedIds.includes(lead.id)
+  if (f === 'declined')   return declinedIds.includes(lead.id) && !approvedIds.includes(lead.id)
   if (f === 'notes')      return notesIds.includes(lead.id)
   if (f === 'approved')   return approvedIds.includes(lead.id)
   return true
