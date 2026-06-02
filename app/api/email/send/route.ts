@@ -169,8 +169,8 @@ export async function POST(req: NextRequest) {
           from: { email: fromEmail, name: agentDisplayName },
           personalizations: [{
             to: [{ email: to_email }],
-            ...(ccEmails.length  ? { cc:  ccEmails.map(e  => ({ email: e })) } : {}),
-            ...(bccEmails.length ? { bcc: bccEmails.map(e => ({ email: e })) } : {}),
+            ...(ccEmails.length  ? { cc:  ccEmails.map((e: string)  => ({ email: e })) } : {}),
+            ...(bccEmails.length ? { bcc: bccEmails.map((e: string) => ({ email: e })) } : {}),
           }],
           subject,
           content: [{ type: 'text/html', value: finalHtml || '' }],
