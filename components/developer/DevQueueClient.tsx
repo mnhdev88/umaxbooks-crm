@@ -59,24 +59,26 @@ function TatPill({ lead }: { lead: any }) {
 }
 
 // ── Queue type filter ───────────────────────────────────────────────
-type Filter = 'all' | 'to-build' | 'submitted' | 'declined' | 'notes' | 'approved'
+type Filter = 'all' | 'to-build' | 'demo-build' | 'submitted' | 'declined' | 'notes' | 'approved'
 
 const FILTER_LABELS: Record<Filter, string> = {
-  all:        'All',
-  'to-build': 'To Build',
-  submitted:  'Submitted',
-  declined:   'Declined',
-  notes:      'Agent Notes',
-  approved:   'Approved',
+  all:          'All',
+  'to-build':   'To Build',
+  'demo-build': 'Demo Build',
+  submitted:    'Submitted',
+  declined:     'Declined',
+  notes:        'Agent Notes',
+  approved:     'Approved',
 }
 
-function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[]) {
-  if (f === 'all') return true
-  if (f === 'to-build') return lead.status === 'Demo Scheduled'
-  if (f === 'submitted') return lead.status === 'Demo Done'
-  if (f === 'declined') return declinedIds.includes(lead.id)
-  if (f === 'notes') return notesIds.includes(lead.id)
-  if (f === 'approved') return approvedIds.includes(lead.id)
+function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[]) {
+  if (f === 'all')        return true
+  if (f === 'to-build')   return auditReadyIds.includes(lead.id)
+  if (f === 'demo-build') return lead.status === 'Demo Scheduled'
+  if (f === 'submitted')  return lead.status === 'Demo Done'
+  if (f === 'declined')   return declinedIds.includes(lead.id)
+  if (f === 'notes')      return notesIds.includes(lead.id)
+  if (f === 'approved')   return approvedIds.includes(lead.id)
   return true
 }
 
@@ -99,17 +101,18 @@ interface Props {
   declinedLeadIds?: string[]
   agentNotesLeadIds?: string[]
   approvedLeadIds?: string[]
+  auditReadyLeadIds?: string[]
   initialSelectedId?: string
 }
 
-export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], initialSelectedId }: Props) {
+export function DevQueueClient({ initialLeads, agents, profile, userId, declinedLeadIds = [], agentNotesLeadIds = [], approvedLeadIds = [], auditReadyLeadIds = [], initialSelectedId }: Props) {
   const router = useRouter()
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<Filter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId || initialLeads[0]?.id || null)
   const [activeTab, setActiveTab] = useState('brief')
 
-  // Refresh queue when any agent saves a note via "Save & Notify Developer"
+  // Refresh queue when agent saves a note or promotes a lead to Audit Ready
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -117,12 +120,18 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_notes' }, () => {
         router.refresh()
       })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'leads',
+        filter: 'status=eq.Audit Ready',
+      }, () => {
+        router.refresh()
+      })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [router])
 
   const filtered = useMemo(() => {
-    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds))
+    let list = initialLeads.filter(l => matchesFilter(l, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds))
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(l =>
@@ -133,16 +142,17 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
       )
     }
     return list
-  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds])
+  }, [initialLeads, search, filter, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
 
   const counts = useMemo(() => ({
-    all:        initialLeads.length,
-    'to-build': initialLeads.filter(l => matchesFilter(l, 'to-build', declinedLeadIds, agentNotesLeadIds, approvedLeadIds)).length,
-    submitted:  initialLeads.filter(l => matchesFilter(l, 'submitted', declinedLeadIds, agentNotesLeadIds, approvedLeadIds)).length,
-    declined:   declinedLeadIds.length,
-    notes:      agentNotesLeadIds.length,
-    approved:   approvedLeadIds.length,
-  }), [initialLeads, declinedLeadIds, agentNotesLeadIds, approvedLeadIds])
+    all:          initialLeads.length,
+    'to-build':   auditReadyLeadIds.length,
+    'demo-build': initialLeads.filter(l => l.status === 'Demo Scheduled').length,
+    submitted:    initialLeads.filter(l => l.status === 'Demo Done').length,
+    declined:     declinedLeadIds.length,
+    notes:        agentNotesLeadIds.length,
+    approved:     approvedLeadIds.length,
+  }), [initialLeads, declinedLeadIds, agentNotesLeadIds, approvedLeadIds, auditReadyLeadIds])
 
   const selectedLead = selectedId ? initialLeads.find(l => l.id === selectedId) as any : null
 
@@ -230,6 +240,11 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                   ) : (
                     <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium', STATUS_CLS[lead.status] || 'bg-slate-700 text-slate-400')}>
                       {lead.status}
+                    </span>
+                  )}
+                  {auditReadyLeadIds.includes(lead.id) && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-900/40 text-violet-300 flex items-center gap-1">
+                      <Code2 size={8} /> To Build
                     </span>
                   )}
                   {agentNotesLeadIds.includes(lead.id) && (

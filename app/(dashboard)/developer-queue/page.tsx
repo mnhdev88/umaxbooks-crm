@@ -155,8 +155,19 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     }
   } catch { /* audit_notes table not available */ }
 
+  // Fetch Audit Ready leads that are NOT declined — these are agent-notified leads needing audit/proposal work
+  const { data: auditReadyData } = await supabase
+    .from('leads')
+    .select(LEAD_SELECT)
+    .eq('status', 'Audit Ready')
+    .order('updated_at', { ascending: false })
+
+  const auditReadyLeads = processLeads(
+    (auditReadyData || []).filter((l: any) => !rawDeclinedIds.includes(l.id))
+  )
+
   const seenIds = new Set<string>()
-  const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]
+  const allQueueLeads = [...allLeads, ...auditReadyLeads, ...agentNotesLeads, ...approvedLeads]
     .filter((l: any) => {
       if (seenIds.has(l.id)) return false
       seenIds.add(l.id)
@@ -165,6 +176,8 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     .sort((a: any, b: any) =>
       new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime()
     )
+
+  const auditReadyLeadIds = auditReadyLeads.map((l: any) => l.id)
 
   const approvedLeadIds = rawApprovedIds.filter(id =>
     allQueueLeads.some((l: any) => l.id === id)
@@ -213,6 +226,7 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         declinedLeadIds={declinedLeadIds}
         agentNotesLeadIds={agentNotesLeadIds}
         approvedLeadIds={approvedLeadIds}
+        auditReadyLeadIds={auditReadyLeadIds}
         initialSelectedId={initialLeadId}
       />
     </>
