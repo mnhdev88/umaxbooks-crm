@@ -30,7 +30,8 @@ export default async function EmailStatusPage() {
     .from('email_sends')
     .select(`
       id, lead_id, to_email, subject, html_body, status, sent_at, tracking_token, created_at,
-      delivered_at, bounced_at,
+      delivered_at, bounced_at, bounce_type, deferred_at, unsubscribed_at,
+      click_count, first_clicked_at, last_clicked_url,
       sender:sent_by(full_name),
       lead:leads(id, name, company_name, email, phone)
     `)

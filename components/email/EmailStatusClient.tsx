@@ -1,9 +1,10 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Search, MailCheck, MailOpen, Mail, RefreshCw, Pen, RotateCcw,
+  Search, MailCheck, Mail, RefreshCw, Pen, RotateCcw,
   Building2, User, Calendar, Eye, CheckCircle2, XCircle, AlertTriangle,
+  Clock, UserMinus, MousePointerClick, X, CloudDownload,
 } from 'lucide-react'
 import { ComposeModal } from '@/components/email/ComposeModal'
 
@@ -23,6 +24,16 @@ interface EmailSendRow {
   sent_at: string | null
   tracking_token: string | null
   created_at: string
+  // delivery tracking
+  delivered_at: string | null
+  bounced_at: string | null
+  bounce_type: string | null
+  deferred_at: string | null
+  unsubscribed_at: string | null
+  // click tracking
+  click_count: number | null
+  first_clicked_at: string | null
+  last_clicked_url: string | null
   sender: { full_name: string } | null
   lead: { id: string; name: string; company_name: string; email: string; phone?: string } | null
 }
@@ -33,19 +44,39 @@ interface Props {
   userId: string
 }
 
-type FilterTab = 'all' | 'opened' | 'not_opened'
+type FilterTab = 'all' | 'opened' | 'not_opened' | 'clicked' | 'delivered' | 'bounced' | 'deferred' | 'spam' | 'unsubscribed'
 
-function DeliveryBadge({ status }: { status: string }) {
+const TABS: { key: FilterTab; label: string }[] = [
+  { key: 'all',          label: 'All' },
+  { key: 'opened',       label: 'Opened' },
+  { key: 'not_opened',   label: 'Not Opened' },
+  { key: 'clicked',      label: 'Clicked' },
+  { key: 'delivered',    label: 'Delivered' },
+  { key: 'bounced',      label: 'Bounced' },
+  { key: 'deferred',     label: 'Deferred' },
+  { key: 'spam',         label: 'Spam' },
+  { key: 'unsubscribed', label: 'Unsubscribed' },
+]
+
+function DeliveryBadge({ status, bounceType }: { status: string; bounceType?: string | null }) {
   if (status === 'delivered') return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
       <CheckCircle2 className="w-3 h-3" /> Delivered
     </span>
   )
-  if (status === 'bounced') return (
-    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 bg-red-900/30 border border-red-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
-      <XCircle className="w-3 h-3" /> Bounced
-    </span>
-  )
+  if (status === 'bounced') {
+    const label = bounceType === 'hard' ? 'Hard Bounce' : bounceType === 'soft' ? 'Soft Bounce' : 'Bounced'
+    const isSoft = bounceType === 'soft'
+    return (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap w-fit ${
+        isSoft
+          ? 'text-orange-400 bg-orange-900/30 border border-orange-800/40'
+          : 'text-red-400 bg-red-900/30 border border-red-800/40'
+      }`}>
+        <XCircle className="w-3 h-3" /> {label}
+      </span>
+    )
+  }
   if (status === 'spam') return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-900/30 border border-amber-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
       <AlertTriangle className="w-3 h-3" /> Spam
@@ -54,6 +85,16 @@ function DeliveryBadge({ status }: { status: string }) {
   if (status === 'failed') return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400 bg-red-900/30 border border-red-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
       <XCircle className="w-3 h-3" /> Failed
+    </span>
+  )
+  if (status === 'deferred') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 bg-sky-900/30 border border-sky-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <Clock className="w-3 h-3" /> Deferred
+    </span>
+  )
+  if (status === 'unsubscribed') return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-800/60 border border-slate-600/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+      <UserMinus className="w-3 h-3" /> Unsubscribed
     </span>
   )
   return (
@@ -86,13 +127,43 @@ function timeAgo(iso: string | null) {
 
 export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: Props) {
   const router = useRouter()
-  const [search, setSearch]           = useState('')
-  const [tab, setTab]                 = useState<FilterTab>('all')
-  const [composeLead, setComposeLead] = useState<EmailSendRow | null>(null)
+  const [search, setSearch]             = useState('')
+  const [tab, setTab]                   = useState<FilterTab>('all')
+  const [selectedEmail, setSelectedEmail] = useState<EmailSendRow | null>(null)
+  const [composeLead, setComposeLead]   = useState<EmailSendRow | null>(null)
   const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
+  const [syncing, setSyncing]           = useState(false)
+  const [syncMsg, setSyncMsg]           = useState<string | null>(null)
+
+  const syncFromSendGrid = useCallback(async () => {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const res  = await fetch('/api/email/sync-sendgrid', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setSyncMsg(data.error || 'Sync failed')
+      } else {
+        setSyncMsg(data.message)
+        if (data.synced > 0) router.refresh()
+      }
+    } catch {
+      setSyncMsg('Sync failed — check your connection')
+    } finally {
+      setSyncing(false)
+    }
+  }, [router])
+
+  // Close drawer on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedEmail(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const filtered = useMemo(() => {
     let data = initialSends
+
     if (tab === 'opened') {
       data = data.filter(s => {
         const t = s.tracking_token ? initialTrackingMap[s.tracking_token] : null
@@ -103,7 +174,12 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
         const t = s.tracking_token ? initialTrackingMap[s.tracking_token] : null
         return !t?.first_opened_at
       })
+    } else if (tab === 'clicked') {
+      data = data.filter(s => (s.click_count || 0) > 0)
+    } else if (tab === 'delivered' || tab === 'bounced' || tab === 'deferred' || tab === 'spam' || tab === 'unsubscribed') {
+      data = data.filter(s => s.status === tab)
     }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       data = data.filter(s =>
@@ -117,12 +193,23 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
     return data
   }, [initialSends, initialTrackingMap, tab, search])
 
-  const totalSent    = initialSends.length
-  const totalOpened  = initialSends.filter(s => {
+  const totalSent      = initialSends.length
+  const totalOpened    = initialSends.filter(s => {
     const t = s.tracking_token ? initialTrackingMap[s.tracking_token] : null
     return !!t?.first_opened_at
   }).length
-  const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
+  const totalClicked   = initialSends.filter(s => (s.click_count || 0) > 0).length
+  const totalDelivered = initialSends.filter(s => s.status === 'delivered').length
+  const totalBounced   = initialSends.filter(s => s.status === 'bounced').length
+  const openRate       = totalSent > 0 ? Math.round((totalOpened  / totalSent) * 100) : 0
+  const clickRate      = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0
+
+  // For the drawer — resolve tracking info of the selected email
+  const selectedTracking = selectedEmail?.tracking_token
+    ? initialTrackingMap[selectedEmail.tracking_token]
+    : null
+  const selectedOpened  = !!selectedTracking?.first_opened_at
+  const selectedClicked = (selectedEmail?.click_count || 0) > 0
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
@@ -131,11 +218,16 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
       <div className="px-6 py-4 border-b border-slate-800 flex flex-col gap-3 shrink-0">
 
         {/* Stats */}
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-6 text-sm flex-wrap">
           <div className="flex items-center gap-2 text-slate-400">
             <Mail className="w-4 h-4 text-slate-500" />
             <span className="font-medium text-slate-200">{totalSent}</span>
             <span>Total sent</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="font-medium text-emerald-400">{totalDelivered}</span>
+            <span>Delivered</span>
           </div>
           <div className="flex items-center gap-2 text-slate-400">
             <MailCheck className="w-4 h-4 text-green-500" />
@@ -143,14 +235,24 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
             <span>Opened</span>
           </div>
           <div className="flex items-center gap-2 text-slate-400">
-            <MailOpen className="w-4 h-4 text-slate-500" />
-            <span className="font-medium text-slate-200">{totalSent - totalOpened}</span>
-            <span>Not opened</span>
-          </div>
-          <div className="flex items-center gap-2 text-slate-400">
             <Eye className="w-4 h-4 text-orange-400" />
             <span className="font-medium text-orange-400">{openRate}%</span>
             <span>Open rate</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400">
+            <MousePointerClick className="w-4 h-4 text-violet-400" />
+            <span className="font-medium text-violet-400">{totalClicked}</span>
+            <span>Clicked</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400">
+            <MousePointerClick className="w-4 h-4 text-violet-500/60" />
+            <span className="font-medium text-violet-300">{clickRate}%</span>
+            <span>Click rate</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-400">
+            <XCircle className="w-4 h-4 text-red-500" />
+            <span className="font-medium text-red-400">{totalBounced}</span>
+            <span>Bounced</span>
           </div>
         </div>
 
@@ -165,148 +267,278 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
               className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
             />
           </div>
-          <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-lg p-1">
-            {(['all', 'opened', 'not_opened'] as FilterTab[]).map(t => (
+          <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-lg p-1 overflow-x-auto max-w-full">
+            {TABS.map(t => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  tab === t
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                  tab === t.key
                     ? 'bg-orange-500 text-white'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {t === 'all' ? 'All' : t === 'opened' ? 'Opened' : 'Not Opened'}
+                {t.label}
               </button>
             ))}
           </div>
           <button
             onClick={() => router.refresh()}
-            title="Refresh to get latest open status"
+            title="Refresh to get latest status"
             className="p-2 text-slate-500 hover:text-slate-300 border border-slate-700 rounded-lg transition-colors"
           >
             <RefreshCw size={14} />
           </button>
+          <button
+            onClick={syncFromSendGrid}
+            disabled={syncing}
+            title="Pull latest delivery status from SendGrid for all pending emails"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <CloudDownload size={13} className={syncing ? 'animate-pulse' : ''} />
+            {syncing ? 'Syncing…' : 'Sync from SendGrid'}
+          </button>
+          {syncMsg && (
+            <span className="text-xs text-slate-400 max-w-[260px] truncate" title={syncMsg}>
+              {syncMsg}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
-            <Mail className="w-10 h-10 opacity-20" />
-            <p className="text-sm">No emails found</p>
+      {/* Body: table + side drawer */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
+              <Mail className="w-10 h-10 opacity-20" />
+              <p className="text-sm">No emails found</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
+                <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 w-[220px]">Lead</th>
+                  <th scope="col" className="px-4 py-3 w-[200px]">Subject</th>
+                  <th scope="col" className="px-4 py-3 w-[100px]">Sent By</th>
+                  <th scope="col" className="px-4 py-3 w-[110px]">Sent Date</th>
+                  <th scope="col" className="px-4 py-3 w-[180px]">Status</th>
+                  <th scope="col" className="px-4 py-3 w-[160px]">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filtered.map(s => {
+                  const tracking  = s.tracking_token ? initialTrackingMap[s.tracking_token] : null
+                  const opened    = !!tracking?.first_opened_at
+                  const clicked   = (s.click_count || 0) > 0
+                  const isSelected = selectedEmail?.id === s.id
+                  return (
+                    <tr
+                      key={s.id}
+                      onClick={() => setSelectedEmail(isSelected ? null : s)}
+                      className={`transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-orange-500/10 border-l-2 border-l-orange-500'
+                          : 'hover:bg-slate-800/30'
+                      }`}
+                    >
+                      {/* Lead */}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5 text-slate-200 font-medium">
+                            <User size={12} className="text-slate-500 shrink-0" />
+                            <span className="truncate max-w-[180px]">{s.lead?.name || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                            <Building2 size={11} className="shrink-0" />
+                            <span className="truncate max-w-[180px]">{s.lead?.company_name || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                            <Mail size={11} className="shrink-0" />
+                            <span className="truncate max-w-[180px]">{s.to_email}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Subject */}
+                      <td className="px-4 py-3 max-w-[200px]">
+                        <span className="text-slate-300 truncate block w-full" title={s.subject}>
+                          {s.subject}
+                        </span>
+                      </td>
+
+                      {/* Sent by */}
+                      <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                        {s.sender?.full_name || '—'}
+                      </td>
+
+                      {/* Sent date + time */}
+                      <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1">
+                            <Calendar size={11} className="text-slate-600 shrink-0" />
+                            {fmtDate(s.sent_at || s.created_at)}
+                          </div>
+                          <span className="text-slate-600 pl-3.5">
+                            {new Date(s.sent_at || s.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <DeliveryBadge status={s.status} bounceType={s.bounce_type} />
+                          {opened && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
+                              <MailCheck className="w-3 h-3" />
+                              Opened {tracking?.opened_count ? `· ${tracking.opened_count}×` : ''}
+                            </span>
+                          )}
+                          {tracking?.last_opened_at && (
+                            <span className="text-[10px] text-slate-500" title={fmtDateTime(tracking.last_opened_at)}>
+                              Last opened: {timeAgo(tracking.last_opened_at)}
+                            </span>
+                          )}
+                          {clicked && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-400 bg-violet-900/30 border border-violet-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit"
+                              title={s.last_clicked_url || undefined}
+                            >
+                              <MousePointerClick className="w-3 h-3" />
+                              Clicked · {s.click_count}×
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Actions — stop propagation so clicks don't open drawer */}
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setResendTarget(s)}
+                            className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                          >
+                            <RotateCcw size={11} />
+                            Resend
+                          </button>
+                          <button
+                            onClick={() => setComposeLead(s)}
+                            className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                          >
+                            <Pen size={11} />
+                            Compose
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Side drawer — email preview */}
+        {selectedEmail && (
+          <div className="w-[480px] shrink-0 border-l border-slate-800 flex flex-col bg-[#0A0820] overflow-hidden">
+
+            {/* Drawer header: lead info + close */}
+            <div className="flex items-start justify-between px-4 py-3 border-b border-slate-800 shrink-0 gap-3">
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <User size={13} className="text-slate-500 shrink-0" />
+                  <span className="text-slate-200 font-semibold text-sm truncate">
+                    {selectedEmail.lead?.name || selectedEmail.to_email}
+                  </span>
+                </div>
+                {selectedEmail.lead?.company_name && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <Building2 size={11} className="shrink-0" />
+                    <span className="truncate">{selectedEmail.lead.company_name}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Mail size={11} className="shrink-0" />
+                  <span className="truncate">{selectedEmail.to_email}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedEmail(null)}
+                className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+                title="Close (Esc)"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Subject + meta */}
+            <div className="px-4 py-3 border-b border-slate-800 shrink-0 flex flex-col gap-2">
+              <p className="text-slate-100 font-semibold text-sm leading-snug">
+                {selectedEmail.subject}
+              </p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                <span>From: <span className="text-slate-400">{selectedEmail.sender?.full_name || '—'}</span></span>
+                <span>·</span>
+                <span>{fmtDateTime(selectedEmail.sent_at || selectedEmail.created_at)}</span>
+              </div>
+              {/* Status badges */}
+              <div className="flex flex-wrap gap-1.5">
+                <DeliveryBadge status={selectedEmail.status} bounceType={selectedEmail.bounce_type} />
+                {selectedOpened && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    <MailCheck className="w-3 h-3" />
+                    Opened {selectedTracking?.opened_count ? `· ${selectedTracking.opened_count}×` : ''}
+                  </span>
+                )}
+                {selectedTracking?.last_opened_at && (
+                  <span className="inline-flex items-center text-[11px] text-slate-500 px-2 py-0.5 whitespace-nowrap">
+                    Last: {timeAgo(selectedTracking.last_opened_at)}
+                  </span>
+                )}
+                {selectedClicked && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-400 bg-violet-900/30 border border-violet-800/40 px-2 py-0.5 rounded-full whitespace-nowrap"
+                    title={selectedEmail.last_clicked_url || undefined}
+                  >
+                    <MousePointerClick className="w-3 h-3" />
+                    Clicked · {selectedEmail.click_count}×
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Email body in iframe */}
+            <div className="flex-1 overflow-hidden p-2">
+              <iframe
+                key={selectedEmail.id}
+                srcDoc={selectedEmail.html_body || '<div style="font-family:sans-serif;color:#94a3b8;padding:32px;font-size:14px">No email content stored.</div>'}
+                sandbox="allow-same-origin"
+                className="w-full h-full rounded-lg border border-slate-700/50 bg-white"
+                title="Email preview"
+              />
+            </div>
+
+            {/* Footer actions */}
+            <div className="px-4 py-3 border-t border-slate-800 flex gap-2 shrink-0">
+              <button
+                onClick={() => { setResendTarget(selectedEmail); setSelectedEmail(null) }}
+                className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 px-3 py-2 rounded-lg whitespace-nowrap transition-colors"
+              >
+                <RotateCcw size={12} />
+                Resend this email
+              </button>
+              <button
+                onClick={() => { setComposeLead(selectedEmail); setSelectedEmail(null) }}
+                className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-800/40 px-3 py-2 rounded-lg whitespace-nowrap transition-colors"
+              >
+                <Pen size={12} />
+                Compose new
+              </button>
+            </div>
           </div>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
-              <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <th scope="col" className="px-4 py-3 w-[220px]">Lead</th>
-                <th scope="col" className="px-4 py-3">Subject</th>
-                <th scope="col" className="px-4 py-3 w-[100px]">Sent By</th>
-                <th scope="col" className="px-4 py-3 w-[110px]">Sent Date</th>
-                <th scope="col" className="px-4 py-3 w-[120px]">Delivery</th>
-                <th scope="col" className="px-4 py-3 w-[140px]">Open Status</th>
-                <th scope="col" className="px-4 py-3 w-[160px]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {filtered.map(s => {
-                const tracking = s.tracking_token ? initialTrackingMap[s.tracking_token] : null
-                const opened   = !!tracking?.first_opened_at
-                return (
-                  <tr key={s.id} className="hover:bg-slate-800/30 transition-colors group">
-                    {/* Lead — name / company / email stacked */}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 text-slate-200 font-medium">
-                          <User size={12} className="text-slate-500 shrink-0" />
-                          <span className="truncate max-w-[180px]">{s.lead?.name || '—'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-                          <Building2 size={11} className="shrink-0" />
-                          <span className="truncate max-w-[180px]">{s.lead?.company_name || '—'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-400 text-xs">
-                          <Mail size={11} className="shrink-0" />
-                          <span className="truncate max-w-[180px]">{s.to_email}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Subject */}
-                    <td className="px-4 py-3">
-                      <span className="text-slate-300 truncate max-w-xs block" title={s.subject}>
-                        {s.subject}
-                      </span>
-                    </td>
-
-                    {/* Sent by */}
-                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
-                      {s.sender?.full_name || '—'}
-                    </td>
-
-                    {/* Sent date */}
-                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
-                      <div className="flex items-center gap-1">
-                        <Calendar size={11} className="text-slate-600" />
-                        {fmtDate(s.sent_at || s.created_at)}
-                      </div>
-                    </td>
-
-                    {/* Delivery status — from SendGrid webhook */}
-                    <td className="px-4 py-3">
-                      <DeliveryBadge status={s.status} />
-                    </td>
-
-                    {/* Open status — includes count + last opened */}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        {!s.tracking_token ? (
-                          <span className="text-xs text-slate-600">No tracking</span>
-                        ) : opened ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
-                            <MailCheck className="w-3 h-3" />
-                            Opened {tracking?.opened_count ? `· ${tracking.opened_count}×` : ''}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 border border-slate-700/40 px-2 py-0.5 rounded-full whitespace-nowrap w-fit">
-                            <MailOpen className="w-3 h-3" />
-                            Not opened
-                          </span>
-                        )}
-                        {tracking?.last_opened_at && (
-                          <span className="text-[10px] text-slate-500" title={fmtDateTime(tracking.last_opened_at)}>
-                            Last: {timeAgo(tracking.last_opened_at)}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Actions — always visible */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setResendTarget(s)}
-                          className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                          <RotateCcw size={11} />
-                          Resend
-                        </button>
-                        <button
-                          onClick={() => setComposeLead(s)}
-                          className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 bg-orange-900/20 hover:bg-orange-900/30 border border-orange-800/40 px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
-                        >
-                          <Pen size={11} />
-                          Compose
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
         )}
       </div>
 
@@ -323,7 +555,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
         />
       )}
 
-      {/* Resend modal — pre-filled with the original email */}
+      {/* Resend modal */}
       {resendTarget && (
         <ComposeModal
           leadId={resendTarget.lead_id}
