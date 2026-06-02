@@ -66,18 +66,6 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     declinedLeads = data || []
   }
 
-  // Fetch resubmitted leads (may be any status — use service client to bypass RLS)
-  let resubmittedLeads: any[] = []
-  const newResubmittedIds = rawResubmittedIds.filter(id => !existingLeadIds.has(id))
-  if (newResubmittedIds.length > 0) {
-    const { data } = await service
-      .from('leads')
-      .select(LEAD_SELECT)
-      .in('id', newResubmittedIds)
-      .order('updated_at', { ascending: false })
-    resubmittedLeads = processLeads(data || [])
-  }
-
   const { data: agents } = await supabase
     .from('profiles')
     .select('*')
@@ -96,6 +84,18 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     ),
   }))
+
+  // Fetch resubmitted leads (may be any status — use service client to bypass RLS)
+  let resubmittedLeads: any[] = []
+  const newResubmittedIds = rawResubmittedIds.filter(id => !existingLeadIds.has(id))
+  if (newResubmittedIds.length > 0) {
+    const { data } = await service
+      .from('leads')
+      .select(LEAD_SELECT)
+      .in('id', newResubmittedIds)
+      .order('updated_at', { ascending: false })
+    resubmittedLeads = processLeads(data || [])
+  }
 
   const allLeads = [...processLeads(leads || []), ...processLeads(declinedLeads), ...resubmittedLeads]
 
