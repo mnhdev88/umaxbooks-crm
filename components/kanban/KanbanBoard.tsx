@@ -200,6 +200,7 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
               status={stage}
               leads={columns[stage] || []}
               userRole={userRole}
+              userId={userId}
               agents={agents}
               onReassign={handleReassign}
               activityMap={stage === 'Contacted' ? activityMap : undefined}

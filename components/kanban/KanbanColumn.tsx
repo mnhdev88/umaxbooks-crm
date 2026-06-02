@@ -15,6 +15,7 @@ interface KanbanColumnProps {
   status: PipelineStatus
   leads: Lead[]
   userRole?: string
+  userId?: string
   agents?: Profile[]
   onReassign?: (leadId: string, agentId: string) => void
   activityMap?: ActivityMap
@@ -35,7 +36,7 @@ const STATUS_COLUMN_COLORS: Record<string, string> = {
   Disqualified: 'border-slate-500',
 }
 
-export function KanbanColumn({ status, leads, userRole, agents, onReassign, activityMap }: KanbanColumnProps) {
+export function KanbanColumn({ status, leads, userRole, userId, agents, onReassign, activityMap }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
@@ -81,6 +82,7 @@ export function KanbanColumn({ status, leads, userRole, agents, onReassign, acti
                 key={lead.id}
                 lead={lead}
                 userRole={userRole}
+                userId={userId}
                 agents={agents}
                 onReassign={onReassign}
                 callbackDate={nextCallback}
