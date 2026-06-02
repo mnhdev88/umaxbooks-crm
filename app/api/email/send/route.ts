@@ -20,6 +20,22 @@ function injectTrackingPixel(html: string, pixelUrl: string): string {
   return stripped + pixel
 }
 
+function rewriteLinksForTracking(html: string, clickBaseUrl: string): string {
+  // Rewrite every <a href="..."> to go through the click tracker then redirect.
+  // Skip: mailto:, tel:, already-tracked links, and the unsubscribe link.
+  return html.replace(/(<a\s[^>]*href=")([^"]+)(")/gi, (_match, open, href, close) => {
+    if (
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
+      href.includes('/api/track/') ||
+      href.includes('/api/unsubscribe/')
+    ) {
+      return `${open}${href}${close}`
+    }
+    return `${open}${clickBaseUrl}?url=${encodeURIComponent(href)}${close}`
+  })
+}
+
 function injectUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
   const footer = `
 <div style="margin-top:24px;padding-top:12px;border-top:1px solid #334155;text-align:center;font-family:sans-serif;font-size:11px;color:#64748b;">
@@ -104,6 +120,7 @@ export async function POST(req: NextRequest) {
   let finalHtml = html_body
   if (trackingToken && finalHtml) {
     finalHtml = injectTrackingPixel(finalHtml, `${publicOrigin}/api/track/open/${trackingToken}`)
+    finalHtml = rewriteLinksForTracking(finalHtml, `${publicOrigin}/api/track/click/${trackingToken}`)
     finalHtml = injectUnsubscribeFooter(finalHtml, `${publicOrigin}/api/unsubscribe/${trackingToken}`)
   }
 

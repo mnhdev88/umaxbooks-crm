@@ -134,6 +134,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
   const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
   const [syncing, setSyncing]           = useState(false)
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
+  const [showAddOnModal, setShowAddOnModal] = useState(false)
 
   const syncFromSendGrid = useCallback(async () => {
     setSyncing(true)
@@ -142,7 +143,11 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
       const res  = await fetch('/api/email/sync-sendgrid', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        setSyncMsg(data.error || 'Sync failed')
+        if (data.addOnRequired) {
+          setShowAddOnModal(true)
+        } else {
+          setSyncMsg(data.error || 'Sync failed')
+        }
       } else {
         setSyncMsg(data.message)
         if (data.synced > 0) router.refresh()

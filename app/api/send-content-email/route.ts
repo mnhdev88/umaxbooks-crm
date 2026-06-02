@@ -10,6 +10,20 @@ function injectTrackingPixel(html: string, pixelUrl: string): string {
   return html + pixel
 }
 
+function rewriteLinksForTracking(html: string, clickBaseUrl: string): string {
+  return html.replace(/(<a\s[^>]*href=")([^"]+)(")/gi, (_match, open, href, close) => {
+    if (
+      href.startsWith('mailto:') ||
+      href.startsWith('tel:') ||
+      href.includes('/api/track/') ||
+      href.includes('/api/unsubscribe/')
+    ) {
+      return `${open}${href}${close}`
+    }
+    return `${open}${clickBaseUrl}?url=${encodeURIComponent(href)}${close}`
+  })
+}
+
 export async function POST(req: NextRequest) {
   const { to, clientName, businessName, message, links, htmlBody, leadId, userId } = await req.json() as {
     to: string
@@ -50,11 +64,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const pixelUrl = trackingToken ? `${origin}/api/track/open/${trackingToken}` : null
+  const pixelUrl    = trackingToken ? `${origin}/api/track/open/${trackingToken}`  : null
+  const clickBaseUrl = trackingToken ? `${origin}/api/track/click/${trackingToken}` : null
 
   // If a full HTML body was provided (client email template), send it directly
   if (htmlBody) {
-    const finalHtml = pixelUrl ? injectTrackingPixel(htmlBody, pixelUrl) : htmlBody
+    let finalHtml = pixelUrl    ? injectTrackingPixel(htmlBody, pixelUrl)         : htmlBody
+    finalHtml     = clickBaseUrl ? rewriteLinksForTracking(finalHtml, clickBaseUrl) : finalHtml
     const { data, error } = await sendEmail({ to, subject, html: finalHtml })
     if (error) return NextResponse.json({ error }, { status: 400 })
     return NextResponse.json({ success: true, id: data?.id, trackingId })
@@ -114,7 +130,8 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`
 
-  const finalHtml = pixelUrl ? injectTrackingPixel(html, pixelUrl) : html
+  let finalHtml = pixelUrl    ? injectTrackingPixel(html, pixelUrl)         : html
+  finalHtml     = clickBaseUrl ? rewriteLinksForTracking(finalHtml, clickBaseUrl) : finalHtml
   const { data, error } = await sendEmail({ to, subject, html: finalHtml })
 
   if (error) return NextResponse.json({ error }, { status: 400 })
