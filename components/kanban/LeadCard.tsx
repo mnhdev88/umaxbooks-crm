@@ -108,7 +108,13 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
         style={style}
         {...attributes}
         {...listeners}
-        onClick={() => window.open(`/leads/${lead.id}`, '_blank')}
+        onClick={() => {
+          const a = document.createElement('a')
+          a.href = `/leads/${lead.id}`
+          a.target = '_blank'
+          a.rel = 'noopener noreferrer'
+          a.click()
+        }}
         className={cn(
           'bg-slate-800 border border-slate-700 rounded-xl p-2.5 group',
           'hover:border-orange-500/40 transition-all duration-150',
