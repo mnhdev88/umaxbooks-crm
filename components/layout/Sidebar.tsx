@@ -45,14 +45,11 @@ const salesAgentSections: NavSection[] = [
 
 const developerSections: NavSection[] = [
   { items: [
-    { href: '/developer-pipeline',             label: 'Pipeline',           icon: Kanban },
-    { href: '/leads',                          label: 'All Leads',          icon: Users },
-    { href: '/audits',                         label: 'Audits & Follow-up', icon: Activity },
-    { href: '/developer-queue',                label: 'Dev Queue',          icon: Code2 },
-    { href: '/developer-queue?filter=to-build', label: 'To Build',          icon: Hammer },
-    { href: '/email-status',                   label: 'Email Status',       icon: Mail },
-    { href: '/unsubscribes',                   label: 'Unsubscribes',       icon: MailX },
-    { href: '/notifications',                  label: 'Notifications',      icon: Bell },
+    { href: '/developer-pipeline',              label: 'Pipeline',   icon: Kanban },
+    { href: '/leads',                           label: 'All Leads',  icon: Users },
+    { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
+    { href: '/developer-queue?filter=to-build', label: 'To Build',   icon: Hammer },
+    { href: '/notifications',                   label: 'Notifications', icon: Bell },
   ]},
 ]
 
@@ -65,7 +62,6 @@ const adminSections: NavSection[] = [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
-    { href: '/developer-queue?filter=to-build', label: 'To Build',   icon: Hammer },
     { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },
     { href: '/unsubscribes',     label: 'Unsubscribes',      icon: MailX },
