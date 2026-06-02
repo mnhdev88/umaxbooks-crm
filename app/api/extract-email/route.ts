@@ -7,10 +7,11 @@ const JUNK_DOMAINS = new Set([
   'example.com', 'test.com', 'sentry.io', 'w3.org', 'schema.org',
   'googleapis.com', 'google.com', 'facebook.com', 'apple.com',
   'microsoft.com', 'amazonaws.com', 'cloudflare.com', 'wordpress.org',
-  'wixpress.com', 'squarespace.com', 'shopify.com',
+  'wixpress.com', 'squarespace.com', 'shopify.com', 'duckduckgo.com',
+  'bing.com', 'yahoo.com',
 ])
 
-const JUNK_PREFIXES = ['noreply', 'no-reply', 'donotreply', 'do-not-reply', 'bounce', 'mailer-daemon']
+const JUNK_PREFIXES = ['noreply', 'no-reply', 'donotreply', 'do-not-reply', 'bounce', 'mailer-daemon', 'postmaster']
 
 function scoreEmail(email: string, source: 'mailto' | 'text', page: string): number {
   const [local, domain] = email.toLowerCase().split('@')
@@ -24,7 +25,6 @@ function scoreEmail(email: string, source: 'mailto' | 'text', page: string): num
   if (page.includes('contact')) score += 20
   if (page.includes('about'))   score += 10
 
-  // High-value prefixes (likely the main business contact)
   const GOOD = ['info', 'contact', 'hello', 'hi', 'office', 'admin', 'enquiry', 'enquiries', 'inquiry', 'support', 'sales', 'team']
   if (GOOD.some(p => local === p || local.startsWith(p + '.'))) score += 25
 
@@ -40,8 +40,7 @@ async function fetchPage(url: string): Promise<string> {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CRM-EmailFinder/1.0)' },
     })
     if (!res.ok) return ''
-    const text = await res.text()
-    return text
+    return await res.text()
   } catch {
     return ''
   } finally {
@@ -64,7 +63,7 @@ function extractEmails(html: string, page: string): { email: string; score: numb
   const textMatches = html.matchAll(EMAIL_REGEX)
   for (const m of textMatches) {
     const email = m[0].toLowerCase()
-    if (results.has(email)) continue // already found via mailto
+    if (results.has(email)) continue
     const score = scoreEmail(email, 'text', page)
     if (score >= 0) results.set(email, Math.max(results.get(email) ?? 0, score))
   }
@@ -83,22 +82,16 @@ function normaliseBase(url: string): string {
   }
 }
 
-export async function POST(req: NextRequest) {
-  const { websiteUrl } = await req.json()
-  if (!websiteUrl) return NextResponse.json({ error: 'websiteUrl is required' }, { status: 400 })
-
+// ── Website scrape ──────────────────────────────────────────────────────────
+async function scrapeWebsite(websiteUrl: string): Promise<string | null> {
   const base = normaliseBase(websiteUrl)
-  if (!base) return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+  if (!base) return null
 
-  // Fetch these pages in parallel — contact pages first (higher priority)
   const pageSlugs = ['/contact', '/contact-us', '/about', '/about-us', '/']
-  const pages = pageSlugs.map(slug => ({ slug, url: base + slug }))
-
   const htmlResults = await Promise.all(
-    pages.map(async p => ({ slug: p.slug, html: await fetchPage(p.url) }))
+    pageSlugs.map(async slug => ({ slug, html: await fetchPage(base + slug) }))
   )
 
-  // Collect and rank all found emails across all pages
   const allCandidates: Map<string, number> = new Map()
   for (const { slug, html } of htmlResults) {
     if (!html) continue
@@ -107,12 +100,56 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (allCandidates.size === 0) {
-    return NextResponse.json({ email: null, message: 'No email found on this website' })
+  if (allCandidates.size === 0) return null
+
+  const ranked = Array.from(allCandidates.entries()).sort((a, b) => b[1] - a[1])
+  return ranked[0][0]
+}
+
+// ── DuckDuckGo search scrape ────────────────────────────────────────────────
+async function scrapeSearchResults(companyName: string, city: string): Promise<string | null> {
+  const query = `"${companyName}" ${city} contact email`
+  const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
+  const html   = await fetchPage(ddgUrl)
+  if (!html) return null
+
+  // Extract emails from search result snippets only (between <a and </a> tags)
+  // This avoids picking up emails from DDG's own UI chrome
+  const snippetMatches = html.match(/<a[^>]*class="[^"]*result[^"]*"[^>]*>[\s\S]*?<\/a>/gi) || []
+  const snippetText    = snippetMatches.join(' ')
+
+  const candidates = extractEmails(snippetText.length > 100 ? snippetText : html, 'search')
+  return candidates[0]?.email ?? null
+}
+
+// ── Handler ─────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const { websiteUrl, companyName, city = '' } = await req.json()
+
+  if (!websiteUrl && !companyName) {
+    return NextResponse.json({ error: 'Provide websiteUrl or companyName' }, { status: 400 })
   }
 
-  const ranked = Array.from(allCandidates.entries())
-    .sort((a, b) => b[1] - a[1])
+  // Always build a Google search URL as the last-resort fallback for the client
+  const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`"${companyName || ''}" ${city} contact email`.trim())}`
 
-  return NextResponse.json({ email: ranked[0][0] })
+  // Path 1: website URL available — scrape pages directly
+  if (websiteUrl) {
+    const email = await scrapeWebsite(websiteUrl)
+    if (email) return NextResponse.json({ email, source: 'website' })
+
+    // Website scraped but nothing found — try DuckDuckGo if we have a company name
+    if (companyName) {
+      const ddgEmail = await scrapeSearchResults(companyName, city)
+      if (ddgEmail) return NextResponse.json({ email: ddgEmail, source: 'search' })
+    }
+
+    return NextResponse.json({ email: null, googleSearchUrl })
+  }
+
+  // Path 2: no website — go straight to DuckDuckGo
+  const ddgEmail = await scrapeSearchResults(companyName, city)
+  if (ddgEmail) return NextResponse.json({ email: ddgEmail, source: 'search' })
+
+  return NextResponse.json({ email: null, googleSearchUrl })
 }

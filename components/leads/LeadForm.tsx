@@ -129,6 +129,8 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
 
   const watchedGmbUrl     = watch('gmb_url')
   const watchedWebsiteUrl = watch('website_url')
+  const watchedCompany    = watch('company_name')
+  const watchedCity       = watch('city')
 
   function updateStars(val: string) {
     const n = parseFloat(val)
@@ -197,25 +199,31 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
   }
 
   async function findEmail() {
-    const url = watchedWebsiteUrl?.trim()
-    if (!url) return
+    const websiteUrl  = watchedWebsiteUrl?.trim() || undefined
+    const companyName = watchedCompany?.trim()    || undefined
+    if (!websiteUrl && !companyName) return
+
     setFindingEmail(true)
     setEmailFindMsg(null)
     try {
       const res  = await fetch('/api/extract-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ websiteUrl: url }),
+        body: JSON.stringify({ websiteUrl, companyName, city: watchedCity?.trim() || '' }),
       })
       const data = await res.json()
       if (data.email) {
         setValue('email', data.email, { shouldDirty: true })
-        setEmailFindMsg('✓ Email found')
+        setEmailFindMsg(`✓ Found via ${data.source === 'website' ? 'website' : 'web search'}`)
+      } else if (data.googleSearchUrl) {
+        // Nothing found automatically — open Google search as final fallback
+        window.open(data.googleSearchUrl, '_blank', 'noopener')
+        setEmailFindMsg('Opened Google search — paste the email here once found')
       } else {
-        setEmailFindMsg('No email found on this website')
+        setEmailFindMsg('No email found')
       }
     } catch {
-      setEmailFindMsg('Could not reach the website')
+      setEmailFindMsg('Could not complete search')
     } finally {
       setFindingEmail(false)
     }
@@ -460,8 +468,12 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
             <button
               type="button"
               onClick={findEmail}
-              disabled={findingEmail || !watchedWebsiteUrl}
-              title={watchedWebsiteUrl ? 'Scrape email from website' : 'Add a website URL first'}
+              disabled={findingEmail || (!watchedWebsiteUrl && !watchedCompany)}
+              title={
+                watchedWebsiteUrl ? 'Scrape email from website' :
+                watchedCompany    ? 'Search web for email (no website — will open Google if not found)' :
+                'Add a company name or website URL first'
+              }
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-violet-400 hover:text-violet-300 bg-violet-900/20 hover:bg-violet-900/30 border border-violet-800/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             >
               {findingEmail
