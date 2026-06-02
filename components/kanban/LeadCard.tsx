@@ -159,7 +159,7 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
           </div>
         </div>
 
-        {/* Quick email button — New leads with email only, visible on hover */}
+        {/* Quick email button — New leads with email only */}
         {showEmailBtn && (
           <div
             className="mt-2"
@@ -168,7 +168,7 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
           >
             <button
               onClick={() => setComposing(true)}
-              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 px-2 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 hover:border-orange-500/50 px-2 py-1.5 rounded-lg transition-colors"
             >
               <Mail size={11} />
               Send Email
