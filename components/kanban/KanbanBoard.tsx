@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   DndContext,
   DragEndEvent,
@@ -17,7 +17,7 @@ import { ActivityMap } from '@/app/(dashboard)/page'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 
 interface KanbanBoardProps {
   initialLeads: Lead[]
@@ -28,9 +28,11 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, stages }: KanbanBoardProps) {
-  const [leads, setLeads]   = useState<Lead[]>(initialLeads)
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [agents, setAgents] = useState<Profile[]>([])
+  const [leads, setLeads]         = useState<Lead[]>(initialLeads)
+  const [activeId, setActiveId]   = useState<string | null>(null)
+  const [agents, setAgents]       = useState<Profile[]>([])
+  const [search, setSearch]       = useState('')
+  const [filterAgentId, setFilterAgentId] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const supabase = createClient()
@@ -56,6 +58,24 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
 
   const visibleStages = stages ?? PIPELINE_STAGES
 
+  // Filter leads by search query and selected agent
+  const displayLeads = useMemo(() => {
+    let result = leads
+    if (filterAgentId) {
+      result = result.filter(l => (l as any).assigned_agent_id === filterAgentId)
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(l =>
+        l.company_name?.toLowerCase().includes(q) ||
+        l.name?.toLowerCase().includes(q) ||
+        (l as any).phone?.toLowerCase().includes(q) ||
+        (l as any).email?.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [leads, search, filterAgentId])
+
   const FOLLOWUP_TERMINAL = new Set(['Live', 'Completed', 'Lost', 'Disqualified'])
   const FOLLOWUP_DAYS     = 5
 
@@ -74,7 +94,7 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
   }
 
   const columns = visibleStages.reduce<Record<PipelineStatus, Lead[]>>((acc, stage) => {
-    const list = leads.filter((l) => l.status === stage)
+    const list = displayLeads.filter((l) => l.status === stage)
     if (stage === 'Callback Booked') {
       list.sort((a, b) => {
         const da = getNextCallback(a)
@@ -176,6 +196,9 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
     }
   }
 
+  const totalFiltered = displayLeads.length
+  const hasFilter = !!search.trim() || !!filterAgentId
+
   return (
     <DndContext
       sensors={sensors}
@@ -183,6 +206,51 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      {/* ── Search & filter toolbar ── */}
+      <div className="flex items-center gap-3 px-6 py-2.5 border-b border-slate-800 bg-[#0E0B24] shrink-0">
+        <div className="relative flex-1 max-w-sm">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search leads by name, company, phone…"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Agent filter — admin only */}
+        {userRole === 'admin' && agents.length > 0 && (
+          <select
+            value={filterAgentId}
+            onChange={e => setFilterAgentId(e.target.value)}
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500 min-w-[160px]"
+          >
+            <option value="">All agents</option>
+            {agents.map(a => (
+              <option key={a.id} value={a.id}>{a.full_name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Clear filters + count */}
+        {hasFilter && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">{totalFiltered} lead{totalFiltered !== 1 ? 's' : ''}</span>
+            <button
+              onClick={() => { setSearch(''); setFilterAgentId('') }}
+              className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="relative">
         {/* Left scroll arrow */}
         <button
@@ -224,3 +292,4 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
     </DndContext>
   )
 }
+
