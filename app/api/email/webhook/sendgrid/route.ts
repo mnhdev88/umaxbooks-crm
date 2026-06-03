@@ -50,6 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  console.log(`[sendgrid-webhook] received ${events.length} event(s):`,
+    events.map(e => `${e.event}/${extractMessageId(e.sg_message_id || '')}`).join(', '))
+
   const service = createServiceClient()
 
   for (const event of events) {
@@ -60,11 +63,13 @@ export async function POST(req: NextRequest) {
 
     if (event.event === 'delivered') {
       // Allow deferred → delivered transition as well as sent → delivered
-      await service
+      const { data, error } = await service
         .from('email_sends')
         .update({ status: 'delivered', delivered_at: ts })
         .eq('sendgrid_message_id', messageId)
         .in('status', ['sent', 'deferred'])
+        .select('id')
+      console.log(`[sendgrid-webhook] delivered msgId=${messageId} matched=${data?.length ?? 0}`, error?.message || '')
 
     } else if (event.event === 'bounce') {
       // type === 'bounce' = hard bounce (permanent), type === 'blocked' = soft bounce (temporary)
