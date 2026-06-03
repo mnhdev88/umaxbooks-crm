@@ -34,8 +34,10 @@ export async function updateSession(request: NextRequest) {
   const isCronApi          = pathname.startsWith('/api/cron')
   const isNewsletterApi    = pathname.startsWith('/api/newsletter')
   const isTrackingApi      = pathname.startsWith('/api/track')
+  const isWebhookApi       = pathname.startsWith('/api/email/webhook')   // SendGrid event webhook — no auth session
+  const isUnsubscribeApi   = pathname.startsWith('/api/unsubscribe')     // recipients click without login
 
-  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi && !isNewsletterApi && !isTrackingApi) {
+  if (!user && !isAuthPage && !isSignRoute && !isPublicApi && !isCronApi && !isNewsletterApi && !isTrackingApi && !isWebhookApi && !isUnsubscribeApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
