@@ -202,6 +202,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
         (l.city || '').toLowerCase().includes(q) ||
         (l.website_url || '').toLowerCase().includes(q) ||
         (l.phone || '').toLowerCase().includes(q) ||
+        (l.email || '').toLowerCase().includes(q) ||
         (l.lead_number != null && String(l.lead_number).includes(q))
       )
     }
