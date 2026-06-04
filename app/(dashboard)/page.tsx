@@ -24,11 +24,14 @@ export default function PipelinePage() {
     const currentProfile = profile
 
     async function fetchLeads() {
-      const buildQuery = (withFollowUps: boolean) => {
+      // PostgREST caps each response at 1000 rows, so page through in batches to
+      // load every lead (keeps dashboard counts accurate past 1000).
+      const BATCH = 1000
+      const buildQuery = (withFollowUps: boolean, offset: number) => {
         const select = withFollowUps
           ? '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)'
           : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
-        const q = supabase.from('leads').select(select).order('updated_at', { ascending: false })
+        const q = supabase.from('leads').select(select).order('updated_at', { ascending: false }).range(offset, offset + BATCH - 1)
         if (currentProfile.role === 'developer') q.not('status', 'in', '("New","Callback Booked","Disqualified")')
         if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') {
           q.eq('assigned_agent_id', currentProfile.id)
@@ -37,13 +40,23 @@ export default function PipelinePage() {
         return q
       }
 
-      let { data, error } = await buildQuery(true)
-      if (error) {
-        // follow_ups table may not exist yet — fall back
-        console.warn('follow_ups join failed, retrying without:', error.message)
-        ;({ data, error } = await buildQuery(false))
+      let withFollowUps = true
+      const data: any[] = []
+      let error: any = null
+      for (let offset = 0; ; offset += BATCH) {
+        let res = await buildQuery(withFollowUps, offset)
+        if (res.error && withFollowUps) {
+          // follow_ups table may not exist yet — fall back without the join
+          console.warn('follow_ups join failed, retrying without:', res.error.message)
+          withFollowUps = false
+          res = await buildQuery(false, offset)
+        }
+        if (res.error) { error = res.error; break }
+        const batch = res.data || []
+        data.push(...batch)
+        if (batch.length < BATCH) break
       }
-      if (data) {
+      if (!error || data.length) {
         setLeads(data as unknown as Lead[])
 
         // Fetch email/call activity flags for Contacted leads only

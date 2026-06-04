@@ -30,15 +30,25 @@ export default async function LeadsPage({ searchParams }: PageProps) {
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
 
-  const leadsQuery = supabase
-    .from('leads')
-    .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)')
-    .neq('status', 'Live')
-    .order('created_at', { ascending: false })
+  // Supabase/PostgREST caps every response at 1000 rows by default, so we page
+  // through the table in batches to load every lead (keeps counts accurate past 1000).
+  const BATCH = 1000
+  const leads: any[] = []
+  for (let offset = 0; ; offset += BATCH) {
+    const batchQuery = supabase
+      .from('leads')
+      .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)')
+      .neq('status', 'Live')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + BATCH - 1)
 
-  if (profile?.role === 'developer') leadsQuery.eq('status', 'Contacted')
+    if (profile?.role === 'developer') batchQuery.eq('status', 'Contacted')
 
-  const { data: leads } = await leadsQuery
+    const { data: batch, error } = await batchQuery
+    if (error || !batch || batch.length === 0) break
+    leads.push(...batch)
+    if (batch.length < BATCH) break
+  }
 
   const { data: agents } = await supabase
     .from('profiles')

@@ -4,6 +4,8 @@ import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
 import { LeadDetailTabsClient } from '@/components/leads/LeadDetailTabsClient'
 import { EditLeadButton } from '@/components/leads/EditLeadButton'
+import { LocalTimeClock } from '@/components/leads/LocalTimeClock'
+import { getTimezoneFromZip } from '@/lib/zip-timezone'
 import { Profile, Lead } from '@/types'
 import { formatDate } from '@/lib/utils'
 import {
@@ -191,6 +193,9 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <InfoRow icon={MapPin}  label="City"           value={lead.city} />
             <InfoRow icon={MapPin}  label="ZIP / Pin Code" value={lead.zip_code} iconCls="text-slate-500" />
             <InfoRow icon={Flag}    label="Country"        value={lead.country} iconCls="text-slate-500" />
+            {getTimezoneFromZip(lead.zip_code) && (
+              <LocalTimeClock timeZone={getTimezoneFromZip(lead.zip_code)!} />
+            )}
           </Section>
 
           {/* Online Presence */}
