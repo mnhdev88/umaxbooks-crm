@@ -636,7 +636,9 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           <label className={L}>Assign to Agent</label>
           <select {...register('assigned_agent_id')} className={cn(F, 'cursor-pointer')}>
             <option value="">— Unassigned —</option>
-            {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            {agents
+              .filter(a => a.role === 'sales_agent' && a.id !== userId)
+              .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
         </div>
         <div>

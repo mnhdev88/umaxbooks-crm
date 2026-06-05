@@ -240,9 +240,11 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
                 defaultValue=""
               >
                 <option value="" disabled>Select agent…</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.full_name}</option>
-                ))}
+                {agents
+                  .filter((a) => a.role === 'sales_agent')
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>{a.full_name}</option>
+                  ))}
               </select>
             )}
           </div>

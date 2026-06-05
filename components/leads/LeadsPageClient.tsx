@@ -282,7 +282,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
 
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i]
-      const record: Record<string, any> = { source: 'GMB', status: 'New', priority: 'Normal' }
+      const record: Record<string, any> = { source: 'GMB', status: 'New', priority: 'Normal', created_by: userId }
       Object.entries(fieldMap).forEach(([csvCol, crmField]) => {
         if (crmField !== '— Skip —' && row[csvCol]) record[crmField] = row[csvCol]
       })
