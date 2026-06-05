@@ -33,10 +33,13 @@ export async function proxy(request: NextRequest) {
   const isPublicApi      = path.startsWith('/api/public')
   const isSigningPage    = path.startsWith('/sign/')
   const isNewsletterApi  = path.startsWith('/api/newsletter')
+  // Voice: /api/voice/webhook is hit by Vapi (no session); /api/voice/call is
+  // bearer-protected internally. Both are whitelisted from the auth redirect.
+  const isVoiceApi       = path.startsWith('/api/voice')
   // /api/contracts/{token} and /api/contracts/{token}/sign — but NOT the bare /api/contracts (admin list/create)
   const isSigningApi  = /^\/api\/contracts\/[^/]/.test(path)
 
-  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi) {
+  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

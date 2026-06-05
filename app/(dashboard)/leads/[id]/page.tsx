@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/ui/Badge'
 import { LeadDetailTabsClient } from '@/components/leads/LeadDetailTabsClient'
 import { EditLeadButton } from '@/components/leads/EditLeadButton'
+import { AICallButton } from '@/components/leads/AICallButton'
 import { LocalTimeClock } from '@/components/leads/LocalTimeClock'
 import { getTimezoneFromZip } from '@/lib/zip-timezone'
 import { Profile, Lead } from '@/types'
@@ -163,7 +164,8 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               </div>
             </div>
 
-            <div className="text-right text-xs text-slate-500 flex flex-col gap-1">
+            <div className="text-right text-xs text-slate-500 flex flex-col items-end gap-1">
+              <AICallButton leadId={lead.id} phone={lead.phone} />
               {lead.source && (
                 <p>Source: <span className="text-slate-300">{lead.source}</span></p>
               )}
