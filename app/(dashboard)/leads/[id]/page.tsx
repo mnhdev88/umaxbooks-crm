@@ -13,8 +13,26 @@ import {
   Globe, Phone, Mail, MapPin, Star, Building2,
   MessageCircle, Share2, Calendar, Users, Flag,
   FileText, Tag, Lock, ExternalLink, Layers, MailX,
+  ShieldCheck, ShieldAlert, ShieldX,
 } from 'lucide-react'
 import { CopyButton } from '@/components/ui/CopyButton'
+
+const EMAIL_VERDICT = {
+  Valid:   { cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40', Icon: ShieldCheck, label: 'Valid' },
+  Risky:   { cls: 'bg-amber-900/30 text-amber-400 border-amber-800/40',       Icon: ShieldAlert, label: 'Risky' },
+  Invalid: { cls: 'bg-red-900/30 text-red-400 border-red-800/40',             Icon: ShieldX,     label: 'Invalid' },
+} as const
+
+function EmailHealthBadge({ verdict }: { verdict?: string }) {
+  const cfg = verdict ? EMAIL_VERDICT[verdict as keyof typeof EMAIL_VERDICT] : undefined
+  if (!cfg) return null
+  const { cls, Icon, label } = cfg
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${cls}`}>
+      <Icon size={11} /> {label} email
+    </span>
+  )
+}
 
 interface PageProps {
   params:       Promise<{ id: string }>
@@ -137,9 +155,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                   </a>
                 )}
                 {lead.email && (
-                  <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200">
-                    <Mail size={12} className="text-orange-400" /> {lead.email}
-                  </a>
+                  <span className="flex items-center gap-2">
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200">
+                      <Mail size={12} className="text-orange-400" /> {lead.email}
+                    </a>
+                    <EmailHealthBadge verdict={lead.email_verdict} />
+                  </span>
                 )}
                 {lead.website_url && (
                   <span className="flex items-center gap-1">

@@ -66,7 +66,7 @@ export default async function InvoicesPage() {
       <p className="text-slate-400 text-sm mb-8">Your payment summary and service details</p>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
           <p className="text-xs text-slate-500 mb-1">Token / Deposit</p>
           <p className="text-xl font-semibold text-orange-400">{formatCurrency(totalToken)}</p>
@@ -132,7 +132,7 @@ export default async function InvoicesPage() {
                 )}
 
                 {/* Payment breakdown */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-xs text-slate-500 mb-0.5">Token / Deposit</p>
                     <p className="text-white font-medium">{formatCurrency(deal.token_amount)}</p>
@@ -160,6 +160,16 @@ export default async function InvoicesPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Payment next-step CTA for unsettled invoices */}
+                {deal.payment_status !== 'Paid' && (
+                  <div className="mt-4 flex items-start gap-2 rounded-lg bg-orange-500/10 border border-orange-500/30 px-4 py-3">
+                    <CreditCard size={15} className="text-orange-400 mt-0.5 shrink-0" aria-hidden="true" />
+                    <p className="text-xs text-slate-300">
+                      To settle this balance, contact your account manager and we&apos;ll share secure payment instructions.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )

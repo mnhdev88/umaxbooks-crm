@@ -55,7 +55,7 @@ export default async function PortalContractPage() {
               )}
             </div>
 
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm mb-6">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm mb-6">
               {contract.package && (
                 <div>
                   <dt className="text-slate-500 mb-0.5">Package</dt>
@@ -102,7 +102,7 @@ export default async function PortalContractPage() {
             {(contract.first_payment != null || contract.installment_payment != null || contract.balance_payment != null) && (
               <div className="border-t border-slate-700 pt-4 mb-5">
                 <p className="text-xs text-slate-500 mb-3">Payment Breakdown</p>
-                <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                   {contract.first_payment != null && (
                     <div className="bg-slate-900/60 rounded-lg p-3">
                       <p className="text-slate-500 text-xs mb-1">Token</p>

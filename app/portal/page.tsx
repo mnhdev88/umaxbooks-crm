@@ -124,7 +124,7 @@ export default async function PortalOverviewPage() {
 
       <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
         <h2 className="text-sm font-semibold text-slate-300 mb-4">Your Project Details</h2>
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
           <div>
             <dt className="text-slate-500 mb-0.5">Business Name</dt>
             <dd className="text-white font-medium">{(lead as Lead)?.company_name ?? '—'}</dd>

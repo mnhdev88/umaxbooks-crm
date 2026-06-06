@@ -32,11 +32,19 @@ export function DashboardShell({ userId, children }: { userId: string; children:
       })
   }, [userId])
 
+  // Escape closes the mobile sidebar drawer
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sidebarOpen])
+
   if (!profile) {
     return (
       <div className="flex min-h-screen">
         <div className="hidden md:block w-60 min-h-screen bg-[#0E0B24] border-r border-slate-800" />
-        <main id="main-content" className="flex-1 flex items-center justify-center">
+        <main id="main-content" tabIndex={-1} className="flex-1 flex items-center justify-center">
           <svg className="animate-spin h-7 w-7 text-orange-500" fill="none" viewBox="0 0 24 24" aria-label="Loading" role="status">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -57,11 +65,12 @@ export function DashboardShell({ userId, children }: { userId: string; children:
           {sidebarOpen && (
             <div
               className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              aria-hidden="true"
               onClick={() => setSidebarOpen(false)}
             />
           )}
           <Sidebar profile={profile} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <main id="main-content" className="flex-1 min-w-0 flex flex-col">{children}</main>
+          <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 flex flex-col">{children}</main>
         </div>
       </SidebarContext.Provider>
     </ProfileContext.Provider>

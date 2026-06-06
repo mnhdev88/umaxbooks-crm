@@ -63,7 +63,7 @@ export function ProfileSettings({ profile }: { profile: Profile }) {
         </div>
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
-            {profile.full_name.charAt(0).toUpperCase()}
+            {(profile.full_name ?? '?').charAt(0).toUpperCase()}
           </div>
           <div>
             <p className="text-base font-semibold text-slate-100">{profile.full_name}</p>

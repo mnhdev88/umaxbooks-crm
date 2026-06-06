@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -127,9 +128,16 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
       >
         {/* Company + NVL badge */}
         <div className="flex items-center justify-between gap-2 mb-0.5">
-          <p className="text-sm font-semibold text-slate-100 truncate">
+          <Link
+            href={`/leads/${lead.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            className="text-sm font-semibold text-slate-100 hover:text-orange-300 truncate rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
+          >
             {lead.company_name}
-          </p>
+          </Link>
           {lead.lead_number && (
             <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap flex-shrink-0">
               NVL-{String(lead.lead_number).padStart(3, '0')}

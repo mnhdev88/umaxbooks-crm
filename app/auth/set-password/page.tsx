@@ -6,6 +6,18 @@ import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 
+function passwordStrength(pw: string) {
+  let score = 0
+  if (pw.length >= 8) score++
+  if (pw.length >= 12) score++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++
+  if (/\d/.test(pw)) score++
+  if (/[^A-Za-z0-9]/.test(pw)) score++
+  return Math.min(score, 4)
+}
+const STRENGTH_LABEL = ['Too short', 'Weak', 'Fair', 'Good', 'Strong']
+const STRENGTH_COLOR = ['bg-red-500', 'bg-red-500', 'bg-yellow-500', 'bg-green-500', 'bg-green-500']
+
 export default function SetPasswordPage() {
   return (
     <Suspense>
@@ -100,6 +112,7 @@ function SetPasswordForm() {
   }
 
   const inputCls = 'w-full rounded-lg bg-slate-800 border border-slate-600 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus-visible:border-orange-500'
+  const strength = passwordStrength(password)
 
   return (
     <div className="min-h-screen bg-[#07061A] flex items-center justify-center p-4">
@@ -121,7 +134,7 @@ function SetPasswordForm() {
         <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
           {exchanging ? (
             <div className="flex items-center justify-center gap-3 py-6 text-slate-400 text-sm">
-              <svg className="animate-spin h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" aria-label="Verifying link" role="status">
+              <svg className="animate-spin h-4 w-4 text-orange-400" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -166,6 +179,18 @@ function SetPasswordForm() {
                     {showPass ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
                   </button>
                 </div>
+                {password.length > 0 && (
+                  <div aria-live="polite">
+                    <div className="flex gap-1 mt-1.5" aria-hidden="true">
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className={`h-1 flex-1 rounded-full ${i < strength ? STRENGTH_COLOR[strength] : 'bg-slate-700'}`} />
+                      ))}
+                    </div>
+                    <p className={`text-[11px] mt-1 ${strength >= 3 ? 'text-green-400' : strength === 2 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      Password strength: {STRENGTH_LABEL[strength]}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -182,6 +207,11 @@ function SetPasswordForm() {
                   placeholder="Re-enter your password"
                   className={inputCls}
                 />
+                {confirm.length > 0 && (
+                  <p aria-live="polite" className={`text-[11px] ${confirm === password ? 'text-green-400' : 'text-red-400'}`}>
+                    {confirm === password ? 'Passwords match' : "Passwords don't match"}
+                  </p>
+                )}
               </div>
 
               <button
@@ -191,7 +221,7 @@ function SetPasswordForm() {
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
               >
                 {loading && (
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-label="Setting up account" role="status">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>

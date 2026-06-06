@@ -7,9 +7,10 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useTheme } from '@/components/ThemeProvider'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
@@ -92,8 +93,10 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const supabase = createClient()
+  const { theme, toggleTheme } = useTheme()
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
+  const [signingOut, setSigningOut]     = useState(false)
 
   const sections =
     profile.role === 'admin'       ? adminSections :
@@ -137,6 +140,8 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   }
 
   async function handleLogout() {
+    if (signingOut) return
+    setSigningOut(true)
     await supabase.auth.signOut()
     router.push('/login')
   }
@@ -145,8 +150,8 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     <aside className={cn(
       'w-56 bg-[#0E0B24] border-r border-slate-800/80 flex flex-col',
       'fixed inset-y-0 left-0 z-50 transition-transform duration-300',
-      'md:relative md:translate-x-0 md:z-auto md:min-h-screen',
-      isOpen ? 'translate-x-0' : '-translate-x-full'
+      'md:relative md:translate-x-0 md:z-auto md:min-h-screen md:visible md:pointer-events-auto',
+      isOpen ? 'translate-x-0' : '-translate-x-full invisible pointer-events-none'
     )}>
 
       {/* Logo */}
@@ -163,9 +168,10 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
         </div>
         <button
           onClick={onClose}
-          className="md:hidden text-slate-500 hover:text-white p-1 rounded transition-colors"
+          aria-label="Close menu"
+          className="md:hidden text-slate-500 hover:text-white p-2.5 -mr-1.5 rounded transition-colors"
         >
-          <X size={16} />
+          <X size={18} aria-hidden="true" />
         </button>
       </div>
 
@@ -173,7 +179,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       <div className="px-4 py-3 border-b border-slate-800/80">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {profile.full_name.charAt(0).toUpperCase()}
+            {(profile.full_name ?? '?').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-100 truncate leading-tight">{profile.full_name}</p>
@@ -210,7 +216,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
                     className={cn(
                       'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-all duration-150',
                       active
-                        ? 'bg-orange-500/15 text-orange-400 font-medium'
+                        ? 'bg-orange-500/15 text-orange-300 font-medium'
                         : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
                     )}
                   >
@@ -229,8 +235,18 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Bottom: profile + sign out */}
+      {/* Bottom: theme + profile + sign out */}
       <div className="px-2.5 py-3 border-t border-slate-800/80 space-y-0.5">
+        <button
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all duration-150"
+        >
+          {theme === 'dark'
+            ? <Sun size={15} className="shrink-0" aria-hidden="true" />
+            : <Moon size={15} className="shrink-0" aria-hidden="true" />}
+          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
         <Link
           href="/profile"
           onClick={onClose}
@@ -246,10 +262,11 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
         </Link>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-all duration-150"
+          disabled={signingOut}
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <LogOut size={15} className="shrink-0" />
-          Sign out
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </aside>

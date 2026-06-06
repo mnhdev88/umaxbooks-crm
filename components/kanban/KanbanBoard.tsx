@@ -7,16 +7,19 @@ import {
   DragStartEvent,
   PointerSensor,
   TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   DragOverlay,
   closestCorners,
 } from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { Lead, PipelineStatus, PIPELINE_STAGES, Profile } from '@/types'
 import { ActivityMap } from '@/app/(dashboard)/page'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 
 interface KanbanBoardProps {
@@ -53,7 +56,8 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const visibleStages = stages ?? PIPELINE_STAGES
@@ -128,9 +132,15 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
     const lead  = leads.find((l) => l.id === leadId)
     if (!agent || !lead) return
 
+    const prevAgentId = (lead as any).assigned_agent_id ?? null
     setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, assigned_agent_id: agentId } : l))
 
-    await supabase.from('leads').update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() }).eq('id', leadId)
+    const { error: reassignError } = await supabase.from('leads').update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() }).eq('id', leadId)
+    if (reassignError) {
+      setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, assigned_agent_id: prevAgentId } : l))
+      toast.error('Failed to reassign lead. Change reverted.')
+      return
+    }
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId, user_id: userId,
@@ -169,14 +179,21 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
     // Role guard: developer cannot move leads
     if (userRole === 'developer') return
 
+    const prevStatus = lead.status
     setLeads((prev) =>
       prev.map((l) => l.id === leadId ? { ...l, status: targetStatus } : l)
     )
 
-    await supabase
+    const { error: moveError } = await supabase
       .from('leads')
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
       .eq('id', leadId)
+
+    if (moveError) {
+      setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, status: prevStatus } : l))
+      toast.error('Failed to move lead. Card reverted.')
+      return
+    }
 
     // Log activity
     await supabase.from('activity_logs').insert({
@@ -214,11 +231,12 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search leads by name, company, phone…"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+            aria-label="Search leads"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-              <X size={12} />
+            <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+              <X size={12} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -228,7 +246,8 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
           <select
             value={filterAgentId}
             onChange={e => setFilterAgentId(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-orange-500 min-w-[160px]"
+            aria-label="Filter by agent"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[160px]"
           >
             <option value="">All agents</option>
             {agents.map(a => (
@@ -255,10 +274,10 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
         {/* Left scroll arrow */}
         <button
           onClick={() => scrollBoard('left')}
-          className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
           aria-label="Scroll left"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} aria-hidden="true" />
         </button>
 
         <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-4 px-10 pt-4 scroll-smooth">
@@ -279,10 +298,10 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
         {/* Right scroll arrow */}
         <button
           onClick={() => scrollBoard('right')}
-          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
           aria-label="Scroll right"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
 

@@ -39,7 +39,17 @@ export default function LoginPage() {
     const { error, data } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError('Invalid email or password.')
+      const status = (error as { status?: number }).status
+      const msg = error.message?.toLowerCase() ?? ''
+      if (status === 429 || msg.includes('rate')) {
+        setError('Too many attempts. Please wait a moment and try again.')
+      } else if (msg.includes('not confirmed') || msg.includes('confirm')) {
+        setError('Your email is not confirmed yet. Check your inbox or ask your admin to resend the invite.')
+      } else if (status === 0 || msg.includes('network') || msg.includes('fetch')) {
+        setError('Network error — check your connection and try again.')
+      } else {
+        setError('Invalid email or password.')
+      }
       setLoading(false)
       return
     }
@@ -91,6 +101,7 @@ export default function LoginPage() {
               id={emailId}
               type="email"
               required
+              autoFocus
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -133,7 +144,7 @@ export default function LoginPage() {
             className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07061A]"
           >
             {loading && (
-              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-label="Signing in" role="status">
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>

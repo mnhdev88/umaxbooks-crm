@@ -33,6 +33,21 @@
   box-sizing: border-box;
 }
 
+/* Global keyboard focus indicator. :where() = 0 specificity, so any element
+   that defines its own focus-visible ring/outline overrides this default. */
+:where(a, button, [role="button"], [role="tab"], [role="link"], [role="checkbox"], [role="radio"], summary):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* contentEditable placeholder (used by the email composer) */
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #64748b;
+  pointer-events: none;
+}
+
 .scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -58,9 +73,20 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
+  /* Readability: crisper rendering + lift unclassed (default-weight) text.
+     Explicit font-medium/semibold/bold utilities still win via specificity. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-weight: 450;
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* Lift the smallest custom type off uncomfortable sizes (app-wide, both themes) */
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+html { scrollbar-width: thin; scrollbar-color: #8B5CF6 #07061A; }
 ::-webkit-scrollbar-track { background: #07061A; }
 ::-webkit-scrollbar-thumb { background: #8B5CF6; border-radius: 99px; opacity: 0.5; }
 ::-webkit-scrollbar-thumb:hover { background: #7C3AED; }
@@ -70,8 +96,9 @@ html.light {
   color-scheme: light;
 }
 html.light body {
-  background: #F8F7FF !important;
-  color: #1e1b4b !important;
+  /* Softer lavender-gray page so white cards lift off it (less glare than near-white) */
+  background: #ECEAF6 !important;
+  color: #2a273f !important;
 }
 html.light .bg-\[\#0A0820\],
 html.light .bg-\[\#0E0B24\] { background-color: #ffffff !important; }
@@ -92,12 +119,13 @@ html.light .border-slate-700 { border-color: #C4B5FD !important; }
 html.light .border-slate-700\/50 { border-color: rgba(196,181,253,0.5) !important; }
 html.light .border-slate-700\/30 { border-color: rgba(196,181,253,0.3) !important; }
 html.light .border-slate-600 { border-color: #A78BFA !important; }
-html.light .text-slate-100 { color: #1e1b4b !important; }
-html.light .text-slate-200 { color: #2d2864 !important; }
-html.light .text-slate-300 { color: #3d3878 !important; }
-html.light .text-slate-400 { color: #5b5494 !important; }
-html.light .text-slate-500 { color: #7c74b0 !important; }
-html.light .text-slate-600 { color: #7c74b0 !important; }
+/* Softer, calibrated text scale — gentler than pure near-black, muted greys kept ≥AA */
+html.light .text-slate-100 { color: #2a273f !important; }
+html.light .text-slate-200 { color: #353151 !important; }
+html.light .text-slate-300 { color: #433f63 !important; }
+html.light .text-slate-400 { color: #57537a !important; }
+html.light .text-slate-500 { color: #615d88 !important; }
+html.light .text-slate-600 { color: #615d88 !important; }
 html.light .hover\:bg-slate-800:hover { background-color: #EDE9FE !important; }
 html.light .hover\:bg-slate-700:hover { background-color: #DDD6FE !important; }
 html.light .hover\:bg-slate-600:hover { background-color: #C4B5FD !important; }
@@ -116,6 +144,12 @@ html.light select {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #cbd5e1 !important;
+}
+/* Sonner toast — adapt to light theme (inline styles need !important) */
+html.light [data-sonner-toast] {
+  background: #ffffff !important;
+  border-color: #DDD6FE !important;
+  color: #1e1b4b !important;
 }
 html.light ::-webkit-scrollbar-track { background: #EDE9FE; }
 html.light ::-webkit-scrollbar-thumb { background: #A78BFA; }
@@ -191,8 +225,8 @@ html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
 
 /* text-white / hover:text-white — override for light mode */
-html.light .text-white          { color: #1e1b4b !important; }
-html.light .hover\:text-white:hover { color: #1e1b4b !important; }
+html.light .text-white          { color: #2a273f !important; }
+html.light .hover\:text-white:hover { color: #2a273f !important; }
 
 /* white/5 and white/10 backgrounds used in settings form inputs */
 html.light .bg-white\/5  { background-color: #f8fafc !important; }
@@ -249,6 +283,126 @@ html.light .bg-slate-900\/60  { background-color: rgba(255,255,255,0.75) !import
 html.light .bg-slate-800\/80  { background-color: rgba(237,233,254,0.8) !important; }
 /* Dashed drop placeholder */
 html.light .border-slate-700\/50 { border-color: rgba(196,181,253,0.5) !important; }
+
+/* ── Light theme — additional coverage (audit gap fixes) ─────────────────── */
+
+/* Full-page / panel backgrounds that weren't mapped */
+html.light .bg-\[\#07061A\] { background-color: #ECEAF6 !important; }
+html.light .bg-\[\#0e1525\] { background-color: #ECEAF6 !important; }
+html.light .bg-slate-950    { background-color: #ECEAF6 !important; }
+
+/* Slate background opacity variants */
+html.light .bg-slate-900\/30 { background-color: rgba(255,255,255,0.45) !important; }
+html.light .bg-slate-800\/70 { background-color: rgba(245,243,255,0.75) !important; }
+html.light .bg-slate-800\/30 { background-color: rgba(245,243,255,0.45) !important; }
+html.light .bg-slate-800\/20 { background-color: rgba(245,243,255,0.35) !important; }
+html.light .bg-slate-800\/10 { background-color: rgba(245,243,255,0.25) !important; }
+html.light .bg-slate-700\/60 { background-color: rgba(237,233,254,0.7) !important; }
+html.light .bg-slate-700\/40 { background-color: rgba(237,233,254,0.5) !important; }
+html.light .bg-slate-700\/30 { background-color: rgba(237,233,254,0.4) !important; }
+html.light .bg-slate-600\/30 { background-color: rgba(196,181,253,0.35) !important; }
+html.light .bg-slate-600     { background-color: #C4B5FD !important; }
+html.light .hover\:bg-slate-800\/70:hover { background-color: rgba(245,243,255,0.7) !important; }
+
+/* Slate borders / dividers */
+html.light .border-slate-800\/60 { border-color: rgba(221,214,254,0.6) !important; }
+html.light .border-slate-700\/60 { border-color: rgba(196,181,253,0.6) !important; }
+html.light .border-slate-700\/40 { border-color: #DDD6FE !important; }
+html.light .border-slate-600\/40 { border-color: rgba(196,181,253,0.5) !important; }
+html.light .border-slate-500     { border-color: #94a3b8 !important; }
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: #DDD6FE !important; }
+html.light .divide-slate-700 > :not([hidden]) ~ :not([hidden])     { border-color: #DDD6FE !important; }
+html.light .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(196,181,253,0.6) !important; }
+
+/* Semantic -500 tint backgrounds (badges, banners, icon chips) */
+html.light .bg-blue-500\/10   { background-color: #eff6ff !important; }
+html.light .bg-green-500\/10  { background-color: #f0fdf4 !important; }
+html.light .bg-yellow-500\/10 { background-color: #fefce8 !important; }
+html.light .bg-red-500\/10    { background-color: #fff1f2 !important; }
+html.light .bg-blue-500\/15   { background-color: #DBEAFE !important; }
+html.light .bg-amber-500\/15  { background-color: #FEF3C7 !important; }
+html.light .bg-green-500\/15  { background-color: #DCFCE7 !important; }
+html.light .bg-red-500\/15    { background-color: #FEE2E2 !important; }
+html.light .bg-purple-500\/15 { background-color: #EDE9FE !important; }
+html.light .bg-blue-500\/20   { background-color: #dbeafe !important; }
+html.light .bg-purple-500\/20 { background-color: #f3e8ff !important; }
+html.light .bg-cyan-500\/20   { background-color: #cffafe !important; }
+html.light .bg-green-500\/20  { background-color: #dcfce7 !important; }
+html.light .bg-red-500\/20    { background-color: #fee2e2 !important; }
+html.light .bg-yellow-500\/20 { background-color: #fef9c3 !important; }
+html.light .bg-orange-500\/5  { background-color: #F8F7FF !important; }
+
+/* Semantic -900 tint backgrounds not previously mapped */
+html.light .bg-sky-900\/30    { background-color: #e0f2fe !important; }
+html.light .bg-teal-900\/30   { background-color: #ccfbf1 !important; }
+html.light .bg-teal-900\/20   { background-color: #ccfbf1 !important; }
+html.light .bg-cyan-900\/40   { background-color: #cffafe !important; }
+html.light .bg-yellow-900\/30 { background-color: #fef9c3 !important; }
+html.light .bg-amber-900\/50  { background-color: #fef3c7 !important; }
+html.light .bg-red-900\/25    { background-color: #fee2e2 !important; }
+html.light .bg-red-900\/15    { background-color: #fef2f2 !important; }
+html.light .bg-red-950\/60    { background-color: #fee2e2 !important; }
+html.light .bg-green-900\/15  { background-color: #dcfce7 !important; }
+html.light .bg-green-900\/5   { background-color: #f0fdf4 !important; }
+html.light .bg-green-950\/60  { background-color: #dcfce7 !important; }
+html.light .bg-green-900\/60  { background-color: #bbf7d0 !important; }
+html.light .bg-orange-900\/15 { background-color: #F5F3FF !important; }
+
+/* Yellow draft-card tints (email history) */
+html.light .bg-yellow-500\/5  { background-color: #fefce8 !important; }
+html.light .bg-yellow-400\/10 { background-color: #fef9c3 !important; }
+
+/* Violet — entirely unmapped previously (find-email button, click-track badges) */
+html.light .bg-violet-900\/20 { background-color: #f5f3ff !important; }
+html.light .bg-violet-900\/30 { background-color: #ede9fe !important; }
+html.light .hover\:bg-violet-900\/30:hover { background-color: #ede9fe !important; }
+html.light .text-violet-400   { color: #7c3aed !important; }
+html.light .hover\:text-violet-300:hover { color: #6d28d9 !important; }
+html.light .border-violet-800\/40 { border-color: #C4B5FD !important; }
+
+/* Text */
+html.light .text-yellow-300 { color: #a16207 !important; }
+
+/* Colored borders not previously mapped */
+html.light .border-red-500\/30    { border-color: #fca5a5 !important; }
+html.light .border-yellow-500\/30 { border-color: #fde047 !important; }
+html.light .border-green-500\/30  { border-color: #86efac !important; }
+html.light .border-yellow-500\/20 { border-color: #fde68a !important; }
+html.light .border-yellow-700\/40 { border-color: #fde047 !important; }
+html.light .border-amber-700\/50  { border-color: #fcd34d !important; }
+html.light .border-amber-700\/30  { border-color: #fcd34d !important; }
+html.light .border-amber-800\/30  { border-color: #fde68a !important; }
+html.light .border-cyan-800\/40   { border-color: #67e8f9 !important; }
+html.light .border-teal-700\/30   { border-color: #5eead4 !important; }
+html.light .border-teal-800\/30   { border-color: #99f6e4 !important; }
+html.light .border-blue-800\/30   { border-color: #bfdbfe !important; }
+html.light .border-purple-800\/30 { border-color: #ddd6fe !important; }
+html.light .border-purple-800\/50 { border-color: #c4b5fd !important; }
+html.light .border-pink-800\/30   { border-color: #fbcfe8 !important; }
+html.light .border-green-800\/20  { border-color: #bbf7d0 !important; }
+html.light .border-green-800\/30  { border-color: #bbf7d0 !important; }
+html.light .border-green-600\/60  { border-color: #16a34a !important; }
+html.light .border-red-600\/60    { border-color: #dc2626 !important; }
+html.light .border-red-800\/50    { border-color: #fca5a5 !important; }
+html.light .border-red-800\/20    { border-color: #fecaca !important; }
+html.light .border-blue-700       { border-color: #93c5fd !important; }
+html.light .border-purple-700     { border-color: #c4b5fd !important; }
+html.light .border-amber-700      { border-color: #fcd34d !important; }
+
+/* Orange (→ violet) borders not previously mapped */
+html.light .border-orange-700      { border-color: #C4B5FD !important; }
+html.light .border-orange-700\/50  { border-color: #C4B5FD !important; }
+html.light .border-orange-700\/25  { border-color: #DDD6FE !important; }
+html.light .border-orange-600\/50  { border-color: #C4B5FD !important; }
+html.light .border-orange-800\/30  { border-color: #DDD6FE !important; }
+
+/* Gradient (close-deal header card) */
+html.light .from-orange-900\/15 {
+  --tw-gradient-from: #F5F3FF var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(245 243 255 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+html.light .to-orange-900\/5 { --tw-gradient-to: #FBFAFF var(--tw-gradient-to-position) !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zoom-in-95 { from { transform: scale(0.95); } to { transform: scale(1); } }

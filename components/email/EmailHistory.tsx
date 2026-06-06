@@ -156,12 +156,13 @@ export function EmailHistory({ leadId, refreshKey, onOpenDraft }: Props) {
                 </p>
               </div>
               <button
-                onClick={e => { e.stopPropagation(); discardDraft() }}
+                onClick={e => { e.stopPropagation(); if (window.confirm('Discard this draft? This cannot be undone.')) discardDraft() }}
                 disabled={deletingDraft}
-                className="shrink-0 text-slate-500 hover:text-red-400 transition-colors p-1 rounded"
+                className="shrink-0 inline-flex items-center justify-center min-w-9 min-h-9 text-slate-500 hover:text-red-400 transition-colors rounded"
                 title="Discard draft"
+                aria-label="Discard draft"
               >
-                {deletingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                {deletingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />}
               </button>
             </div>
           </div>

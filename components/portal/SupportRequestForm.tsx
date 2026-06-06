@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Send } from 'lucide-react'
+import { Send, AlertCircle } from 'lucide-react'
 
 interface Props {
   leadId: string
@@ -26,15 +26,24 @@ export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props
   const [type, setType]       = useState<RequestType>('revision')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
+  const typeId  = useId()
+  const titleId = useId()
+  const descId  = useId()
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) return
+    setError(null)
+    if (!title.trim()) {
+      setError('Please enter a title for your request.')
+      return
+    }
     setLoading(true)
 
-    const { error } = await supabase.from('support_requests').insert({
+    const { error: insertError } = await supabase.from('support_requests').insert({
       lead_id:     leadId,
       client_id:   clientId,
       title:       title.trim(),
@@ -43,7 +52,11 @@ export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props
     })
 
     setLoading(false)
-    if (!error) {
+    if (insertError) {
+      setError('Could not submit your request. Please try again or email us directly.')
+      return
+    }
+    {
       // Notify admins + sales agents in background (non-blocking)
       fetch('/api/support/notify', {
         method: 'POST',
@@ -67,9 +80,17 @@ export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props
     >
       <p className="text-sm font-semibold text-slate-300">Submit a New Request</p>
 
+      {error && (
+        <div role="alert" className="flex items-start gap-2 rounded-lg bg-red-900/30 border border-red-700 px-3 py-2.5 text-sm text-red-300">
+          <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+          {error}
+        </div>
+      )}
+
       <div>
-        <label className="block text-xs text-slate-400 mb-1.5">Request Type</label>
+        <label htmlFor={typeId} className="block text-xs text-slate-400 mb-1.5">Request Type</label>
         <select
+          id={typeId}
           value={type}
           onChange={e => setType(e.target.value as RequestType)}
           className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm
@@ -82,8 +103,9 @@ export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props
       </div>
 
       <div>
-        <label className="block text-xs text-slate-400 mb-1.5">Title</label>
+        <label htmlFor={titleId} className="block text-xs text-slate-400 mb-1.5">Title</label>
         <input
+          id={titleId}
           required
           value={title}
           onChange={e => setTitle(e.target.value)}
@@ -94,8 +116,9 @@ export function SupportRequestForm({ leadId, clientId, companyName = '' }: Props
       </div>
 
       <div>
-        <label className="block text-xs text-slate-400 mb-1.5">Details <span className="text-slate-600">(optional)</span></label>
+        <label htmlFor={descId} className="block text-xs text-slate-400 mb-1.5">Details <span className="text-slate-600">(optional)</span></label>
         <textarea
+          id={descId}
           value={description}
           onChange={e => setDesc(e.target.value)}
           rows={3}

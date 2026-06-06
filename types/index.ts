@@ -105,6 +105,9 @@ export interface Lead {
   competitor_notes?: string
   phone?: string
   email?: string
+  email_verdict?: 'Valid' | 'Risky' | 'Invalid' | string
+  email_score?: number
+  email_validated_at?: string
   source?: LeadSource
   status: PipelineStatus
   priority?: LeadPriority

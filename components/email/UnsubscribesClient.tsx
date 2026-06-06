@@ -66,7 +66,8 @@ export function UnsubscribesClient({ initialLeads }: Props) {
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-slate-800 text-left">
               <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Lead ID</th>
@@ -120,6 +121,7 @@ export function UnsubscribesClient({ initialLeads }: Props) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

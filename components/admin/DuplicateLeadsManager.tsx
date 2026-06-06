@@ -229,7 +229,7 @@ export function DuplicateLeadsManager() {
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => markAsResolved(dup.id, 'merged')}
+                  onClick={() => { if (window.confirm('Mark this duplicate pair as resolved? It will be removed from the review list.')) markAsResolved(dup.id, 'merged') }}
                 >
                   <Trash2 size={14} className="mr-1" />
                   Resolved

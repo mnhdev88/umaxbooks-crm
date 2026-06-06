@@ -94,6 +94,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     verdict: string; score: number; suggestion: string | null;
     checks: { isDisposable: boolean; isRoleAddress: boolean; hasKnownBounces: boolean; hasMxRecord: boolean }
   } | null>(null)
+  const lastValidatedRef = useRef<string>('')
   const router = useRouter()
   const supabase = createClient()
 
@@ -220,6 +221,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       if (data.email) {
         setValue('email', data.email, { shouldDirty: true })
         setEmailFindMsg(`✓ Found via ${data.source === 'website' ? 'website' : 'web search'}`)
+        runEmailValidation(false, data.email)   // auto-check the address we just found
       } else if (data.googleSearchUrl) {
         // Nothing found automatically — open Google search as final fallback
         window.open(data.googleSearchUrl, '_blank', 'noopener')
@@ -234,9 +236,25 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     }
   }
 
-  async function validateEmail() {
-    const email = watch('email')?.trim()
-    if (!email) return
+  // Auto-validates the email. `manual` forces a re-check (bypasses dedupe);
+  // `explicitEmail` lets callers pass a value before RHF state settles (e.g. Find Email).
+  async function runEmailValidation(manual = false, explicitEmail?: string) {
+    const email = (explicitEmail ?? watch('email'))?.trim()
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emptyChecks = { isDisposable: false, isRoleAddress: false, hasKnownBounces: false, hasMxRecord: false }
+
+    if (!email) { setEmailValidation(null); lastValidatedRef.current = ''; return }
+
+    // Local format gate — instant red, no billable API call on malformed input
+    if (!EMAIL_RE.test(email)) {
+      lastValidatedRef.current = ''
+      setEmailValidation({ verdict: 'Invalid', score: 0, suggestion: null, checks: emptyChecks })
+      return
+    }
+
+    // Skip duplicate billable calls for an address we already checked
+    if (!manual && email === lastValidatedRef.current) return
+
     setValidatingEmail(true)
     setEmailValidation(null)
     try {
@@ -247,12 +265,13 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       })
       const data = await res.json()
       if (!res.ok) {
-        setEmailValidation({ verdict: 'Error', score: 0, suggestion: data.error || 'Validation failed', checks: { isDisposable: false, isRoleAddress: false, hasKnownBounces: false, hasMxRecord: false } })
+        setEmailValidation({ verdict: 'Error', score: 0, suggestion: data.error || 'Validation failed', checks: emptyChecks })
       } else {
         setEmailValidation(data)
+        lastValidatedRef.current = email
       }
     } catch {
-      setEmailValidation({ verdict: 'Error', score: 0, suggestion: 'Could not reach validation service', checks: { isDisposable: false, isRoleAddress: false, hasKnownBounces: false, hasMxRecord: false } })
+      setEmailValidation({ verdict: 'Error', score: 0, suggestion: 'Could not reach validation service', checks: emptyChecks })
     } finally {
       setValidatingEmail(false)
     }
@@ -312,6 +331,13 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       assigned_agent_id:  data.assigned_agent_id  || null,
       slug: lead?.slug || slugify(data.company_name) + '-' + Date.now(),
       ...(!lead && { created_by: userId }),
+      // Persist the email-validation verdict so the detail page / list can show it.
+      // Clear it when the email is removed; only write a verdict when one exists this session.
+      ...(data.email?.trim()
+        ? (emailValidation && emailValidation.verdict !== 'Error'
+            ? { email_verdict: emailValidation.verdict, email_score: emailValidation.score ?? null, email_validated_at: new Date().toISOString() }
+            : {})
+        : { email_verdict: null, email_score: null, email_validated_at: null }),
     }
     try {
       if (lead) {
@@ -339,7 +365,8 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
     }
   }
 
-  const F = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 transition-colors'
+  const emailReg = register('email')
+  const F = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 transition-colors'
   const L = 'text-xs font-medium text-slate-400 mb-1 block'
   const S = 'text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2 after:flex-1 after:h-px after:bg-slate-800 mt-5 mb-3'
 
@@ -494,11 +521,18 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           <label className={L}>Email ID</label>
           <div className="flex gap-2">
             <input
-              {...register('email')}
+              {...emailReg}
               type="email"
-              className={cn(F, 'flex-1', errors.email && 'border-red-600')}
+              className={cn(
+                F, 'flex-1',
+                errors.email && 'border-red-600',
+                emailValidation?.verdict === 'Valid' && 'border-emerald-500',
+                emailValidation?.verdict === 'Risky' && 'border-amber-500',
+                (emailValidation?.verdict === 'Invalid' || emailValidation?.verdict === 'Error') && 'border-red-500',
+              )}
               placeholder="dr@email.com"
-              onChange={() => setEmailValidation(null)}
+              onChange={(e) => { emailReg.onChange(e); setEmailValidation(null) }}
+              onBlur={(e) => { emailReg.onBlur(e); runEmailValidation() }}
             />
             <button
               type="button"
@@ -516,15 +550,22 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
             </button>
             <button
               type="button"
-              onClick={validateEmail}
+              onClick={() => runEmailValidation(true)}
               disabled={validatingEmail || !watch('email')?.trim()}
-              title="Validate email deliverability via SendGrid"
+              title="Re-check email deliverability via SendGrid"
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             >
               {validatingEmail ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-              {validatingEmail ? 'Checking…' : 'Validate'}
+              {validatingEmail ? 'Checking…' : 'Re-check'}
             </button>
           </div>
+
+          {/* Auto-validation in progress */}
+          {validatingEmail && (
+            <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-500">
+              <Loader2 size={11} className="animate-spin" /> Checking email…
+            </p>
+          )}
 
           {/* Validation verdict badge */}
           {emailValidation && (
@@ -695,7 +736,6 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
 
       <div className="flex justify-end gap-3 pt-5 pb-1">
         {onSuccess && <Button type="button" variant="ghost" onClick={onSuccess}>Cancel</Button>}
-        <Button type="button" variant="ghost" onClick={onSuccess}>Save as Draft</Button>
         <Button type="submit" loading={loading}>
           {lead ? 'Save Changes' : 'Save Lead'}
         </Button>

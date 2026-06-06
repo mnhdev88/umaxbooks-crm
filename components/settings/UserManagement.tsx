@@ -159,7 +159,7 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
           <div key={u.id} className="flex items-center justify-between px-5 py-3.5 gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {u.full_name.charAt(0).toUpperCase()}
+                {(u.full_name ?? '?').charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">

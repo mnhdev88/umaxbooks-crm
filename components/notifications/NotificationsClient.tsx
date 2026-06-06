@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Notification } from '@/types'
 import { timeAgo } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Bell, Check, Info, CheckCircle2, AlertTriangle, XCircle, ArrowUpRight, RefreshCw,
@@ -37,6 +38,7 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [filter, setFilter] = useState<Filter>('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [markingAll, setMarkingAll] = useState(false)
   const supabase = createClient()
 
   async function refresh() {
@@ -52,6 +54,7 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length
+  const ownUnreadCount = notifications.filter((n) => !n.read && n.user_id === userId).length
 
   useEffect(() => {
     const channel = supabase
@@ -91,14 +94,22 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
   }
 
   async function markAllRead() {
-    await supabase
+    if (markingAll) return
+    setMarkingAll(true)
+    const { error } = await supabase
       .from('notifications')
       .update({ read: true })
       .eq('user_id', userId)
       .eq('read', false)
+    setMarkingAll(false)
+    if (error) {
+      toast.error('Could not mark notifications as read.')
+      return
+    }
     setNotifications((prev) =>
       prev.map((n) => n.user_id === userId ? { ...n, read: true } : n)
     )
+    toast.success('Your notifications marked as read.')
   }
 
   const displayed = filter === 'unread'
@@ -121,22 +132,24 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
             onClick={refresh}
             disabled={refreshing}
             title="Refresh notifications"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+            aria-label="Refresh notifications"
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm
                        bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200
                        transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
-          {unreadCount > 0 && (
+          {ownUnreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
-                         bg-orange-500/15 hover:bg-orange-500/25 text-orange-400
-                         transition-colors font-medium"
+              disabled={markingAll}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm
+                         bg-orange-500/15 hover:bg-orange-500/25 text-orange-300
+                         transition-colors font-medium disabled:opacity-50"
             >
-              <Check size={14} />
-              Mark all read
+              <Check size={14} aria-hidden="true" />
+              {markingAll ? 'Marking…' : 'Mark all read'}
             </button>
           )}
         </div>
@@ -148,6 +161,7 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
           <button
             key={f}
             onClick={() => setFilter(f)}
+            aria-pressed={filter === f}
             className={cn(
               'px-4 py-2.5 text-sm font-medium capitalize border-b-2 -mb-px transition-colors',
               filter === f
@@ -192,7 +206,7 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
                 className={cn(
                   'relative rounded-xl border-l-4 p-4 transition-all',
                   cfg.border,
-                  !n.read && isOwn ? 'bg-slate-800/70' : 'bg-slate-800/30',
+                  !n.read ? 'bg-slate-800/70' : 'bg-slate-800/30',
                   'border border-slate-700/50'
                 )}
               >
@@ -207,12 +221,15 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className={cn(
                         'text-sm font-semibold',
-                        !n.read && isOwn ? 'text-white' : 'text-slate-300'
+                        !n.read ? 'text-white' : 'text-slate-300'
                       )}>
                         {n.title}
                       </p>
-                      {!n.read && isOwn && (
-                        <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                      {!n.read && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-orange-300 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded-full shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500" aria-hidden="true" />
+                          New
+                        </span>
                       )}
                     </div>
                     <p className="text-sm text-slate-400 mt-0.5">{n.message}</p>
@@ -247,9 +264,10 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
                     <button
                       onClick={() => markRead(n.id)}
                       title="Mark as read"
-                      className="shrink-0 p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-slate-700 transition-colors"
+                      aria-label="Mark as read"
+                      className="shrink-0 inline-flex items-center justify-center min-w-9 min-h-9 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-colors"
                     >
-                      <Check size={13} />
+                      <Check size={14} aria-hidden="true" />
                     </button>
                   )}
                 </div>

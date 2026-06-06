@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { TextArea } from '@/components/ui/Input'
 import { Input } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
+import { toast } from 'sonner'
 import { Plus, StickyNote, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface NotesTabProps {
@@ -49,7 +50,7 @@ export function NotesTab({ leadId, userId, userRole, readOnly = false }: NotesTa
       note: form.note.trim(),
     })
     if (error) {
-      alert('Failed to save note: ' + error.message)
+      toast.error('Failed to save note: ' + error.message)
       setLoading(false)
       return
     }

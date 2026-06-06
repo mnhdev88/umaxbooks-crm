@@ -307,21 +307,37 @@ export function ComposeModal({
     }
   }
 
+  // Escape to close + lock background scroll while the modal is open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const currentProvider = providers.find(p => p.id === providerId)
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-6 px-4 pb-6 overflow-y-auto">
-        <div className="bg-[#0E0B24] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-6 px-4 pb-6 overflow-y-auto"
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      >
+        <div role="dialog" aria-modal="true" aria-label="Compose Email" className="bg-[#0E0B24] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <h2 className="text-white font-semibold text-base flex items-center gap-2">
-              <Send className="w-4 h-4 text-orange-400" /> Compose Email
+              <Send className="w-4 h-4 text-orange-400" aria-hidden="true" /> Compose Email
             </h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded transition-colors">
-              <X className="w-5 h-5" />
+            <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center min-w-9 min-h-9 text-slate-400 hover:text-white rounded transition-colors">
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 

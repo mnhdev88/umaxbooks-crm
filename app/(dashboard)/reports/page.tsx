@@ -47,7 +47,7 @@ export default async function ReportsPage() {
         <UserKpiSection isAdmin={profile.role === 'admin'} />
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Total Leads', value: totalLeads, icon: Users, color: 'text-blue-400', bg: 'bg-blue-900/20' },
             { label: 'Closed Won', value: wonLeads, icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-900/20' },
@@ -58,10 +58,10 @@ export default async function ReportsPage() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">{kpi.label}</span>
                 <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center`}>
-                  <kpi.icon size={15} className={kpi.color} />
+                  <kpi.icon size={15} className={kpi.color} aria-hidden="true" />
                 </div>
               </div>
-              <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
+              <p className="text-2xl font-bold text-slate-100 tabular-nums">{kpi.value}</p>
             </div>
           ))}
         </div>
@@ -75,7 +75,7 @@ export default async function ReportsPage() {
                 const count = byStatus[stage] || 0
                 const pct = totalLeads > 0 ? (count / totalLeads) * 100 : 0
                 return (
-                  <div key={stage} className="flex items-center gap-3">
+                  <div key={stage} className="flex items-center gap-3" role="img" aria-label={`${stage}: ${count} leads, ${Math.round(pct)}%`}>
                     <span className="text-xs text-slate-400 w-32 truncate">{stage}</span>
                     <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden">
                       <div
@@ -83,17 +83,17 @@ export default async function ReportsPage() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-xs font-mono text-slate-400 w-8 text-right">{count}</span>
+                    <span className="text-xs font-mono text-slate-400 w-12 text-right">{count} · {Math.round(pct)}%</span>
                   </div>
                 )
               })}
               {lostLeads > 0 && (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3" role="img" aria-label={`Lost: ${lostLeads} leads, ${Math.round((lostLeads / totalLeads) * 100)}%`}>
                   <span className="text-xs text-slate-400 w-32">Lost</span>
                   <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden">
                     <div className="h-full bg-red-600 rounded-full" style={{ width: `${(lostLeads / totalLeads) * 100}%` }} />
                   </div>
-                  <span className="text-xs font-mono text-slate-400 w-8 text-right">{lostLeads}</span>
+                  <span className="text-xs font-mono text-slate-400 w-12 text-right">{lostLeads} · {Math.round((lostLeads / totalLeads) * 100)}%</span>
                 </div>
               )}
             </div>
@@ -107,7 +107,7 @@ export default async function ReportsPage() {
                 <div key={agent.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-xs font-bold">
-                      {agent.full_name.charAt(0)}
+                      {(agent.full_name ?? '?').charAt(0)}
                     </div>
                     <span className="text-sm text-slate-200">{agent.full_name}</span>
                   </div>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell, Receipt } from 'lucide-react'
+import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell, Receipt, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
@@ -19,11 +19,12 @@ const portalNav = [
   { href: '/portal/notifications', label: 'Notifications',  icon: Bell },
 ]
 
-export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Profile; isAdminPreview?: boolean }) {
+export function PortalSidebar({ profile, isAdminPreview = false, isOpen = false, onClose }: { profile: Profile; isAdminPreview?: boolean; isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [signingOut, setSigningOut]   = useState(false)
 
   useEffect(() => {
     fetchUnreadCount()
@@ -46,14 +47,21 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
   }
 
   async function handleLogout() {
+    if (signingOut) return
+    setSigningOut(true)
     await supabase.auth.signOut()
     router.push('/login')
   }
 
   return (
-    <aside className="w-60 bg-[#0E0B24] border-r border-slate-800 flex flex-col sticky top-0 h-screen shrink-0">
+    <aside className={cn(
+      'w-60 bg-[#0E0B24] border-r border-slate-800 flex flex-col shrink-0',
+      'fixed inset-y-0 left-0 z-50 transition-transform duration-300',
+      'lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:translate-x-0 lg:visible lg:pointer-events-auto',
+      isOpen ? 'translate-x-0' : '-translate-x-full invisible pointer-events-none'
+    )}>
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-slate-800">
+      <div className="px-5 py-5 border-b border-slate-800 flex items-center justify-between">
         <div className="bg-white rounded-xl px-3 py-1.5 inline-block">
           <Image
             src="https://noveliotech.com/logo.png"
@@ -64,6 +72,13 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
             unoptimized
           />
         </div>
+        <button
+          onClick={onClose}
+          aria-label="Close menu"
+          className="lg:hidden inline-flex items-center justify-center min-w-11 min-h-11 -mr-2 text-slate-500 hover:text-white rounded transition-colors"
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
       </div>
 
       {/* User info */}
@@ -71,7 +86,7 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-700
                           flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {profile.full_name.charAt(0).toUpperCase()}
+            {(profile.full_name ?? '?').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-100 truncate">{profile.full_name}</p>
@@ -89,14 +104,16 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
             <Link
               key={href}
               href={href}
+              onClick={onClose}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
+                'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150',
                 active
-                  ? 'bg-orange-500/15 text-orange-400 font-medium'
+                  ? 'bg-orange-500/15 text-orange-300 font-medium'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
               )}
             >
-              <Icon size={16} />
+              <Icon size={16} aria-hidden="true" />
               <span className="flex-1">{label}</span>
               {showBadge && (
                 <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
@@ -112,11 +129,12 @@ export function PortalSidebar({ profile, isAdminPreview = false }: { profile: Pr
       <div className="px-3 pb-4">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                     text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-all duration-150"
+          disabled={signingOut}
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm
+                     text-slate-400 hover:text-red-400 hover:bg-red-900/20 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <LogOut size={16} />
-          Sign out
+          <LogOut size={16} aria-hidden="true" />
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </aside>

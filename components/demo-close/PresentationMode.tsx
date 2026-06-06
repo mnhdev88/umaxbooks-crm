@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { cn } from '@/lib/utils'
 import { X, ChevronLeft, ChevronRight, CheckCircle, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -59,11 +59,29 @@ function SiteBeforeMockup() {
 export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, appointment }: PresentationModeProps) {
   const [current, setCurrent] = useState(0)
 
-  if (!isOpen) return null
-
   function go(n: number) { setCurrent(Math.max(0, Math.min(n, TOTAL - 1))) }
   function next() { if (current === TOTAL - 1) { onClose(); return } go(current + 1) }
   function prev() { go(current - 1) }
+
+  // Keyboard navigation: arrows/space advance, Escape exits. Lock body scroll while open.
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      else if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next() }
+      else if (e.key === 'ArrowLeft') prev()
+    }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, current])
+
+  if (!isOpen) return null
 
   const impactData: Record<string, string> = (() => {
     try { return JSON.parse(comparison?.impact_data || '{}') } catch { return {} }
@@ -79,9 +97,9 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
   ]
 
   return (
-    <div className="fixed inset-0 bg-[#0e1525] z-[500] flex flex-col">
+    <div className="fixed inset-0 bg-[#0e1525] z-[500] flex flex-col" role="dialog" aria-modal="true" aria-label={`${lead?.company_name ?? 'Demo'} presentation`}>
       {/* Topbar */}
-      <div className="bg-[#0E0B24] border-b border-slate-800 px-6 h-14 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#0E0B24] border-b border-slate-800 px-6 min-h-14 py-2 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
         <p className="text-sm font-semibold text-slate-100">
           {lead?.company_name} — Demo Presentation
         </p>
@@ -89,13 +107,14 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
           {/* Step indicators */}
           <div className="flex items-center gap-2">
             {Array.from({ length: TOTAL }).map((_, i) => (
-              <>
-                {i > 0 && <div key={`line-${i}`} className="w-5 h-0.5 bg-slate-700" />}
+              <Fragment key={i}>
+                {i > 0 && <div className="hidden sm:block w-5 h-0.5 bg-slate-700" />}
                 <button
-                  key={i}
                   onClick={() => go(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  aria-current={i === current ? 'step' : undefined}
                   className={cn(
-                    'w-7 h-7 rounded-full text-xs font-bold border-2 transition-all',
+                    'w-9 h-9 rounded-full text-xs font-bold border-2 transition-all',
                     i < current  ? 'bg-green-900/30 border-green-500 text-green-300'
                     : i === current ? 'bg-orange-900/30 border-orange-500 text-orange-300'
                     : 'bg-slate-800 border-slate-600 text-slate-500'
@@ -103,14 +122,15 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
                 >
                   {i < current ? '✓' : i + 1}
                 </button>
-              </>
+              </Fragment>
             ))}
           </div>
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1.5 transition-colors"
+            aria-label="Exit presentation"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-2 transition-colors"
           >
-            <X size={12} /> Exit Presentation
+            <X size={12} aria-hidden="true" /> Exit Presentation
           </button>
         </div>
       </div>
@@ -129,7 +149,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
                 We ran a full SEO and performance audit on your existing website. Then our team built a demo version that fixes the top issues. This call is to walk you through exactly what changed and why it matters for your business.
               </p>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                   { val: 'FREE',   sub: 'This audit & demo. No obligation.', cls: 'text-amber-400' },
                   { val: '7 days', sub: 'Delivery after you say yes.',        cls: 'text-teal-400' },
@@ -150,7 +170,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Before vs After</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-2">Your old site vs the new demo</h2>
               <p className="text-slate-400 text-sm mb-6">Same business. Very different first impression — and very different Google ranking.</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Before */}
                 <div className="border border-red-900/40 rounded-xl overflow-hidden">
                   <div className="bg-red-900/20 px-3 py-2 text-xs font-semibold text-red-400">
@@ -184,7 +204,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
               <h2 className="text-2xl font-bold text-slate-100 mb-2">Every number that matters — improved.</h2>
               <p className="text-slate-400 text-sm mb-6">These aren't design changes. These are ranking and revenue changes.</p>
               {metrics.length > 0 ? (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {metrics.slice(0, 6).map((m, i) => (
                     <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
                       <p className="text-xs text-red-400 mb-1">{m.before_value || '—'}</p>
@@ -206,7 +226,7 @@ export function PresentationMode({ isOpen, onClose, lead, comparison, metrics, a
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What This Means for Your Business</p>
               <h2 className="text-2xl font-bold text-slate-100 mb-2">More visibility. More enquiries. More revenue.</h2>
               <p className="text-slate-400 text-sm mb-5">The numbers above translate directly into customers you're currently losing to competitors.</p>
-              <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                 {IMPACT_DEFAULTS.map(c => (
                   <div key={c.key} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
                     <p className="text-2xl font-bold text-green-400 mb-1">{c.num}</p>

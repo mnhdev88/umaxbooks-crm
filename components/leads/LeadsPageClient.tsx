@@ -371,7 +371,8 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name, company, city, website, phone..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
+            aria-label="Search leads"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
           />
         </div>
         {[
@@ -381,7 +382,8 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
           { val: cityFilter,   set: setCityFilter,   opts: cities as string[], placeholder: 'All Cities' },
         ].map((f, i) => (
           <select key={i} value={f.val} onChange={e => f.set(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 focus:outline-none focus:border-orange-500 cursor-pointer">
+            aria-label={f.placeholder}
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 cursor-pointer">
             <option value="">{f.placeholder}</option>
             {f.opts.map((o, j) => <option key={o} value={o}>{f.labels ? f.labels[j] : o}</option>)}
           </select>
@@ -405,6 +407,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                 {canEdit && (
                   <th scope="col" className="w-9 px-3 py-3">
                     <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
+                      aria-label="Select all leads"
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
@@ -424,6 +427,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                   {canEdit && (
                     <td className="px-3 py-3">
                       <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
+                        aria-label={`Select ${lead.name}`}
                         checked={selectedIds.has(lead.id)}
                         onChange={e => {
                           const n = new Set(selectedIds)
@@ -473,8 +477,8 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                     {lead.gmb_last_seen ? new Date(lead.gmb_last_seen).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—'}
                   </td>
                   <td className="px-3 py-3">
-                    {lead.competitor_count != null && lead.competitor_count > 0 ? (
-                      <span className={cn('text-xs font-medium', lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400')}>
+                    {lead.competitor_count != null ? (
+                      <span className={cn('text-xs font-medium', lead.competitor_count === 0 ? 'text-slate-500' : lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400')}>
                         {lead.competitor_count} nearby
                       </span>
                     ) : <span className="text-slate-600 text-xs">—</span>}
@@ -491,13 +495,15 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-1.5">
                       <Link href={`/leads/${lead.id}`}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
-                        <Eye size={12} />
+                        aria-label={`View ${lead.name}`}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                        <Eye size={14} aria-hidden="true" />
                       </Link>
                       {canEdit && (
                         <button onClick={() => setEditLead(lead)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
-                          <Edit2 size={12} />
+                          aria-label={`Edit ${lead.name}`}
+                          className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                          <Edit2 size={14} aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -520,23 +526,27 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
           <span>Showing {Math.min((page - 1) * PER_PAGE + 1, filtered.length)}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} leads</span>
           <div className="flex items-center gap-1">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="w-7 h-7 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
-              <ChevronLeft size={13} />
+              aria-label="Previous page"
+              className="w-8 h-8 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronLeft size={13} aria-hidden="true" />
             </button>
             {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
               const p = page <= 3 ? i + 1 : page - 2 + i
               if (p > totalPages) return null
               return (
                 <button key={p} onClick={() => setPage(p)}
-                  className={cn('w-7 h-7 flex items-center justify-center rounded border text-xs',
+                  aria-label={`Page ${p}`}
+                  aria-current={p === page ? 'page' : undefined}
+                  className={cn('w-8 h-8 flex items-center justify-center rounded border text-xs',
                     p === page ? 'border-orange-500 text-orange-400 bg-orange-900/20' : 'border-slate-700 text-slate-400 hover:bg-slate-800')}>
                   {p}
                 </button>
               )
             })}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages || totalPages === 0}
-              className="w-7 h-7 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
-              <ChevronRight size={13} />
+              aria-label="Next page"
+              className="w-8 h-8 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight size={13} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -545,14 +555,14 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
       {/* ── Add Lead Modal ─────────────────────────────────────── */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowAdd(false)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label="Add New Lead" className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
               <div>
                 <p className="text-base font-semibold text-slate-100">Add New Lead</p>
                 <p className="text-xs text-slate-500 mt-0.5">Fill all required fields. GMB fields auto-populate when URL is entered.</p>
               </div>
-              <button onClick={() => setShowAdd(false)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
-                <X size={14} />
+              <button onClick={() => setShowAdd(false)} aria-label="Close" className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-4">
@@ -570,14 +580,14 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
       {/* ── Edit Lead Modal ────────────────────────────────────── */}
       {editLead && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setEditLead(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label="Edit Lead" className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
               <div>
                 <p className="text-base font-semibold text-slate-100">Edit Lead</p>
                 <p className="text-xs text-slate-500 mt-0.5">{editLead.company_name}</p>
               </div>
-              <button onClick={() => setEditLead(null)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
-                <X size={14} />
+              <button onClick={() => setEditLead(null)} aria-label="Close" className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-4">
@@ -595,14 +605,14 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
       {/* ── Bulk Import Modal ──────────────────────────────────── */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={resetImport}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-label="Bulk Import Leads" className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
               <div>
                 <p className="text-base font-semibold text-slate-100">Bulk Import Leads</p>
                 <p className="text-xs text-slate-500 mt-0.5">Upload CSV · Map columns · Preview · Import</p>
               </div>
-              <button onClick={resetImport} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
-                <X size={14} />
+              <button onClick={resetImport} aria-label="Close" className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500">
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
 

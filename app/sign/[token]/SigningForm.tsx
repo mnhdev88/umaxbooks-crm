@@ -290,28 +290,64 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
   const [error,    setError]    = useState('')
   const [done,     setDone]     = useState(false)
   const [pdfUrl,   setPdfUrl]   = useState<string | null>(null)
+  const [scriptsReady, setScriptsReady] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const hasSigRef = useRef(false)
 
-  // Load html2canvas + jsPDF from CDN (used separately so we control the container)
+  // Load html2canvas + jsPDF from CDN, tracking success/failure so we can warn the user
   useEffect(() => {
-    const load = (src: string) => {
-      const s = document.createElement('script')
-      s.src = src
-      document.head.appendChild(s)
-    }
-    if (!window.html2canvas) load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-    if (!window.jspdf)       load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    let cancelled = false
+    const ensure = (src: string, check: () => boolean) =>
+      new Promise<boolean>((resolve) => {
+        if (check()) return resolve(true)
+        const s = document.createElement('script')
+        s.src = src
+        s.async = true
+        s.onload = () => resolve(true)
+        s.onerror = () => resolve(false)
+        document.head.appendChild(s)
+      })
+    Promise.all([
+      ensure('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => !!window.html2canvas),
+      ensure('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => !!window.jspdf),
+    ]).then(([a, b]) => { if (!cancelled) setScriptsReady(a && b) })
+    return () => { cancelled = true }
   }, [])
 
-  // Init canvas
+  // Init canvas — scale for device pixel ratio and preserve the drawing across resizes
   useEffect(() => {
     const c = canvasRef.current
     if (!c) return
-    const resize = () => { if (c.offsetWidth > 0) c.width = c.offsetWidth }
-    resize()
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
+    const ctx = c.getContext('2d')!
+    const CSS_H = 110
+
+    const setup = () => {
+      const cssW = c.offsetWidth
+      if (cssW <= 0) return
+      const dpr = window.devicePixelRatio || 1
+      // Preserve any existing signature before resizing the backing store
+      const prev = (c.width > 0 && c.height > 0 && hasSigRef.current) ? c.toDataURL() : null
+      c.style.height = CSS_H + 'px'
+      c.width  = Math.round(cssW * dpr)
+      c.height = Math.round(CSS_H * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.strokeStyle = '#1F3A93'
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      if (prev) {
+        const img = new Image()
+        img.onload = () => ctx.drawImage(img, 0, 0, cssW, CSS_H)
+        img.src = prev
+      }
+    }
+
+    setup()
+    let t: ReturnType<typeof setTimeout>
+    const onResize = () => { clearTimeout(t); t = setTimeout(setup, 150) }
+    window.addEventListener('resize', onResize)
+    return () => { window.removeEventListener('resize', onResize); clearTimeout(t) }
   }, [])
 
   function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
@@ -338,12 +374,22 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
     ctx.strokeStyle = '#1F3A93'; ctx.lineWidth = 2; ctx.lineCap = 'round'
     ctx.stroke()
     setHasSig(true)
+    hasSigRef.current = true
   }
 
   function clearSig() {
     const c = canvasRef.current!
-    c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
+    const ctx = c.getContext('2d')!
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, c.width, c.height)
+    ctx.restore()
     setHasSig(false)
+    hasSigRef.current = false
+  }
+
+  function toggleCardType(ct: string) {
+    setPayment(p => ({ ...p, card_type: ct }))
   }
 
   function setP(k: string) {
@@ -498,6 +544,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
               <a
                 href={pdfUrl}
                 target="_blank"
+                rel="noopener noreferrer"
                 style={{ display: 'inline-block', background: '#1F3A93', color: '#fff', padding: '14px 32px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '14px' }}
               >
                 Download Signed Agreement (PDF)
@@ -582,13 +629,17 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
                 <input value={payment.name_on_card} onChange={setP('name_on_card')} placeholder="As printed on card" />
               </div>
               <div>
-                <label>Card Type <span className="req">*</span></label>
-                <div className="cbadges">
+                <label id="cardTypeLabel">Card Type <span className="req">*</span></label>
+                <div className="cbadges" role="radiogroup" aria-labelledby="cardTypeLabel">
                   {CARD_TYPES.map(ct => (
                     <div
                       key={ct}
+                      role="radio"
+                      tabIndex={0}
+                      aria-checked={payment.card_type === ct}
                       className={`cbadge${payment.card_type === ct ? ' on' : ''}`}
-                      onClick={() => setPayment(p => ({ ...p, card_type: ct }))}
+                      onClick={() => toggleCardType(ct)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCardType(ct) } }}
                     >
                       {ct.toUpperCase()}
                     </div>
@@ -660,8 +711,12 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
               {ACKS.map((txt, i) => (
                 <div
                   key={i}
+                  role="checkbox"
+                  tabIndex={0}
+                  aria-checked={acks[i]}
                   className={`chk${acks[i] ? ' on' : ''}`}
                   onClick={() => toggleAck(i)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAck(i) } }}
                 >
                   <div className="chk-box" />
                   <span className="chk-txt">{txt}</span>
@@ -680,11 +735,16 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
                 <canvas
                   ref={canvasRef}
                   height={110}
+                  role="img"
+                  aria-label="Signature pad — draw your signature using your mouse or finger"
                   className={hasSig ? 'signed' : ''}
                   onMouseDown={onDown} onMouseMove={onMove}
                   onMouseUp={() => setDrawing(false)} onMouseLeave={() => setDrawing(false)}
                   onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={() => setDrawing(false)}
                 />
+                <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                  Draw your signature in the box above.
+                </p>
                 {hasSig && (
                   <button type="button" className="clr" onClick={clearSig}>✕ Clear</button>
                 )}
@@ -697,7 +757,10 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
                 <div className="row">
                   <div>
                     <label>Date Signed</label>
-                    <input type="date" value={payment.client_sign_date} onChange={setP('client_sign_date')} />
+                    <input type="date" value={payment.client_sign_date} readOnly aria-readonly="true" />
+                    <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                      Recorded automatically as today&apos;s date.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -726,9 +789,17 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
 
           {/* Error message */}
           {error && (
-            <div className={`msg err show`} style={{ margin: '0 32px 16px' }}>
+            <div role="alert" className={`msg err show`} style={{ margin: '0 32px 16px' }}>
               ⚠️ &nbsp;{error}
             </div>
+          )}
+
+          {/* Downloadable-copy readiness notice */}
+          {!scriptsReady && (
+            <p style={{ margin: '0 32px 12px', fontSize: '12px', color: '#9ca3af' }}>
+              Preparing your downloadable copy… You can still sign now; if the copy isn&apos;t ready,
+              your signed agreement is recorded and we&apos;ll email you a PDF.
+            </p>
           )}
 
           {/* Submit */}

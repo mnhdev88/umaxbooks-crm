@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { Plus, X, Trash2, Edit2, Save, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface EmailTemplate {
@@ -45,19 +46,23 @@ export function EmailTemplates() {
   async function save() {
     if (!form.name || !form.html_body) return
     setSaving(true)
-    if (editId) {
-      await supabase.from('email_templates').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editId)
-    } else {
-      await supabase.from('email_templates').insert(form)
-    }
+    const { error } = editId
+      ? await supabase.from('email_templates').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editId)
+      : await supabase.from('email_templates').insert(form)
     setSaving(false)
+    if (error) {
+      toast.error('Could not save template: ' + error.message)
+      return
+    }
+    toast.success('Template saved.')
     cancel()
     load()
   }
 
   async function remove(id: string) {
     if (!confirm('Delete this template?')) return
-    await supabase.from('email_templates').delete().eq('id', id)
+    const { error } = await supabase.from('email_templates').delete().eq('id', id)
+    if (error) { toast.error('Could not delete template.'); return }
     load()
   }
 

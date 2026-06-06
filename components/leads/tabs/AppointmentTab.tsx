@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { US_TIMEZONES, getTimezoneFromZip, localToUTC, formatDualTime } from '@/lib/timezone'
+import { toast } from 'sonner'
 import { Phone, Calendar, Video, FileText, ClipboardList, Globe, MapPin, Info, Bell, Clock, CheckCircle2 } from 'lucide-react'
 
 interface AppointmentTabProps {
@@ -165,7 +166,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     })
     if (!statusRes.ok) {
       const err = await statusRes.json().catch(() => ({}))
-      alert(`Failed to update lead status: ${err.error || statusRes.statusText}`)
+      toast.error(`Failed to update lead status: ${err.error || statusRes.statusText}`)
     }
 
     await supabase.from('activity_logs').insert({
@@ -207,7 +208,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     })
     if (!demoStatusRes.ok) {
       const err = await demoStatusRes.json().catch(() => ({}))
-      alert(`Failed to update lead status: ${err.error || demoStatusRes.statusText}`)
+      toast.error(`Failed to update lead status: ${err.error || demoStatusRes.statusText}`)
     }
 
     // Notify developers

@@ -65,7 +65,8 @@ export function UserKpiSection({ isAdmin }: Props) {
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+              aria-pressed={period === p}
+              className={`text-xs px-3 py-2 rounded-md transition-colors ${
                 period === p
                   ? 'bg-orange-500 text-white font-medium'
                   : 'text-slate-400 hover:text-slate-200'
@@ -90,7 +91,7 @@ export function UserKpiSection({ isAdmin }: Props) {
               {/* User header */}
               <div className="flex items-center gap-3 mb-4">
                 <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${ROLE_COLORS[u.role] || 'from-slate-500 to-slate-700'} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-                  {u.full_name.charAt(0).toUpperCase()}
+                  {(u.full_name ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white truncate">{u.full_name}</p>

@@ -52,19 +52,19 @@ export default async function PortalBeforeAfterPage() {
 
       {/* Screenshot comparison */}
       {(comp?.before_screenshot_url || comp?.after_screenshot_url) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {comp.before_screenshot_url && (
             <div className="rounded-xl overflow-hidden border border-slate-700">
               <p className="text-xs text-slate-500 px-3 py-2 bg-slate-800/80">Before</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={comp.before_screenshot_url} alt="Before" className="w-full object-cover" />
+              <img src={comp.before_screenshot_url} alt="Previous website homepage" loading="lazy" className="w-full aspect-[16/10] object-cover object-top" />
             </div>
           )}
           {comp.after_screenshot_url && (
             <div className="rounded-xl overflow-hidden border border-orange-500/30">
               <p className="text-xs text-orange-400 px-3 py-2 bg-slate-800/80">After</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={comp.after_screenshot_url} alt="After" className="w-full object-cover" />
+              <img src={comp.after_screenshot_url} alt="Redesigned website homepage" loading="lazy" className="w-full aspect-[16/10] object-cover object-top" />
             </div>
           )}
         </div>
