@@ -147,17 +147,18 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       // Fetch author names separately to avoid FK join failures
       const authorIds = [...new Set(noteRows.map((n: any) => n.user_id).filter(Boolean))]
       const { data: authorProfiles } = authorIds.length
-        ? await supabase.from('profiles').select('id, full_name').in('id', authorIds)
+        ? await supabase.from('profiles').select('id, full_name, role').in('id', authorIds)
         : { data: [] }
-      const authorMap = new Map((authorProfiles || []).map((p: any) => [p.id, p.full_name]))
+      const authorMap = new Map((authorProfiles || []).map((p: any) => [p.id, p]))
 
       // Group notes by lead_id with author resolved
       const notesByLead = new Map<string, any[]>()
       for (const n of noteRows) {
         if (!notesByLead.has(n.lead_id)) notesByLead.set(n.lead_id, [])
+        const author = authorMap.get(n.user_id)
         notesByLead.get(n.lead_id)!.push({
           ...n,
-          author: { full_name: authorMap.get(n.user_id) ?? null },
+          author: { full_name: author?.full_name ?? null, role: author?.role ?? null },
         })
       }
 

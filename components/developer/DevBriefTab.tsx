@@ -146,24 +146,40 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
         )}
       </div>
 
-      {/* Agent notes thread */}
+      {/* Agent ↔ developer notes thread */}
       {lead.audit_notes_list?.length > 0 && (
         <div className="bg-amber-900/15 border border-amber-700/30 rounded-xl p-4">
           <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Bell size={12} /> Agent Instructions ({lead.audit_notes_list.length})
+            <Bell size={12} /> Audit Thread ({lead.audit_notes_list.length})
           </p>
+          <p className="text-[10px] text-slate-500 -mt-2 mb-3">Reply from the Audit Reports tab.</p>
           <div className="space-y-2.5">
-            {lead.audit_notes_list.map((n: any, i: number) => (
-              <div key={n.id ?? i} className="bg-slate-900/60 border border-slate-700/40 rounded-lg px-3 py-2.5">
+            {lead.audit_notes_list.map((n: any, i: number) => {
+              const isDevNote = n.author?.role === 'developer'
+              return (
+              <div key={n.id ?? i} className={cn(
+                'border rounded-lg px-3 py-2.5',
+                isDevNote ? 'bg-cyan-900/15 border-cyan-700/40' : 'bg-slate-900/60 border-slate-700/40'
+              )}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold text-orange-400">{n.author?.full_name ?? 'Agent'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className={cn('text-xs font-semibold', isDevNote ? 'text-cyan-400' : 'text-orange-400')}>
+                      {n.author?.full_name ?? (isDevNote ? 'Developer' : 'Agent')}
+                    </span>
+                    <span className={cn(
+                      'text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                      isDevNote ? 'bg-cyan-900/40 text-cyan-300' : 'bg-orange-900/40 text-orange-300'
+                    )}>
+                      {isDevNote ? 'Developer' : 'Agent'}
+                    </span>
+                  </span>
                   <span className="text-[10px] text-slate-500">
                     {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
                 <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{n.note}</p>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}

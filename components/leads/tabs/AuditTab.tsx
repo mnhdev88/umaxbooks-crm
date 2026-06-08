@@ -194,7 +194,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [gmbSaved, setGmbSaved] = useState(false)
 
   // Agent notes thread
-  const [auditNotes, setAuditNotes] = useState<{ id: string; note: string; created_at: string; author: { full_name: string } | null }[]>([])
+  const [auditNotes, setAuditNotes] = useState<{ id: string; note: string; created_at: string; user_id: string; author: { full_name: string; role: string } | null }[]>([])
   const [newNoteText, setNewNoteText] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
@@ -242,7 +242,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   async function fetchAuditNotes() {
     const { data } = await supabase
       .from('audit_notes')
-      .select('id, note, created_at, author:profiles!audit_notes_user_id_fkey(full_name)')
+      .select('id, note, created_at, user_id, author:profiles!audit_notes_user_id_fkey(full_name, role)')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: true })
     if (data) setAuditNotes(data as any)
@@ -363,9 +363,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     if (!newNoteText.trim()) return
     setSavingNotes(true)
 
-    // Stages where notifying the developer should also move the lead to Audit Ready
-    const EARLY_STAGES = new Set(['New', 'Contacted', 'Callback Booked'])
-    const shouldPromote = leadStatus && EARLY_STAGES.has(leadStatus)
+    const preview = newNoteText.trim().slice(0, 120) + (newNoteText.length > 120 ? '…' : '')
 
     try {
       await supabase.from('audit_notes').insert({
@@ -374,40 +372,76 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
         note: newNoteText.trim(),
       })
 
-      // Move lead to Audit Ready so it appears in the Dev Queue immediately
-      if (shouldPromote) {
-        await supabase
-          .from('leads')
-          .update({ status: 'Audit Ready', updated_at: new Date().toISOString() })
-          .eq('id', leadId)
+      if (isDev) {
+        // ── Developer reply ── notify the agents on this thread + the assigned agent
+        const recipientIds = new Set<string>()
+        for (const n of auditNotes) {
+          if (n.user_id && n.user_id !== userId && n.author?.role && n.author.role !== 'developer') {
+            recipientIds.add(n.user_id)
+          }
+        }
+        const { data: leadRow } = await supabase
+          .from('leads').select('assigned_agent_id').eq('id', leadId).single()
+        if (leadRow?.assigned_agent_id && leadRow.assigned_agent_id !== userId) {
+          recipientIds.add(leadRow.assigned_agent_id)
+        }
+
+        if (recipientIds.size) {
+          await supabase.from('notifications').insert(
+            [...recipientIds].map(id => ({
+              user_id: id,
+              lead_id: leadId,
+              title: `💬 Developer Reply — ${businessName || 'Lead'}`,
+              message: preview,
+              type: 'info',
+            }))
+          )
+        }
 
         await supabase.from('activity_logs').insert({
           lead_id: leadId, user_id: userId,
-          action: 'Status Changed',
-          details: `Status moved to Audit Ready — developer notified`,
+          action: 'Developer Reply Added',
+          details: newNoteText.trim().slice(0, 100),
+        })
+      } else {
+        // ── Agent note ── optionally promote the lead, then notify all developers
+        const EARLY_STAGES = new Set(['New', 'Contacted', 'Callback Booked'])
+        const shouldPromote = leadStatus && EARLY_STAGES.has(leadStatus)
+
+        // Move lead to Audit Ready so it appears in the Dev Queue immediately
+        if (shouldPromote) {
+          await supabase
+            .from('leads')
+            .update({ status: 'Audit Ready', updated_at: new Date().toISOString() })
+            .eq('id', leadId)
+
+          await supabase.from('activity_logs').insert({
+            lead_id: leadId, user_id: userId,
+            action: 'Status Changed',
+            details: `Status moved to Audit Ready — developer notified`,
+          })
+        }
+
+        // Notify all developers
+        const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
+        if (devs?.length) {
+          await supabase.from('notifications').insert(
+            devs.map(d => ({
+              user_id: d.id,
+              lead_id: leadId,
+              title: `${shouldPromote ? '🟡 Audit Ready — ' : ''}Agent Note — ${businessName || 'Lead'}`,
+              message: preview,
+              type: 'info',
+            }))
+          )
+        }
+
+        await supabase.from('activity_logs').insert({
+          lead_id: leadId, user_id: userId,
+          action: 'Audit Note Added',
+          details: newNoteText.trim().slice(0, 100),
         })
       }
-
-      // Notify all developers
-      const preview = newNoteText.trim().slice(0, 120) + (newNoteText.length > 120 ? '…' : '')
-      const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
-      if (devs?.length) {
-        await supabase.from('notifications').insert(
-          devs.map(d => ({
-            user_id: d.id,
-            lead_id: leadId,
-            title: `${shouldPromote ? '🟡 Audit Ready — ' : ''}Agent Note — ${businessName || 'Lead'}`,
-            message: preview,
-            type: 'info',
-          }))
-        )
-      }
-
-      await supabase.from('activity_logs').insert({
-        lead_id: leadId, user_id: userId,
-        action: 'Audit Note Added',
-        details: newNoteText.trim().slice(0, 100),
-      })
 
       setNewNoteText('')
       setNotesSaved(true)
@@ -604,10 +638,25 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
           {/* Saved notes list */}
           {auditNotes.length > 0 && (
             <div className="space-y-2.5">
-              {auditNotes.map(n => (
-                <div key={n.id} className="bg-slate-900/60 border border-slate-700/60 rounded-lg px-3 py-2.5">
+              {auditNotes.map(n => {
+                const isDevNote = n.author?.role === 'developer'
+                return (
+                <div key={n.id} className={cn(
+                  'border rounded-lg px-3 py-2.5',
+                  isDevNote ? 'bg-cyan-900/15 border-cyan-700/40' : 'bg-slate-900/60 border-slate-700/60'
+                )}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-orange-400">{n.author?.full_name ?? 'Agent'}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={cn('text-xs font-semibold', isDevNote ? 'text-cyan-400' : 'text-orange-400')}>
+                        {n.author?.full_name ?? (isDevNote ? 'Developer' : 'Agent')}
+                      </span>
+                      <span className={cn(
+                        'text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                        isDevNote ? 'bg-cyan-900/40 text-cyan-300' : 'bg-orange-900/40 text-orange-300'
+                      )}>
+                        {isDevNote ? 'Developer' : 'Agent'}
+                      </span>
+                    </span>
                     <span className="text-[10px] text-slate-500">
                       {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       {' · '}
@@ -616,19 +665,24 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{n.note}</p>
                 </div>
-              ))}
+              )})}
             </div>
           )}
 
-          {/* Input — only for non-developers */}
-          {canNote && (
+          {/* Input — agents post instructions, developers reply back */}
+          {(canNote || isDev) && (
             <>
               <textarea
                 value={newNoteText}
                 onChange={e => setNewNoteText(e.target.value)}
-                placeholder="Add instructions for the developer — focus areas, competitor info, client priorities…"
+                placeholder={isDev
+                  ? 'Reply to the agent — questions, blockers, or a status update…'
+                  : 'Add instructions for the developer — focus areas, competitor info, client priorities…'}
                 rows={3}
-                className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500 resize-none"
+                className={cn(
+                  'w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none',
+                  isDev ? 'focus:border-cyan-500' : 'focus:border-orange-500'
+                )}
               />
               <div className="flex items-center gap-2">
                 <Button
@@ -636,13 +690,18 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                   onClick={handleSaveNote}
                   loading={savingNotes}
                   disabled={!newNoteText.trim()}
-                  className="bg-orange-500 hover:bg-orange-600 text-white border-0"
+                  className={cn(
+                    'text-white border-0',
+                    isDev ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-orange-500 hover:bg-orange-600'
+                  )}
                 >
-                  <Bell size={13} /> Save & Notify Developer
+                  {isDev
+                    ? <><Send size={13} /> Send Reply</>
+                    : <><Bell size={13} /> Save & Notify Developer</>}
                 </Button>
                 {notesSaved && (
                   <span className="text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle size={12} /> Saved &amp; notified
+                    <CheckCircle size={12} /> {isDev ? 'Reply sent' : 'Saved & notified'}
                   </span>
                 )}
               </div>
