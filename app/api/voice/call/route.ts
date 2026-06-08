@@ -21,7 +21,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { phone?: string; name?: string; company?: string; leadId?: string }
+  let body: {
+    phone?: string
+    name?: string
+    company?: string
+    city?: string
+    businessType?: string
+    website?: string
+    demoReady?: boolean
+    leadId?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -36,6 +45,10 @@ export async function POST(req: NextRequest) {
     phone: body.phone,
     name: body.name,
     company: body.company,
+    city: body.city,
+    businessType: body.businessType,
+    website: body.website,
+    demoReady: body.demoReady,
     leadId: body.leadId,
   })
 

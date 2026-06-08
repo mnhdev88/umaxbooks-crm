@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const service = createServiceClient()
   const { data: lead } = await service
     .from('leads')
-    .select('id, name, company_name, phone')
+    .select('id, name, company_name, phone, city, business_type, gmb_category, website_url')
     .eq('id', body.leadId)
     .single()
 
@@ -39,10 +39,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This lead has no phone number on file.' }, { status: 422 })
   }
 
+  // Has a demo site actually been built for this lead? If so, the agent may use the
+  // "we already built you a website" close; otherwise it offers to build one (no false claim).
+  const { data: approval } = await service
+    .from('project_approvals')
+    .select('demo_url')
+    .eq('lead_id', lead.id)
+    .not('demo_url', 'is', null)
+    .limit(1)
+    .maybeSingle()
+  const demoReady = !!approval?.demo_url
+
   const result = await startOutboundCall({
     phone: lead.phone,
     name: lead.name,
     company: lead.company_name,
+    city: lead.city,
+    // Prefer the explicit business_type; fall back to the Google Business category.
+    businessType: lead.business_type || lead.gmb_category,
+    website: lead.website_url,
+    demoReady,
     leadId: lead.id,
   })
 
