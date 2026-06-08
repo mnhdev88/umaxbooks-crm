@@ -29,14 +29,14 @@ export function ContractTab({ lead, profile, userId }: Props) {
 
   useEffect(() => { load() }, [lead.id])
 
-  const isAdmin = profile.role === 'admin'
-  const origin  = typeof window !== 'undefined' ? window.location.origin : ''
+  const canManage = profile.role === 'admin' || profile.role === 'sales_agent'
+  const origin    = typeof window !== 'undefined' ? window.location.origin : ''
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-200">Service Agreements</h3>
-        {isAdmin && (
+        {canManage && (
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
@@ -52,7 +52,7 @@ export function ContractTab({ lead, profile, userId }: Props) {
         <div className="text-center py-12">
           <FileSignature className="w-10 h-10 text-slate-700 mx-auto mb-3" />
           <p className="text-slate-500 text-sm mb-1">No contracts sent yet</p>
-          {isAdmin && (
+          {canManage && (
             <button
               onClick={() => setShowModal(true)}
               className="text-orange-400 hover:text-orange-300 text-sm font-medium transition-colors"
@@ -105,7 +105,7 @@ export function ContractTab({ lead, profile, userId }: Props) {
                       <Download size={12} /> PDF
                     </a>
                   )}
-                  {c.status === 'sent' && isAdmin && (
+                  {c.status === 'sent' && canManage && (
                     <a
                       href={`${origin}/sign/${c.signing_token}`}
                       target="_blank"
