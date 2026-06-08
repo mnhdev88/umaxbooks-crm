@@ -278,6 +278,32 @@ export interface ActivityLog {
   created_at: string
 }
 
+export interface VoiceCall {
+  id: string
+  lead_id: string | null
+  call_id: string | null
+  answered_by: string | null
+  completed: boolean | null
+  call_length_min: number | null
+  recording_url: string | null
+  transcript: string | null
+  summary: string | null
+  interested: 'yes' | 'no' | 'maybe' | null
+  objection: string | null
+  do_not_call: boolean | null
+  appointment_booked: boolean | null
+  appointment_time: string | null
+  callback_requested: boolean | null
+  callback_time: string | null
+  has_website: boolean | null
+  current_website: string | null
+  budget_mentioned: string | null
+  decision_maker: boolean | null
+  notes: string | null
+  extracted: Record<string, unknown> | null
+  created_at: string
+}
+
 export interface FollowUpStep {
   id: string
   lead_id: string

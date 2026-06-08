@@ -267,3 +267,126 @@ export async function startOutboundCall(input: StartCallInput): Promise<StartCal
 
   return { ok: true, status: res.status, callId: (body as { call_id?: string })?.call_id, body }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Post-call analysis — Bland extracts structured data from the transcript for us.
+// We POST our questions to /v1/calls/{call_id}/analyze and Bland returns answers
+// positionally aligned with the questions. Docs: https://docs.bland.ai/api-v1/post/analyze
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Structured fields Bland pulls out of the call transcript for the CRM. */
+export interface AnalyzedCallData {
+  interested: 'yes' | 'no' | 'maybe' | null
+  objection: string | null
+  do_not_call: boolean
+  appointment_booked: boolean
+  appointment_time: string | null
+  callback_requested: boolean
+  callback_time: string | null
+  has_website: boolean | null
+  current_website: string | null
+  budget_mentioned: string | null
+  decision_maker: boolean | null
+  notes: string | null
+}
+
+const ANALYSIS_GOAL =
+  `An AI agent placed an outbound cold call to a US local-service business owner to point out ` +
+  `website/SEO problems and book a free 15-minute demo walkthrough. Determine ONLY what the ` +
+  `person who was called (the prospect) actually said or agreed to during the conversation.`
+
+/**
+ * Questions sent to Bland's analyze endpoint. ORDER IS LOAD-BEARING — `answers`
+ * comes back positionally aligned, so keep this in sync with parseAnswers() below.
+ */
+const ANALYSIS_QUESTIONS: [string, string][] = [
+  ['Did the prospect show interest in the offer? Answer only "yes", "no", or "maybe".', 'string'],
+  ['What was the main objection or concern the prospect raised, if any?', 'string'],
+  ['Did the prospect ask not to be called or contacted again?', 'boolean'],
+  ['Did the prospect agree to a specific demo or meeting time?', 'boolean'],
+  ['What demo/appointment time did the prospect agree to, if any?', 'string'],
+  ['Did the prospect ask to be called back at a later time?', 'boolean'],
+  ['When did the prospect want to be called back, if they said?', 'string'],
+  ['Does the prospect already have a website?', 'boolean'],
+  ["What is the prospect's website URL or name, if mentioned?", 'string'],
+  ['What budget or price did the prospect mention, if any?', 'string'],
+  ['Is the person who was called the owner or a decision maker?', 'boolean'],
+  ['In one short sentence, summarise anything else notable the prospect said.', 'string'],
+]
+
+/** Bland sometimes returns "null"/"none"/"n/a" as a string for an empty answer. */
+function cleanStr(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  if (!s || /^(null|none|n\/?a|unknown|not mentioned|not specified)$/i.test(s)) return null
+  return s
+}
+
+/** Coerce Bland's answer (real boolean, or "true"/"yes" string) to a boolean. */
+function toBool(v: unknown): boolean {
+  if (v === true) return true
+  return /^(true|yes)$/i.test(String(v ?? '').trim())
+}
+
+/** Optional boolean — null when Bland couldn't determine it. */
+function toBoolOrNull(v: unknown): boolean | null {
+  if (v === true || v === false) return v
+  const s = String(v ?? '').trim().toLowerCase()
+  if (/^(true|yes)$/.test(s)) return true
+  if (/^(false|no)$/.test(s)) return false
+  return null
+}
+
+function parseAnswers(a: unknown[]): AnalyzedCallData {
+  const interestRaw = (cleanStr(a[0]) || '').toLowerCase()
+  const interested = interestRaw.includes('yes')
+    ? 'yes'
+    : interestRaw.includes('maybe')
+      ? 'maybe'
+      : interestRaw.includes('no')
+        ? 'no'
+        : null
+  return {
+    interested,
+    objection: cleanStr(a[1]),
+    do_not_call: toBool(a[2]),
+    appointment_booked: toBool(a[3]),
+    appointment_time: cleanStr(a[4]),
+    callback_requested: toBool(a[5]),
+    callback_time: cleanStr(a[6]),
+    has_website: toBoolOrNull(a[7]),
+    current_website: cleanStr(a[8]),
+    budget_mentioned: cleanStr(a[9]),
+    decision_maker: toBoolOrNull(a[10]),
+    notes: cleanStr(a[11]),
+  }
+}
+
+/**
+ * Ask Bland to analyse a finished call and return the structured fields the CRM
+ * cares about. Returns null if BLAND_API_KEY is missing or Bland reports an error
+ * (e.g. voicemail/no transcript) — callers should treat that as "nothing extracted".
+ */
+export async function analyzeCall(callId: string): Promise<AnalyzedCallData | null> {
+  const apiKey = process.env.BLAND_API_KEY
+  if (!apiKey || !callId) return null
+
+  let res: Response
+  try {
+    res = await fetch(`${BLAND_BASE}/v1/calls/${callId}/analyze`, {
+      method: 'POST',
+      headers: { authorization: apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal: ANALYSIS_GOAL, questions: ANALYSIS_QUESTIONS }),
+    })
+  } catch (e) {
+    console.error('[voice] analyzeCall: failed to reach Bland', (e as Error).message)
+    return null
+  }
+
+  const body = await res.json().catch(() => null) as { status?: string; answers?: unknown[] } | null
+  if (!res.ok || body?.status === 'error' || !Array.isArray(body?.answers)) {
+    console.warn('[voice] analyzeCall: no usable analysis for call', callId, body?.status)
+    return null
+  }
+  return parseAnswers(body.answers)
+}

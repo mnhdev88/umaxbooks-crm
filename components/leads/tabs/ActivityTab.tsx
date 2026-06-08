@@ -22,6 +22,8 @@ const ACTION_COLORS: Record<string, string> = {
   'Revision Info Submitted': 'bg-pink-500',
   'Live Site Created': 'bg-cyan-500',
   'Live Site Updated': 'bg-cyan-400',
+  'AI Voice Call Initiated': 'bg-indigo-500',
+  'AI Voice Call Completed': 'bg-indigo-400',
 }
 
 export function ActivityTab({ leadId }: ActivityTabProps) {
