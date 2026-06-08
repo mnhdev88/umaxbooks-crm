@@ -88,7 +88,7 @@ export default function DevPipelinePage() {
       <div className="h-14 bg-[#160E32]/80 border-b border-slate-800 flex items-center px-6 sticky top-0 z-30">
         <h1 className="text-base font-semibold text-slate-100">Dev Pipeline</h1>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-24 text-slate-500 text-sm">
             <svg className="animate-spin h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24">

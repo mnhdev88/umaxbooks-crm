@@ -54,6 +54,21 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
     scrollRef.current?.scrollBy({ left: direction === 'left' ? -300 : 300, behavior: 'smooth' })
   }
 
+  // Scroll the board horizontally with the ← / → arrow keys. Skipped while typing
+  // in a form control or while a card is being dragged (dnd-kit owns arrows then).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (activeId) return
+      const el = document.activeElement as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return
+      e.preventDefault()
+      scrollBoard(e.key === 'ArrowLeft' ? 'left' : 'right')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeId])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -271,14 +286,28 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
       </div>
 
       <div className="relative">
-        {/* Left scroll arrow */}
-        <button
-          onClick={() => scrollBoard('left')}
-          className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        {/* Scroll controls — a sticky overlay pinned to the viewport's vertical
+            center, so the arrows stay reachable while scrolling down long columns
+            (the page scrolls at the window level, not inside the board). The layer
+            is click-through; only the buttons capture clicks. */}
+        <div className="pointer-events-none absolute inset-0 z-20">
+          <div className="sticky top-[50vh] -translate-y-1/2 flex items-center justify-between px-1">
+            <button
+              onClick={() => scrollBoard('left')}
+              className="pointer-events-auto w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => scrollBoard('right')}
+              className="pointer-events-auto w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
 
         <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-4 px-10 pt-4 scroll-smooth">
           {visibleStages.map((stage) => (
@@ -294,15 +323,6 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
             />
           ))}
         </div>
-
-        {/* Right scroll arrow */}
-        <button
-          onClick={() => scrollBoard('right')}
-          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 shadow-lg transition-all"
-          aria-label="Scroll right"
-        >
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
       </div>
 
       <DragOverlay>

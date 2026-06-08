@@ -110,7 +110,7 @@ export default function PipelinePage() {
       {profile && (profile.role === 'sales_agent' || profile.role === 'admin') && (
         <FollowUpsWidget userId={profile.id} />
       )}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-24 text-slate-500 text-sm">
             <svg className="animate-spin h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24">
