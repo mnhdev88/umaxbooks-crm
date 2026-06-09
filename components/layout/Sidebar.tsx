@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -23,6 +23,7 @@ const agentSections: NavSection[] = [
     { href: '/',               label: 'Pipeline',           icon: LayoutDashboard },
     { href: '/leads',          label: 'All Leads',          icon: Users },
     { href: '/audits',         label: 'Audits & Follow-up', icon: Activity },
+    { href: '/ai-calls',       label: 'AI Calls',           icon: PhoneCall },
     { href: '/email-status',   label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',   label: 'Unsubscribes',       icon: MailX },
     { href: '/reports',        label: 'Reports',            icon: BarChart3 },
@@ -36,6 +37,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/leads',           label: 'All Leads',          icon: Users },
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/ai-calls',        label: 'AI Calls',           icon: PhoneCall },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
     { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
@@ -62,6 +64,7 @@ const adminSections: NavSection[] = [
   { label: 'Workflow', items: [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/ai-calls',        label: 'AI Calls',           icon: PhoneCall },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },
