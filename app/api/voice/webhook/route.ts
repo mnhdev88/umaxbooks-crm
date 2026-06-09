@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { analyzeCall } from '@/lib/voice/bland'
+import { sendTemplateEmailToLead } from '@/lib/email'
+
+// Template used for the automatic post-call cold-outreach email. Override via env.
+// Matches the Settings template by name (case-insensitive, with a "cold outreach" fallback).
+const COLD_OUTREACH_TEMPLATE =
+  process.env.COLD_OUTREACH_TEMPLATE_NAME ||
+  'Email 1 Day 1 Cold outreach - "I built it, it\'s live for 10 days"'
 
 /**
  * POST /api/voice/webhook  — receives Bland's end-of-call webhook.
@@ -135,6 +142,44 @@ export async function POST(req: NextRequest) {
         action: 'AI Voice Call Completed',
         details,
       })
+
+      // 4. Auto cold-outreach email — fires when a call ends by ANY means, once per lead.
+      //    Skipped for: no email, do-not-call, unsubscribed, or already-sent. Kill switch:
+      //    set COLD_OUTREACH_AFTER_CALL=off to disable entirely. Best-effort.
+      if (process.env.COLD_OUTREACH_AFTER_CALL !== 'off') {
+        try {
+          const { data: lead } = await supabase
+            .from('leads')
+            .select('id, name, company_name, email, city, business_type, gmb_category, do_not_call, email_unsubscribed, cold_outreach_sent_at')
+            .eq('id', leadId)
+            .single()
+
+          const blocked =
+            !lead?.email ||
+            lead.cold_outreach_sent_at ||
+            lead.email_unsubscribed ||
+            lead.do_not_call ||
+            extracted?.do_not_call
+
+          if (lead && !blocked) {
+            const { sent, error } = await sendTemplateEmailToLead({
+              lead: {
+                id: lead.id, name: lead.name, company_name: lead.company_name, email: lead.email,
+                city: lead.city, business_type: lead.business_type, gmb_category: lead.gmb_category,
+              },
+              templateName: COLD_OUTREACH_TEMPLATE,
+              context: 'auto-sent after AI voice call',
+            })
+            if (sent) {
+              await supabase.from('leads').update({ cold_outreach_sent_at: new Date().toISOString() }).eq('id', leadId)
+            } else {
+              console.warn('[voice/webhook] cold-outreach email not sent for lead', leadId, error)
+            }
+          }
+        } catch (e) {
+          console.error('[voice/webhook] cold-outreach email step failed', leadId, e)
+        }
+      }
     }
   } catch (e) {
     // Best-effort — never fail the webhook over storage.
