@@ -85,31 +85,33 @@ function serviceWord(businessType?: string): string {
 
 /**
  * Opening line — pain-first per the knowledge base, branching on whether the lead
- * already has a website. Keeps a short AI disclosure up front (legally required for
- * AI-placed calls in several US states); the rest follows the KB's pain-first openers.
+ * already has a website. The agent presents as a business growth partner and speaks
+ * naturally; it does NOT volunteer that it's an AI. It discloses honestly only if the
+ * prospect directly asks (handled in buildTask). NOTE: undisclosed AI voice calls carry
+ * TCPA / state bot-disclosure risk — ensure your use is consented/compliant.
  */
 function buildFirstSentence(input: StartCallInput): string {
   const firstName = firstNameOf(input.name)
   const city = input.city?.trim()
   const where = city ? ` in ${city}` : ' in your area'
   const service = serviceWord(input.businessType)
-  const disclosure = `quick heads up, I'm ${AGENT_NAME}, an AI assistant`
   const hasWebsite = !!input.website?.trim()
 
   if (hasWebsite) {
     // "Outdated / ranking low" opener.
     return (
-      `Hi, is this ${firstName}? — ${disclosure}. I was reviewing your website and comparing it ` +
-      `to what Google is looking for right now, and there are a few things quietly pushing you down ` +
-      `in search results${city ? ` for ${service} ${where}` : ''}. This isn't your fault — Google ` +
-      `changed its requirements. Worth two minutes to hear what I found?`
+      `Hi — is this ${firstName}? It's ${AGENT_NAME}, I work with ${service}${where} on getting found ` +
+      `online. I was actually looking at your website earlier, comparing it to what Google's pushing ` +
+      `right now, and I spotted a couple of things quietly dragging you down in the results. Honestly ` +
+      `not your fault — Google moved the goalposts. You got a quick two minutes?`
     )
   }
   // "No website" opener.
   return (
-    `Hi, is this ${firstName}? — ${disclosure}. I ran a quick check on local ${service}${where} ` +
-    `and noticed you don't have a website, but a few of your competitors do and they're showing up ` +
-    `every time someone searches. I pulled together a few notes on what that's costing you. Two minutes?`
+    `Hi — is this ${firstName}? It's ${AGENT_NAME}, I help ${service}${where} get found online. I was ` +
+    `running a quick check earlier and noticed you don't have a website yet — but a few of your ` +
+    `competitors do, and they're popping up every time someone searches. I jotted down what that's ` +
+    `probably costing you. Got two minutes?`
   )
 }
 
@@ -134,13 +136,20 @@ function buildTask(input: StartCallInput): string {
   ].join('\n')
 
   return [
-    `You are ${AGENT_NAME}, a warm, calm, professional AI voice agent for ${AGENCY_NAME}.`,
-    `You are placing an OUTBOUND cold call to a US local-service business owner.`,
-    `If anyone asks, state plainly that you are an AI assistant — you already disclosed this in your opening line.`,
+    `You are ${AGENT_NAME}, a warm, natural-sounding business growth partner calling for ${AGENCY_NAME}.`,
+    `You are placing an OUTBOUND call to a US local-service business owner.`,
+    '',
+    'IDENTITY & DISCLOSURE:',
+    '- You present yourself simply as a business growth partner who helps local businesses get found online. You are NOT a "developer," "marketing agency," or "salesperson."',
+    '- Speak completely naturally, like a real person on the phone. Do NOT volunteer that you are an AI, automated, or a recording.',
+    `- ONLY if the prospect directly asks whether you are a bot, a robot, a recording, an AI, or "a real person," answer honestly and briefly — e.g. "I'm an AI assistant for ${AGENCY_NAME}, but everything I'm telling you is real — want me to keep going?" — then continue naturally. Never deny it when asked directly.`,
     '',
     context,
     '',
     'Delivery rules:',
+    '- Sound human: use contractions, short everyday sentences, and a relaxed conversational rhythm. Never sound like you are reading a script.',
+    '- Use light, natural acknowledgements as they talk ("right," "yeah, totally," "gotcha," "mm-hmm") and the occasional brief filler — but do not overdo it.',
+    '- Vary your phrasing; never repeat the same canned line twice. Mirror the prospect\'s energy — if they are brief, be brief.',
     '- Speak at a calm, measured, unhurried pace. Pause briefly after questions. Never rush or talk over them.',
     '- Follow the knowledge base below EXACTLY: its openers, bridge, discovery questions, objection handling, and the free-demo close.',
     '- Pain before product, always. Do not pitch price unless they ask; if asked, the demo is free and live starts at $600.',
@@ -171,15 +180,15 @@ function buildVoicemail(input: StartCallInput): string {
 
   if (hasWebsite) {
     return (
-      `Hi ${firstName}, this is ${AGENT_NAME}, an AI assistant from ${AGENCY_NAME}. I ran a quick search for ` +
-      `${service}${where} and your competitor came up right away — your business didn't show. I found a few ` +
-      `specific things holding you back. ${demoLine}${callback}. Thank you!`
+      `Hi ${firstName}, it's ${AGENT_NAME} — I work with ${service}${where} on getting found online. I ran a ` +
+      `quick search and your competitor came up right away, but your business didn't show. I found a few ` +
+      `specific things holding you back. ${demoLine}${callback}. Thanks ${firstName}, talk soon!`
     )
   }
   return (
-    `Hi ${firstName}, this is ${AGENT_NAME}, an AI assistant from ${AGENCY_NAME}. I was looking up ${service}` +
-    `${where} today and noticed your business doesn't have a website, but your competitors do and they're ` +
-    `showing up every time someone searches. ${demoLine}${callback}. Thank you!`
+    `Hi ${firstName}, it's ${AGENT_NAME} — I help ${service}${where} get found online. I was looking around ` +
+    `today and noticed your business doesn't have a website yet, but your competitors do and they're showing ` +
+    `up every time someone searches. ${demoLine}${callback}. Thanks, talk soon!`
   )
 }
 
@@ -212,6 +221,9 @@ export async function startOutboundCall(input: StartCallInput): Promise<StartCal
     // How long (ms) the agent waits before responding. Higher = more patient, less
     // rushed, won't talk over the lead. Default Bland is 500; we use 800 for a calmer feel.
     interruption_threshold: Number(process.env.BLAND_INTERRUPTION_THRESHOLD) || 800,
+    // Higher temperature = more natural, varied, human-sounding phrasing (less robotic/scripted).
+    // 0–1; we default to 0.7 for a conversational feel. Lower it if the agent drifts off-script.
+    temperature: Number(process.env.BLAND_TEMPERATURE) || 0.7,
     first_sentence: buildFirstSentence(input),
     wait_for_greeting: true,
     record: true,
