@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { verifyTwilioRequest, userIdFromIdentity } from '@/lib/voice/twilio'
+import { verifyTwilioRequest, userIdFromIdentity, createDialerTranscript } from '@/lib/voice/twilio'
 
 /**
  * POST /api/voice/twilio/status — Twilio call lifecycle + recording callbacks for the
@@ -55,6 +55,13 @@ export async function POST(req: NextRequest) {
   if (kind === 'recording') {
     if (params.RecordingUrl) row.recording_url = params.RecordingUrl
     if (params.RecordingDuration) row.call_length_min = Number(params.RecordingDuration) / 60
+    // Kick off Conversational Intelligence transcription of this recording. The transcript
+    // arrives later on /api/voice/twilio/transcript and is matched back by CallSid. Best-effort.
+    if (params.RecordingSid) {
+      createDialerTranscript(params.RecordingSid, callSid).catch((e) =>
+        console.error('[voice/twilio/status] createDialerTranscript failed', e)
+      )
+    }
   } else {
     // dial action callback
     const status = params.DialCallStatus || params.CallStatus || null

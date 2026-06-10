@@ -107,3 +107,56 @@ function required(name: string): string {
   if (!v) throw new Error(`[twilio] Missing required env ${name}`)
   return v
 }
+
+// ── Conversational Intelligence (transcription of human dialer calls) ─────────
+
+/** REST client authenticated with the account auth token (server-side only). */
+function restClient() {
+  return twilio(required('TWILIO_ACCOUNT_SID'), required('TWILIO_AUTH_TOKEN'))
+}
+
+/**
+ * Kick off transcription of a dialer recording via Conversational Intelligence. The
+ * recording's CallSid is stored as the transcript's customerKey so the completion
+ * webhook can map the result back to our voice_calls row. No-op (returns null) when no
+ * Intelligence service is configured. Best-effort — callers swallow errors.
+ */
+export async function createDialerTranscript(
+  recordingSid: string,
+  callSid: string
+): Promise<string | null> {
+  const serviceSid = process.env.TWILIO_INTELLIGENCE_SERVICE_SID
+  if (!serviceSid || !recordingSid) return null
+  const t = await restClient().intelligence.v2.transcripts.create({
+    serviceSid,
+    channel: { media_properties: { source_sid: recordingSid } },
+    customerKey: callSid || undefined,
+  })
+  return t.sid
+}
+
+/**
+ * Fetch a finished transcript and flatten its sentences into readable text. Returns the
+ * customerKey (our CallSid) so the webhook knows which call to attach it to.
+ */
+export async function fetchTranscript(
+  transcriptSid: string
+): Promise<{ text: string; customerKey: string | null }> {
+  const client = restClient()
+  const meta = await client.intelligence.v2.transcripts(transcriptSid).fetch()
+  const sentences = await client.intelligence.v2
+    .transcripts(transcriptSid)
+    .sentences.list({ limit: 1000 })
+
+  const text = sentences
+    .slice()
+    .sort((a, b) => (a.sentenceIndex ?? 0) - (b.sentenceIndex ?? 0))
+    .map((s) => {
+      const speaker = s.mediaChannel != null ? `Speaker ${s.mediaChannel}` : 'Speaker'
+      return `${speaker}: ${s.transcript ?? ''}`.trim()
+    })
+    .filter(Boolean)
+    .join('\n')
+
+  return { text, customerKey: meta.customerKey ?? null }
+}
