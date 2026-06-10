@@ -18,42 +18,29 @@ export default async function AICallsPage() {
   if (!profile) redirect('/login')
 
   // Sales agents only see calls for leads assigned to them (mirrors Email Status scoping).
-  let leadIdFilter: string[] | null = null
-  if (profile.role === 'sales_agent') {
-    const { data: assignedLeads, error: leadsErr } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('assigned_agent_id', user.id)
-    console.log('[ai-calls DEBUG] role=%s user=%s assignedLeads=%d leadsErr=%o',
-      profile.role, user.id, assignedLeads?.length ?? -1, leadsErr)
-    leadIdFilter = (assignedLeads || []).map((l: any) => l.id)
-  }
-
-  if (leadIdFilter !== null && leadIdFilter.length === 0) {
-    return (
-      <>
-        <Header title="Calls" profile={profile as Profile} />
-        <AICallsClient initialCalls={[]} />
-      </>
-    )
-  }
+  // We scope by filtering through an inner-joined `leads` embed on assigned_agent_id,
+  // NOT by pre-fetching the agent's lead ids and passing them to .in(...): an agent can
+  // own hundreds of leads, and a few-hundred-UUID .in() list builds a multi-KB request
+  // URL that the API gateway rejects — the query then silently errored and the page
+  // showed zero calls (worked locally only because those agents had few leads).
+  const isSalesAgent = profile.role === 'sales_agent'
 
   let query = supabase
     .from('voice_calls')
-    .select(`
-      *,
-      lead:leads(id, name, company_name, lead_number, phone)
-    `)
+    .select(
+      isSalesAgent
+        ? '*, lead:leads!inner(id, name, company_name, lead_number, phone, assigned_agent_id)'
+        : '*, lead:leads(id, name, company_name, lead_number, phone)'
+    )
     .order('created_at', { ascending: false })
     .limit(500)
 
-  if (leadIdFilter !== null) {
-    query = query.in('lead_id', leadIdFilter)
+  if (isSalesAgent) {
+    query = query.eq('lead.assigned_agent_id', user.id)
   }
 
   const { data: calls, error: callsErr } = await query
-  console.log('[ai-calls DEBUG] leadIdFilter=%s calls=%d callsErr=%o',
-    leadIdFilter === null ? 'null(all)' : String(leadIdFilter.length), calls?.length ?? -1, callsErr)
+  if (callsErr) console.error('[ai-calls] voice_calls query failed:', callsErr)
   const rows = (calls || []) as VoiceCallWithLead[]
 
   // Attach the agent name for human dialer calls. The voice_calls.agent_user_id FK targets

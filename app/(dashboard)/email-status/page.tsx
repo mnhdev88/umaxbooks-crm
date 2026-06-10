@@ -16,15 +16,14 @@ export default async function EmailStatusPage() {
     .eq('id', user.id)
     .single()
 
-  // For sales agents, scope to leads they are assigned to
-  let leadIdFilter: string[] | null = null
-  if (profile?.role === 'sales_agent') {
-    const { data: assignedLeads } = await supabase
-      .from('leads')
-      .select('id')
-      .eq('assigned_agent_id', user.id)
-    leadIdFilter = (assignedLeads || []).map((l: any) => l.id)
-  }
+  // For sales agents, scope to their assigned leads via an inner-joined `leads` embed
+  // rather than pre-fetching lead ids and passing them to .in(...): an agent can own
+  // hundreds of leads, and a few-hundred-UUID .in() list builds a multi-KB request URL
+  // the API gateway rejects — the query then silently errors and the page shows nothing.
+  const isSalesAgent = profile?.role === 'sales_agent'
+  const leadEmbed = isSalesAgent
+    ? 'lead:leads!inner(id, name, company_name, email, phone, assigned_agent_id)'
+    : 'lead:leads(id, name, company_name, email, phone)'
 
   let sendsQuery = supabase
     .from('email_sends')
@@ -33,25 +32,17 @@ export default async function EmailStatusPage() {
       delivered_at, bounced_at, bounce_type, deferred_at, unsubscribed_at,
       click_count, first_clicked_at, last_clicked_url,
       sender:sent_by(full_name),
-      lead:leads(id, name, company_name, email, phone)
+      ${leadEmbed}
     `)
     .neq('status', 'scheduled')
     .order('sent_at', { ascending: false })
 
-  if (leadIdFilter !== null) {
-    if (leadIdFilter.length === 0) {
-      // Agent has no assigned leads — return empty
-      return (
-        <>
-          <Header title="Email Status" profile={profile as Profile} />
-          <EmailStatusClient initialSends={[]} initialTrackingMap={{}} userId={user.id} />
-        </>
-      )
-    }
-    sendsQuery = sendsQuery.in('lead_id', leadIdFilter)
+  if (isSalesAgent) {
+    sendsQuery = sendsQuery.eq('lead.assigned_agent_id', user.id)
   }
 
-  const { data: sends } = await sendsQuery
+  const { data: sends, error: sendsErr } = await sendsQuery
+  if (sendsErr) console.error('[email-status] email_sends query failed:', sendsErr)
 
   const tokens = (sends || [])
     .map((s: any) => s.tracking_token)
