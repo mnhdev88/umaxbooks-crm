@@ -6,6 +6,7 @@ import { STATUS_COLORS } from '@/lib/utils'
 import { TrendingUp, Users, DollarSign, CheckCircle } from 'lucide-react'
 import { UserKpiSection } from '@/components/reports/UserKpiSection'
 import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
+import { DialerReportDownload } from '@/components/reports/DialerReportDownload'
 import { resolveRange } from '@/lib/report-range'
 
 interface PageProps {
@@ -62,6 +63,13 @@ export default async function ReportsPage({ searchParams }: PageProps) {
       <div className="p-6 space-y-6">
         {/* Calendar date-range filter — drives the whole page */}
         <ReportsDateFilter from={from} to={to} label={label} />
+
+        {/* Per-agent dialer-call CSV export (admin only) */}
+        {profile.role === 'admin' && (
+          <div className="flex justify-end">
+            <DialerReportDownload />
+          </div>
+        )}
 
         {/* Per-user KPI cards */}
         <UserKpiSection isAdmin={profile.role === 'admin'} from={from} to={to} />
