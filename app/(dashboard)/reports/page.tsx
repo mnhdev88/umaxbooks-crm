@@ -5,9 +5,17 @@ import { Profile, PIPELINE_STAGES } from '@/types'
 import { STATUS_COLORS } from '@/lib/utils'
 import { TrendingUp, Users, DollarSign, CheckCircle } from 'lucide-react'
 import { UserKpiSection } from '@/components/reports/UserKpiSection'
+import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
+import { resolveRange } from '@/lib/report-range'
 
-export default async function ReportsPage() {
+interface PageProps {
+  searchParams: Promise<{ from?: string; to?: string }>
+}
+
+export default async function ReportsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const { from, to } = await searchParams
+  const { fromISO, toISO, label } = resolveRange(from, to)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -15,8 +23,17 @@ export default async function ReportsPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || profile.role === 'developer') redirect('/')
 
-  const { data: leads } = await supabase.from('leads').select('status, created_at, assigned_agent_id')
-  const { data: deals } = await supabase.from('deals').select('payment_status, final_payment_amount, token_amount')
+  // Leads + deals filtered by created_at within the selected calendar range.
+  let leadsQ = supabase.from('leads').select('status, created_at, assigned_agent_id')
+  if (fromISO) leadsQ = leadsQ.gte('created_at', fromISO)
+  if (toISO) leadsQ = leadsQ.lt('created_at', toISO)
+
+  let dealsQ = supabase.from('deals').select('payment_status, final_payment_amount, token_amount, created_at')
+  if (fromISO) dealsQ = dealsQ.gte('created_at', fromISO)
+  if (toISO) dealsQ = dealsQ.lt('created_at', toISO)
+
+  const { data: leads } = await leadsQ
+  const { data: deals } = await dealsQ
   const { data: agents } = await supabase.from('profiles').select('id, full_name').in('role', ['agent', 'sales_agent'])
 
   const totalLeads = leads?.length || 0
@@ -43,8 +60,11 @@ export default async function ReportsPage() {
       <Header title="Reports" profile={profile as Profile} />
 
       <div className="p-6 space-y-6">
+        {/* Calendar date-range filter — drives the whole page */}
+        <ReportsDateFilter from={from} to={to} label={label} />
+
         {/* Per-user KPI cards */}
-        <UserKpiSection isAdmin={profile.role === 'admin'} />
+        <UserKpiSection isAdmin={profile.role === 'admin'} from={from} to={to} />
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

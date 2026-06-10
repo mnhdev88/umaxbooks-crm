@@ -3,9 +3,10 @@ import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Lead, Profile } from '@/types'
 import { LeadsPageClient } from '@/components/leads/LeadsPageClient'
+import { resolveRange } from '@/lib/report-range'
 
 interface PageProps {
-  searchParams: Promise<{ agent?: string; period?: string }>
+  searchParams: Promise<{ agent?: string; period?: string; from?: string; to?: string }>
 }
 
 function periodStart(period: string): string | null {
@@ -23,7 +24,10 @@ const PERIOD_LABELS: Record<string, string> = {
 
 export default async function LeadsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
-  const { agent: agentId, period = 'today' } = await searchParams
+  const { agent: agentId, period = 'today', from, to } = await searchParams
+  // A calendar range (from/to) wins over the legacy `period` presets.
+  const hasRange = Boolean(from || to)
+  const range = resolveRange(from, to)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -60,20 +64,26 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   let filterBanner: string | undefined
 
   if (agentId) {
-    const start = periodStart(period)
     let addedQ = supabase
       .from('activity_logs')
       .select('lead_id')
       .eq('user_id', agentId)
       .eq('action', 'Lead Created')
       .not('lead_id', 'is', null)
-    if (start) addedQ = addedQ.gte('created_at', start)
+    if (hasRange) {
+      if (range.fromISO) addedQ = addedQ.gte('created_at', range.fromISO)
+      if (range.toISO) addedQ = addedQ.lt('created_at', range.toISO)
+    } else {
+      const start = periodStart(period)
+      if (start) addedQ = addedQ.gte('created_at', start)
+    }
     const { data: addedLogs } = await addedQ
     const leadIds = new Set((addedLogs || []).map((l: any) => l.lead_id))
     filteredLeads = filteredLeads.filter(l => leadIds.has(l.id))
 
     const agentName = agents?.find(a => a.id === agentId)?.full_name || 'Agent'
-    filterBanner = `Leads added by ${agentName} · ${PERIOD_LABELS[period] || period}`
+    const periodLabel = hasRange ? range.label : (PERIOD_LABELS[period] || period)
+    filterBanner = `Leads added by ${agentName} · ${periodLabel}`
   }
 
   return (

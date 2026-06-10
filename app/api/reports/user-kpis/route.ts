@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveRange } from '@/lib/report-range'
 
 function periodStart(period: string): string | null {
   const now = new Date()
@@ -10,6 +11,15 @@ function periodStart(period: string): string | null {
   return null
 }
 
+// Apply the resolved [start, end) calendar bounds to a query on `column`.
+function withRange<T extends { gte: (c: string, v: string) => T; lt: (c: string, v: string) => T }>(
+  q: T, column: string, start: string | null, end: string | null,
+): T {
+  if (start) q = q.gte(column, start)
+  if (end) q = q.lt(column, end)
+  return q
+}
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,8 +28,14 @@ export async function GET(req: NextRequest) {
   const { data: myProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (!myProfile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Prefer an explicit calendar range (from/to); fall back to legacy `period`.
+  const from = req.nextUrl.searchParams.get('from') || undefined
+  const to   = req.nextUrl.searchParams.get('to') || undefined
   const period = req.nextUrl.searchParams.get('period') || 'month'
-  const start  = periodStart(period)
+  const hasRange = Boolean(from || to)
+  const range = resolveRange(from, to)
+  const start = hasRange ? range.fromISO : periodStart(period)
+  const end   = hasRange ? range.toISO : null
   const isAdmin = myProfile.role === 'admin'
 
   // Which users to show
@@ -33,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // Leads Added — via activity_logs
   let addedQ = supabase.from('activity_logs').select('user_id').in('user_id', userIds).eq('action', 'Lead Created')
-  if (start) addedQ = addedQ.gte('created_at', start)
+  addedQ = withRange(addedQ, 'created_at', start, end)
   const { data: leadsAdded } = await addedQ
 
   // Leads Assigned — total leads currently assigned to each user (no date filter;
@@ -45,12 +61,12 @@ export async function GET(req: NextRequest) {
 
   // Leads Completed (status = Completed, assigned to user, completed in period)
   let completedQ = supabase.from('leads').select('assigned_agent_id').in('assigned_agent_id', userIds).eq('status', 'Completed')
-  if (start) completedQ = completedQ.gte('updated_at', start)
+  completedQ = withRange(completedQ, 'updated_at', start, end)
   const { data: completedLeads } = await completedQ
 
   // Demos Booked (appointments with a demo datetime, created by user, in period)
   let demosQ = supabase.from('appointments').select('created_by').in('created_by', userIds).not('appointment_datetime', 'is', null)
-  if (start) demosQ = demosQ.gte('created_at', start)
+  demosQ = withRange(demosQ, 'created_at', start, end)
   const { data: demosBooked } = await demosQ
 
   // Deals Closed (Paid) + Revenue — filter by when payment was recorded (updated_at)
@@ -58,7 +74,7 @@ export async function GET(req: NextRequest) {
     .from('deals')
     .select('final_payment_amount, lead_id, leads!inner(assigned_agent_id)')
     .eq('payment_status', 'Paid')
-  if (start) dealsQ = dealsQ.gte('updated_at', start)
+  dealsQ = withRange(dealsQ, 'updated_at', start, end)
   const { data: deals } = await dealsQ
 
   // Build per-user aggregates

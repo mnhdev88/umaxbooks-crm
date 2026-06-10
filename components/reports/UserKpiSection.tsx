@@ -3,8 +3,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Users, Calendar, Handshake, DollarSign, CheckCircle, Loader2, UserPlus } from 'lucide-react'
 
-type Period = 'today' | '7d' | '30d' | 'month' | 'all'
-
 interface UserKpi {
   id: string
   full_name: string
@@ -17,14 +15,6 @@ interface UserKpi {
   revenue: number
 }
 
-const PERIOD_LABELS: Record<Period, string> = {
-  'today': 'Today',
-  '7d':    'Last 7 Days',
-  '30d':   'Last 30 Days',
-  'month': 'This Month',
-  'all':   'All Time',
-}
-
 const ROLE_COLORS: Record<string, string> = {
   admin:       'from-orange-500 to-orange-700',
   agent:       'from-blue-500 to-blue-700',
@@ -33,18 +23,22 @@ const ROLE_COLORS: Record<string, string> = {
 
 interface Props {
   isAdmin: boolean
+  from?: string
+  to?: string
 }
 
-export function UserKpiSection({ isAdmin }: Props) {
-  const [period, setPeriod] = useState<Period>('today')
+export function UserKpiSection({ isAdmin, from, to }: Props) {
   const [kpis, setKpis]     = useState<UserKpi[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { load() }, [period])
+  useEffect(() => { load() }, [from, to])
 
   async function load() {
     setLoading(true)
-    const res = await fetch(`/api/reports/user-kpis?period=${period}`)
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const res = await fetch(`/api/reports/user-kpis?${params.toString()}`)
     const { kpis } = await res.json()
     setKpis(kpis || [])
     setLoading(false)
@@ -59,22 +53,6 @@ export function UserKpiSection({ isAdmin }: Props) {
             {isAdmin ? 'Team KPIs' : 'My KPIs'}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">Performance metrics per team member</p>
-        </div>
-        <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
-          {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              aria-pressed={period === p}
-              className={`text-xs px-3 py-2 rounded-md transition-colors ${
-                period === p
-                  ? 'bg-orange-500 text-white font-medium'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {PERIOD_LABELS[p]}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -101,7 +79,7 @@ export function UserKpiSection({ isAdmin }: Props) {
 
               {/* KPI metrics */}
               <div className="grid grid-cols-2 gap-2.5">
-                <KpiMetric icon={UserPlus}     label="Leads Added"   value={u.leads_added}       color="text-sky-400"    bg="bg-sky-900/30" href={`/leads?agent=${u.id}&period=${period}`} />
+                <KpiMetric icon={UserPlus}     label="Leads Added"   value={u.leads_added}       color="text-sky-400"    bg="bg-sky-900/30" href={`/leads?agent=${u.id}&${from || to ? `from=${from ?? ''}&to=${to ?? ''}` : 'period=all'}`} />
                 <KpiMetric icon={Users}        label="Assigned"      value={u.leads_assigned}     color="text-blue-400"   bg="bg-blue-900/30" />
                 <KpiMetric icon={Calendar}     label="Demos Booked"  value={u.demos_booked}       color="text-purple-400" bg="bg-purple-900/30" />
                 <KpiMetric icon={CheckCircle}  label="Completed"     value={u.leads_completed}    color="text-teal-400"   bg="bg-teal-900/30" />
