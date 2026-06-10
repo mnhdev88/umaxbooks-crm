@@ -233,7 +233,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <div className="text-right text-xs text-slate-500 flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <DialButton leadId={lead.id} phone={lead.phone} name={lead.name} />
-                <AICallButton leadId={lead.id} phone={lead.phone} />
+                <AICallButton leadId={lead.id} phone={lead.phone} name={lead.name} />
               </div>
               {lead.source && (
                 <p>Source: <span className="text-slate-300">{lead.source}</span></p>
