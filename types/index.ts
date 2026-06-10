@@ -301,6 +301,13 @@ export interface VoiceCall {
   decision_maker: boolean | null
   notes: string | null
   extracted: Record<string, unknown> | null
+  // Provider-aware fields (Twilio human dialer; default 'bland' for AI calls — see migration 050)
+  provider: string | null            // 'bland' | 'twilio'
+  direction: string | null           // 'outbound' | 'inbound'
+  status: string | null              // Twilio DialCallStatus: completed/busy/no-answer/failed/canceled
+  duration_sec: number | null        // exact call seconds (Twilio dialer)
+  agent_user_id: string | null       // staff member who placed a dialer call
+  agent?: { full_name: string | null } | null // joined in views; not a column
   created_at: string
 }
 

@@ -20,10 +20,10 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, Loader2 } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, Loader2, Ban, Check } from 'lucide-react'
 import { toast } from 'sonner'
 
-export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'ended'
+export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup'
 
 export interface StartCallArgs {
   phone: string
@@ -58,10 +58,13 @@ async function fetchToken(): Promise<string> {
 export function DialerProvider({ children }: { children: React.ReactNode }) {
   const deviceRef = useRef<Device | null>(null)
   const callRef = useRef<Call | null>(null)
+  const leadIdRef = useRef<string | null>(null)
+  const callSidRef = useRef<string | null>(null)
   const [state, setState] = useState<CallState>('idle')
   const [muted, setMuted] = useState(false)
   const [callee, setCallee] = useState<{ name?: string; phone: string } | null>(null)
   const [seconds, setSeconds] = useState(0)
+  const [saving, setSaving] = useState(false)
 
   // Lazily create + register the Device, refreshing the token on expiry.
   const ensureDevice = useCallback(async (): Promise<Device> => {
@@ -85,13 +88,28 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     return device
   }, [])
 
+  // Fully reset to idle (after wrap-up, or for non-lead calls / failures).
   const cleanupCall = useCallback(() => {
     callRef.current = null
+    leadIdRef.current = null
+    callSidRef.current = null
     setMuted(false)
     setCallee(null)
     setState('idle')
     setSeconds(0)
   }, [])
+
+  // A call ended. If it was tied to a lead, drop into the wrap-up form so the agent can
+  // log an outcome; otherwise reset straight to idle.
+  const endCall = useCallback(() => {
+    callRef.current = null
+    setMuted(false)
+    if (leadIdRef.current) {
+      setState('wrapup')
+    } else {
+      cleanupCall()
+    }
+  }, [cleanupCall])
 
   const startCall = useCallback(
     async ({ phone, leadId, name }: StartCallArgs) => {
@@ -103,6 +121,8 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
         toast.error('No phone number on file for this lead.')
         return
       }
+      leadIdRef.current = leadId || null
+      callSidRef.current = null
       setCallee({ name, phone })
       setState('connecting')
       try {
@@ -112,13 +132,19 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
         })
         callRef.current = call
 
-        call.on('ringing', () => setState('ringing'))
-        call.on('accept', () => setState('active'))
-        call.on('disconnect', cleanupCall)
-        call.on('cancel', cleanupCall)
+        // Capture the parent CallSid so the wrap-up disposition can be attached to the
+        // same voice_calls row the status webhook writes.
+        const grabSid = () => {
+          const sid = (call.parameters as Record<string, string> | undefined)?.CallSid
+          if (sid) callSidRef.current = sid
+        }
+        call.on('ringing', () => { grabSid(); setState('ringing') })
+        call.on('accept', () => { grabSid(); setState('active') })
+        call.on('disconnect', endCall)
+        call.on('cancel', endCall)
         call.on('reject', () => {
           toast.error('Call was rejected.')
-          cleanupCall()
+          endCall()
         })
         call.on('error', (e: { message?: string }) => {
           toast.error(e?.message || 'Call failed.')
@@ -131,14 +157,46 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
         cleanupCall()
       }
     },
-    [state, ensureDevice, cleanupCall]
+    [state, ensureDevice, cleanupCall, endCall]
   )
 
   const hangup = useCallback(() => {
-    callRef.current?.disconnect()
-    deviceRef.current?.disconnectAll()
-    cleanupCall()
-  }, [cleanupCall])
+    // Disconnecting fires the call's 'disconnect' handler (endCall), which routes to the
+    // wrap-up form when there's a lead. If there's no live call, end directly.
+    if (callRef.current) {
+      callRef.current.disconnect()
+      deviceRef.current?.disconnectAll()
+    } else {
+      endCall()
+    }
+  }, [endCall])
+
+  const submitDisposition = useCallback(
+    async (d: { interested: 'yes' | 'no' | 'maybe' | null; doNotCall: boolean; notes: string }) => {
+      setSaving(true)
+      try {
+        const res = await fetch('/api/voice/twilio/disposition', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callSid: callSidRef.current,
+            leadId: leadIdRef.current,
+            interested: d.interested,
+            doNotCall: d.doNotCall,
+            notes: d.notes,
+          }),
+        })
+        if (!res.ok) throw new Error(`Save failed (${res.status})`)
+        toast.success('Call outcome saved.')
+      } catch (e) {
+        toast.error((e as Error).message || 'Could not save the outcome.')
+      } finally {
+        setSaving(false)
+        cleanupCall()
+      }
+    },
+    [cleanupCall]
+  )
 
   const toggleMute = useCallback(() => {
     const call = callRef.current
@@ -168,7 +226,14 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   return (
     <DialerContext.Provider value={{ startCall, hangup, state, ready }}>
       {children}
-      {state !== 'idle' && (
+      {state === 'wrapup' ? (
+        <DispositionForm
+          name={callee?.name || callee?.phone}
+          saving={saving}
+          onSave={submitDisposition}
+          onSkip={cleanupCall}
+        />
+      ) : state !== 'idle' ? (
         <CallWidget
           state={state}
           muted={muted}
@@ -177,7 +242,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           onMute={toggleMute}
           onHangup={hangup}
         />
-      )}
+      ) : null}
     </DialerContext.Provider>
   )
 }
@@ -193,7 +258,6 @@ function statusLabel(state: CallState): string {
     case 'connecting': return 'Connecting…'
     case 'ringing': return 'Ringing…'
     case 'active': return 'In call'
-    case 'ended': return 'Call ended'
     default: return ''
   }
 }
@@ -254,6 +318,91 @@ function CallWidget({
                      transition-colors hover:bg-red-500"
         >
           <PhoneOff size={20} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type Interest = 'yes' | 'maybe' | 'no'
+const OUTCOMES: { key: Interest; label: string; cls: string }[] = [
+  { key: 'yes',   label: 'Interested',     cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
+  { key: 'maybe', label: 'Maybe',          cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
+  { key: 'no',    label: 'Not interested', cls: 'border-red-500/40 bg-red-500/10 text-red-300' },
+]
+
+/** Post-call wrap-up: agent logs the outcome + notes for the lead they just called. */
+function DispositionForm({
+  name,
+  saving,
+  onSave,
+  onSkip,
+}: {
+  name?: string
+  saving: boolean
+  onSave: (d: { interested: Interest | null; doNotCall: boolean; notes: string }) => void
+  onSkip: () => void
+}) {
+  const [interested, setInterested] = useState<Interest | null>(null)
+  const [doNotCall, setDoNotCall] = useState(false)
+  const [notes, setNotes] = useState('')
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Call outcome"
+      className="fixed bottom-5 right-5 z-[100] w-80 rounded-2xl border border-slate-700 bg-[#0E0B24] p-4 shadow-2xl shadow-black/40"
+    >
+      <p className="text-sm font-semibold text-slate-100">Log call outcome</p>
+      <p className="truncate text-xs text-slate-400">{name || 'Lead'}</p>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {OUTCOMES.map((o) => (
+          <button
+            key={o.key}
+            onClick={() => setInterested((v) => (v === o.key ? null : o.key))}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              interested === o.key ? o.cls : 'border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setDoNotCall((v) => !v)}
+        className={`mt-2 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+          doNotCall ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-slate-700 text-slate-400 hover:text-slate-200'
+        }`}
+      >
+        <Ban size={12} /> Do not call
+      </button>
+
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        rows={3}
+        placeholder="Notes (optional)…"
+        className="mt-3 w-full resize-none rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-slate-200 placeholder:text-slate-600 focus:border-orange-500 focus:outline-none"
+      />
+
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <button
+          onClick={onSkip}
+          disabled={saving}
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-40"
+        >
+          Skip
+        </button>
+        <button
+          onClick={() => onSave({ interested, doNotCall, notes: notes.trim() })}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white
+                     transition-colors hover:bg-orange-400 disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+          Save
         </button>
       </div>
     </div>

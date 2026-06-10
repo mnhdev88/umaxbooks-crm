@@ -30,7 +30,7 @@ export default async function AICallsPage() {
   if (leadIdFilter !== null && leadIdFilter.length === 0) {
     return (
       <>
-        <Header title="AI Calls" profile={profile as Profile} />
+        <Header title="Calls" profile={profile as Profile} />
         <AICallsClient initialCalls={[]} />
       </>
     )
@@ -50,11 +50,26 @@ export default async function AICallsPage() {
   }
 
   const { data: calls } = await query
+  const rows = (calls || []) as VoiceCallWithLead[]
+
+  // Attach the agent name for human dialer calls. The voice_calls.agent_user_id FK targets
+  // auth.users, so we map through profiles ourselves rather than via a PostgREST embed.
+  const agentIds = [...new Set(rows.map(c => c.agent_user_id).filter(Boolean))] as string[]
+  if (agentIds.length) {
+    const { data: agentProfiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', agentIds)
+    const byId = new Map((agentProfiles || []).map((p: any) => [p.id, p.full_name as string | null]))
+    for (const c of rows) {
+      if (c.agent_user_id) c.agent = { full_name: byId.get(c.agent_user_id) ?? null }
+    }
+  }
 
   return (
     <>
-      <Header title="AI Calls" profile={profile as Profile} />
-      <AICallsClient initialCalls={(calls || []) as VoiceCallWithLead[]} />
+      <Header title="Calls" profile={profile as Profile} />
+      <AICallsClient initialCalls={rows} />
     </>
   )
 }
