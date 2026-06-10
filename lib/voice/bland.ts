@@ -20,6 +20,27 @@ import { NOVELIO_KNOWLEDGE_BASE } from './knowledge-base'
 const BLAND_BASE = 'https://api.bland.ai'
 
 const AGENCY_NAME = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Novelio Technologies'
+
+const DIGIT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+
+/**
+ * Spell a phone number out digit-by-digit for TTS so "201" is read "two zero one",
+ * not "two hundred one". Groups as area code / prefix / line ("nine zero eight,
+ * two zero one, two two six four") with commas for natural pauses. Falls back to the
+ * raw string if it doesn't look like a phone number.
+ */
+function spokenPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return raw
+  // Drop a leading US country code so we speak the 10-digit local number.
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  const groups =
+    local.length === 10
+      ? [local.slice(0, 3), local.slice(3, 6), local.slice(6)]
+      : [local]
+  return groups.map((g) => g.split('').map((d) => DIGIT_WORDS[Number(d)]).join(' ')).join(', ')
+}
+
 // Callback number the agent reads out — in voicemails and when asked for one on a live call.
 // Override via env; defaults to the agency's published line.
 const CALLBACK_PHONE =
@@ -61,26 +82,6 @@ export function toE164US(raw: string): string {
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
   return `+${digits}`
-}
-
-const DIGIT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
-
-/**
- * Spell a phone number out digit-by-digit for TTS so "201" is read "two zero one",
- * not "two hundred one". Groups as area code / prefix / line ("nine zero eight,
- * two zero one, two two six four") with commas for natural pauses. Falls back to the
- * raw string if it doesn't look like a phone number.
- */
-function spokenPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (!digits) return raw
-  // Drop a leading US country code so we speak the 10-digit local number.
-  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
-  const groups =
-    local.length === 10
-      ? [local.slice(0, 3), local.slice(3, 6), local.slice(6)]
-      : [local]
-  return groups.map((g) => g.split('').map((d) => DIGIT_WORDS[Number(d)]).join(' ')).join(', ')
 }
 
 /** First name or a safe fallback. */
