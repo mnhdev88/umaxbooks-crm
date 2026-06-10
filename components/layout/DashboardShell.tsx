@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from './Sidebar'
+import { DialerProvider } from '@/components/dialer/DialerProvider'
 import { Profile } from '@/types'
 
 const ProfileContext = createContext<Profile | null>(null)
@@ -70,7 +71,9 @@ export function DashboardShell({ userId, children }: { userId: string; children:
             />
           )}
           <Sidebar profile={profile} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 flex flex-col">{children}</main>
+          <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 flex flex-col">
+            <DialerProvider>{children}</DialerProvider>
+          </main>
         </div>
       </SidebarContext.Provider>
     </ProfileContext.Provider>
