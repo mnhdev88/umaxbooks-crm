@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -73,6 +73,7 @@ const adminSections: NavSection[] = [
   ]},
   { label: 'Analytics', items: [
     { href: '/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/team',    label: 'Team',    icon: UsersRound },
     { href: '/clients', label: 'Clients', icon: Globe },
   ]},
   { label: 'System', items: [
