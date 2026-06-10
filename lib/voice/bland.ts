@@ -24,6 +24,9 @@ const AGENCY_NAME = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Novelio Technologies
 // Override via env; defaults to the agency's published line.
 const CALLBACK_PHONE =
   process.env.BLAND_CALLBACK_NUMBER || process.env.NEXT_PUBLIC_AGENCY_PHONE || '(908) 201-2264'
+// TTS reads "(908) 201-2264" as numbers ("two hundred one"); spell it out digit-by-digit
+// ("nine zero eight, two zero one, two two six four") so the voice agent reads it correctly.
+const CALLBACK_PHONE_SPOKEN = spokenPhone(CALLBACK_PHONE)
 // The name the AI agent introduces itself with.
 const AGENT_NAME = process.env.BLAND_AGENT_NAME || 'Aria'
 
@@ -58,6 +61,26 @@ export function toE164US(raw: string): string {
   if (digits.length === 10) return `+1${digits}`
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
   return `+${digits}`
+}
+
+const DIGIT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+
+/**
+ * Spell a phone number out digit-by-digit for TTS so "201" is read "two zero one",
+ * not "two hundred one". Groups as area code / prefix / line ("nine zero eight,
+ * two zero one, two two six four") with commas for natural pauses. Falls back to the
+ * raw string if it doesn't look like a phone number.
+ */
+function spokenPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return raw
+  // Drop a leading US country code so we speak the 10-digit local number.
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  const groups =
+    local.length === 10
+      ? [local.slice(0, 3), local.slice(3, 6), local.slice(6)]
+      : [local]
+  return groups.map((g) => g.split('').map((d) => DIGIT_WORDS[Number(d)]).join(' ')).join(', ')
 }
 
 /** First name or a safe fallback. */
@@ -153,6 +176,7 @@ function buildTask(input: StartCallInput): string {
     '- TAKE TURNS. Say at most one or two sentences, then STOP and wait for the prospect to respond. Never deliver a long monologue or stack multiple points back-to-back. After every question, stop and wait for their answer.',
     '- IF PUT ON HOLD OR ASKED TO WAIT: if the prospect says to hold on, wait, give them a second, "let me grab something", or that someone/something needs them — acknowledge ONCE, briefly ("Of course, take your time — I\'ll wait"), then STOP talking completely and stay silent. Do NOT continue the pitch, do NOT repeat yourself, do NOT fill the silence. Only speak again after they clearly come back and speak to you.',
     '- IF YOU HEAR SILENCE, HOLD MUSIC, OR BACKGROUND NOISE (not the prospect actually talking to you): stay quiet and wait. Do not treat music or noise as something to respond to, and do not keep talking into dead air.',
+    '- IF YOU REACH AN AUTOMATED PHONE MENU, IVR, OR AUTO-ATTENDANT (e.g. "press 1 for sales, press 2 for support", "para español oprima…", "enter the extension", "you have reached the company directory", "your call is important to us, please stay on the line"): do NOT press any keys, do NOT try to navigate the menu, and do NOT deliver your pitch to it. Stay silent and END THE CALL immediately. This is NOT a voicemail — do not leave a message; just hang up.',
     '- Sound human: use contractions, short everyday sentences, and a relaxed conversational rhythm. Never sound like you are reading a script.',
     '- Use light, natural acknowledgements as they talk ("right," "yeah, totally," "gotcha," "mm-hmm") and the occasional brief filler — but do not overdo it.',
     '- Vary your phrasing; never repeat the same canned line twice. Mirror the prospect\'s energy — if they are brief, be brief.',
@@ -162,7 +186,7 @@ function buildTask(input: StartCallInput): string {
     '- Your single goal is to book a 15-minute walkthrough — always offer two specific time slots, never open-ended.',
     '- Do not invent services, results, prices, or guarantees beyond the knowledge base. Defer specifics to the human specialist.',
     '- If they ask not to be called or say they are not interested after one rebuttal, apologise, thank them, and end politely.',
-    CALLBACK_PHONE ? `- If they ask for a callback number, give ${CALLBACK_PHONE}.` : '',
+    CALLBACK_PHONE ? `- If they ask for a callback number, read it out digit by digit, slowly: ${CALLBACK_PHONE_SPOKEN}.` : '',
     '',
     '=== KNOWLEDGE BASE (your script and rules) ===',
     NOVELIO_KNOWLEDGE_BASE,
@@ -177,7 +201,7 @@ function buildVoicemail(input: StartCallInput): string {
   const city = input.city?.trim()
   const where = city ? ` in ${city}` : ' in your area'
   const service = serviceWord(input.businessType)
-  const callback = CALLBACK_PHONE ? ` Give me a call back at ${CALLBACK_PHONE}` : ' Give me a call back'
+  const callback = CALLBACK_PHONE ? ` Give me a call back at ${CALLBACK_PHONE_SPOKEN}` : ' Give me a call back'
   const hasWebsite = !!input.website?.trim()
   // Only claim a built demo when one actually exists; otherwise offer to build one.
   const demoLine = input.demoReady
