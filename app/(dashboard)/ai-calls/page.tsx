@@ -20,10 +20,12 @@ export default async function AICallsPage() {
   // Sales agents only see calls for leads assigned to them (mirrors Email Status scoping).
   let leadIdFilter: string[] | null = null
   if (profile.role === 'sales_agent') {
-    const { data: assignedLeads } = await supabase
+    const { data: assignedLeads, error: leadsErr } = await supabase
       .from('leads')
       .select('id')
       .eq('assigned_agent_id', user.id)
+    console.log('[ai-calls DEBUG] role=%s user=%s assignedLeads=%d leadsErr=%o',
+      profile.role, user.id, assignedLeads?.length ?? -1, leadsErr)
     leadIdFilter = (assignedLeads || []).map((l: any) => l.id)
   }
 
@@ -49,7 +51,9 @@ export default async function AICallsPage() {
     query = query.in('lead_id', leadIdFilter)
   }
 
-  const { data: calls } = await query
+  const { data: calls, error: callsErr } = await query
+  console.log('[ai-calls DEBUG] leadIdFilter=%s calls=%d callsErr=%o',
+    leadIdFilter === null ? 'null(all)' : String(leadIdFilter.length), calls?.length ?? -1, callsErr)
   const rows = (calls || []) as VoiceCallWithLead[]
 
   // Attach the agent name for human dialer calls. The voice_calls.agent_user_id FK targets
