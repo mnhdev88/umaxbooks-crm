@@ -20,7 +20,10 @@ import { NOVELIO_KNOWLEDGE_BASE } from './knowledge-base'
 const BLAND_BASE = 'https://api.bland.ai'
 
 const AGENCY_NAME = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Novelio Technologies'
-const AGENCY_PHONE = process.env.NEXT_PUBLIC_AGENCY_PHONE || ''
+// Callback number the agent reads out — in voicemails and when asked for one on a live call.
+// Override via env; defaults to the agency's published line.
+const CALLBACK_PHONE =
+  process.env.BLAND_CALLBACK_NUMBER || process.env.NEXT_PUBLIC_AGENCY_PHONE || '(908) 201-2264'
 // The name the AI agent introduces itself with.
 const AGENT_NAME = process.env.BLAND_AGENT_NAME || 'Aria'
 
@@ -147,6 +150,9 @@ function buildTask(input: StartCallInput): string {
     context,
     '',
     'Delivery rules:',
+    '- TAKE TURNS. Say at most one or two sentences, then STOP and wait for the prospect to respond. Never deliver a long monologue or stack multiple points back-to-back. After every question, stop and wait for their answer.',
+    '- IF PUT ON HOLD OR ASKED TO WAIT: if the prospect says to hold on, wait, give them a second, "let me grab something", or that someone/something needs them — acknowledge ONCE, briefly ("Of course, take your time — I\'ll wait"), then STOP talking completely and stay silent. Do NOT continue the pitch, do NOT repeat yourself, do NOT fill the silence. Only speak again after they clearly come back and speak to you.',
+    '- IF YOU HEAR SILENCE, HOLD MUSIC, OR BACKGROUND NOISE (not the prospect actually talking to you): stay quiet and wait. Do not treat music or noise as something to respond to, and do not keep talking into dead air.',
     '- Sound human: use contractions, short everyday sentences, and a relaxed conversational rhythm. Never sound like you are reading a script.',
     '- Use light, natural acknowledgements as they talk ("right," "yeah, totally," "gotcha," "mm-hmm") and the occasional brief filler — but do not overdo it.',
     '- Vary your phrasing; never repeat the same canned line twice. Mirror the prospect\'s energy — if they are brief, be brief.',
@@ -156,7 +162,7 @@ function buildTask(input: StartCallInput): string {
     '- Your single goal is to book a 15-minute walkthrough — always offer two specific time slots, never open-ended.',
     '- Do not invent services, results, prices, or guarantees beyond the knowledge base. Defer specifics to the human specialist.',
     '- If they ask not to be called or say they are not interested after one rebuttal, apologise, thank them, and end politely.',
-    AGENCY_PHONE ? `- If they ask for a callback number, give ${AGENCY_PHONE}.` : '',
+    CALLBACK_PHONE ? `- If they ask for a callback number, give ${CALLBACK_PHONE}.` : '',
     '',
     '=== KNOWLEDGE BASE (your script and rules) ===',
     NOVELIO_KNOWLEDGE_BASE,
@@ -171,7 +177,7 @@ function buildVoicemail(input: StartCallInput): string {
   const city = input.city?.trim()
   const where = city ? ` in ${city}` : ' in your area'
   const service = serviceWord(input.businessType)
-  const callback = AGENCY_PHONE ? ` Give me a call back at ${AGENCY_PHONE}` : ' Give me a call back'
+  const callback = CALLBACK_PHONE ? ` Give me a call back at ${CALLBACK_PHONE}` : ' Give me a call back'
   const hasWebsite = !!input.website?.trim()
   // Only claim a built demo when one actually exists; otherwise offer to build one.
   const demoLine = input.demoReady
@@ -224,6 +230,12 @@ export async function startOutboundCall(input: StartCallInput): Promise<StartCal
     // Higher temperature = more natural, varied, human-sounding phrasing (less robotic/scripted).
     // 0–1; we default to 0.7 for a conversational feel. Lower it if the agent drifts off-script.
     temperature: Number(process.env.BLAND_TEMPERATURE) || 0.7,
+    // Filter background noise / hold music so it isn't transcribed as phantom user speech that
+    // makes the agent keep talking when the prospect has stepped away. Toggle via env if needed.
+    noise_cancellation: process.env.BLAND_NOISE_CANCELLATION !== 'off',
+    // MUST stay false: when the prospect comes back from hold (or wants to cut in), the agent has
+    // to be interruptible. Setting this true would make the agent talk over them. Left at default.
+    block_interruptions: false,
     first_sentence: buildFirstSentence(input),
     wait_for_greeting: true,
     record: true,
