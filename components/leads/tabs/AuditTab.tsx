@@ -244,7 +244,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       .from('audit_notes')
       .select('id, note, created_at, user_id, author:profiles!audit_notes_user_id_fkey(full_name, role)')
       .eq('lead_id', leadId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
     if (data) setAuditNotes(data as any)
   }
 

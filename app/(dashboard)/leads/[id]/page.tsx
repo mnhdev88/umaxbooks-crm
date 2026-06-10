@@ -14,8 +14,9 @@ import {
   Globe, Phone, Mail, MapPin, Star, Building2,
   MessageCircle, Share2, Calendar, Users, Flag,
   FileText, Tag, Lock, ExternalLink, Layers, MailX,
-  ShieldCheck, ShieldAlert, ShieldX,
+  ShieldCheck, ShieldAlert, ShieldX, ChevronLeft, ChevronRight,
 } from 'lucide-react'
+import Link from 'next/link'
 import { CopyButton } from '@/components/ui/CopyButton'
 
 const EMAIL_VERDICT = {
@@ -96,6 +97,27 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
   if (!lead) notFound()
 
+  // Prev/next neighbours (RLS-scoped: skips leads this user can't see).
+  // Order by serial number when present, otherwise fall back to created_at.
+  const orderCol = lead.lead_number != null ? 'lead_number' : 'created_at'
+  const cursor   = lead.lead_number != null ? lead.lead_number : lead.created_at
+
+  const { data: prevLead } = await supabase
+    .from('leads')
+    .select('id, lead_number')
+    .lt(orderCol, cursor)
+    .order(orderCol, { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: nextLead } = await supabase
+    .from('leads')
+    .select('id, lead_number')
+    .gt(orderCol, cursor)
+    .order(orderCol, { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
   const { data: agents } = await supabase.from('profiles').select('*').in('role', ['agent', 'sales_agent', 'admin'])
   const { data: developers } = await supabase.from('profiles').select('*').eq('role', 'developer')
 
@@ -123,11 +145,33 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h2 className="text-xl font-bold text-slate-100">{lead.company_name}</h2>
-                {lead.lead_number && (
-                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-400 border border-slate-600/40">
-                    NVL-{String(lead.lead_number).padStart(3, '0')}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1">
+                  {prevLead ? (
+                    <Link href={`/leads/${prevLead.id}`} title={prevLead.lead_number != null ? `Previous lead (NVL-${String(prevLead.lead_number).padStart(3, '0')})` : 'Previous lead'}
+                      className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
+                      <ChevronLeft size={14} />
+                    </Link>
+                  ) : (
+                    <span className="p-1 rounded-md bg-slate-800/40 text-slate-600 cursor-not-allowed"><ChevronLeft size={14} /></span>
+                  )}
+                  {lead.lead_number ? (
+                    <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-400 border border-slate-600/40">
+                      NVL-{String(lead.lead_number).padStart(3, '0')}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-700/30 text-slate-500 border border-slate-600/30">
+                      No&nbsp;serial
+                    </span>
+                  )}
+                  {nextLead ? (
+                    <Link href={`/leads/${nextLead.id}`} title={nextLead.lead_number != null ? `Next lead (NVL-${String(nextLead.lead_number).padStart(3, '0')})` : 'Next lead'}
+                      className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
+                      <ChevronRight size={14} />
+                    </Link>
+                  ) : (
+                    <span className="p-1 rounded-md bg-slate-800/40 text-slate-600 cursor-not-allowed"><ChevronRight size={14} /></span>
+                  )}
+                </span>
                 <StatusBadge status={lead.status} />
                 {lead.email_unsubscribed && (
                   <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-red-950/60 text-red-400 border border-red-800/50">
