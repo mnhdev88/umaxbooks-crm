@@ -6,8 +6,22 @@ import { LeadsPageClient } from '@/components/leads/LeadsPageClient'
 import { resolveRange } from '@/lib/report-range'
 
 interface PageProps {
-  searchParams: Promise<{ agent?: string; period?: string; from?: string; to?: string }>
+  searchParams: Promise<{
+    agent?: string; period?: string; from?: string; to?: string
+    q?: string; src?: string; status?: string; assignee?: string; city?: string
+    tab?: string; page?: string
+  }>
 }
+
+const PER_PAGE = 25
+
+// Only the columns the list table / filters render. The edit modal fetches the
+// full row on demand, so heavy text columns (notes, etc.) stay out of the list.
+const LIST_COLUMNS =
+  'id, name, company_name, lead_number, priority, source, city, website_url, ' +
+  'gmb_review_rating, number_of_reviews, gmb_last_seen, status, ' +
+  'assigned_agent_id, created_at, slug, ' +
+  'assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)'
 
 function periodStart(period: string): string | null {
   const now = new Date()
@@ -22,66 +36,115 @@ const PERIOD_LABELS: Record<string, string> = {
   today: 'Today', '7d': 'Last 7 Days', '30d': 'Last 30 Days', month: 'This Month', all: 'All Time',
 }
 
+// Strip characters that would break a PostgREST .or() filter list.
+function sanitize(s: string) {
+  return s.replace(/[,()*]/g, ' ').trim()
+}
+
 export default async function LeadsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
-  const { agent: agentId, period = 'today', from, to } = await searchParams
-  // A calendar range (from/to) wins over the legacy `period` presets.
-  const hasRange = Boolean(from || to)
-  const range = resolveRange(from, to)
+  const sp = await searchParams
+  const { agent: agentId, period = 'today', from, to } = sp
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const role = profile?.role
 
-  // Supabase/PostgREST caps every response at 1000 rows by default, so we page
-  // through the table in batches to load every lead (keeps counts accurate past 1000).
-  const BATCH = 1000
-  const leads: any[] = []
-  for (let offset = 0; ; offset += BATCH) {
-    const batchQuery = supabase
-      .from('leads')
-      .select('*, assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)')
-      .neq('status', 'Live')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + BATCH - 1)
+  // ── Drill-down range (Reports → "leads added by agent in period") ──────────
+  const hasRange = Boolean(from || to)
+  const range = resolveRange(from, to)
+  const drillFromISO = agentId ? (hasRange ? range.fromISO : periodStart(period)) : null
+  const drillToISO   = agentId && hasRange ? range.toISO : null
 
-    if (profile?.role === 'developer') batchQuery.eq('status', 'Contacted')
+  // ── In-table filters ───────────────────────────────────────────────────────
+  const tab      = sp.tab || 'all'
+  const search   = sp.q ? sanitize(sp.q) : ''
+  const srcF     = sp.src || ''
+  const statusF  = sp.status || ''
+  const assignee = sp.assignee || ''
+  const cityF    = sp.city || ''
+  const page     = Math.max(1, parseInt(sp.page || '1', 10) || 1)
 
-    const { data: batch, error } = await batchQuery
-    if (error || !batch || batch.length === 0) break
-    leads.push(...batch)
-    if (batch.length < BATCH) break
+  // Applies the base scope shared by the list AND every stat count: role
+  // constraints, the always-excluded "Live" status, and the Reports drill-down.
+  const applyBase = (q: any) => {
+    q = q.neq('status', 'Live')
+    if (role === 'developer') q = q.eq('status', 'Contacted')
+    if (agentId) {
+      q = q.eq('created_by', agentId)
+      if (drillFromISO) q = q.gte('created_at', drillFromISO)
+      if (drillToISO)   q = q.lt('created_at', drillToISO)
+    }
+    return q
   }
 
-  const { data: agents } = await supabase
-    .from('profiles')
-    .select('*')
-    .in('role', ['agent', 'sales_agent', 'admin'])
-    .order('full_name')
-
-  let filteredLeads = (leads || []) as Lead[]
-  let filterBanner: string | undefined
-
-  if (agentId) {
-    let addedQ = supabase
-      .from('activity_logs')
-      .select('lead_id')
-      .eq('user_id', agentId)
-      .eq('action', 'Lead Created')
-      .not('lead_id', 'is', null)
-    if (hasRange) {
-      if (range.fromISO) addedQ = addedQ.gte('created_at', range.fromISO)
-      if (range.toISO) addedQ = addedQ.lt('created_at', range.toISO)
-    } else {
-      const start = periodStart(period)
-      if (start) addedQ = addedQ.gte('created_at', start)
+  // Base scope + the active tab + the toolbar filters/search (drives the table).
+  const applyView = (q: any) => {
+    q = applyBase(q)
+    if (tab === 'new')         q = q.eq('status', 'New')
+    else if (tab === 'gmb')    q = q.eq('source', 'GMB')
+    else if (tab === 'social') q = q.in('source', ['Facebook', 'LinkedIn'])
+    else if (tab === 'other')  q = q.or('source.is.null,source.not.in.(GMB,Facebook,LinkedIn)')
+    if (search) {
+      const ors = [
+        `name.ilike.*${search}*`,
+        `company_name.ilike.*${search}*`,
+        `city.ilike.*${search}*`,
+        `website_url.ilike.*${search}*`,
+        `phone.ilike.*${search}*`,
+        `email.ilike.*${search}*`,
+      ]
+      if (/^\d+$/.test(search)) ors.push(`lead_number.eq.${search}`)
+      q = q.or(ors.join(','))
     }
-    const { data: addedLogs } = await addedQ
-    const leadIds = new Set((addedLogs || []).map((l: any) => l.lead_id))
-    filteredLeads = filteredLeads.filter(l => leadIds.has(l.id))
+    if (srcF)     q = q.eq('source', srcF)
+    if (statusF)  q = q.eq('status', statusF)
+    if (assignee) q = q.eq('assigned_agent_id', assignee)
+    if (cityF)    q = q.eq('city', cityF)
+    return q
+  }
 
-    const agentName = agents?.find(a => a.id === agentId)?.full_name || 'Agent'
+  const countBase = (extra?: (q: any) => any) => {
+    let q = applyBase(supabase.from('leads').select('*', { count: 'exact', head: true }))
+    if (extra) q = extra(q)
+    return q
+  }
+
+  const fromRow = (page - 1) * PER_PAGE
+  const [
+    pageRes, agentsRes, citiesRes,
+    totalRes, newRes, gmbRes, demoRes, closedRes, socialRes,
+  ] = await Promise.all([
+    applyView(supabase.from('leads').select(LIST_COLUMNS, { count: 'exact' }))
+      .order('created_at', { ascending: false })
+      .range(fromRow, fromRow + PER_PAGE - 1),
+    supabase.from('profiles').select('id, full_name, role').in('role', ['agent', 'sales_agent', 'admin']).order('full_name'),
+    supabase.rpc('distinct_lead_cities'),
+    countBase(),
+    countBase(q => q.eq('status', 'New')),
+    countBase(q => q.eq('source', 'GMB')),
+    countBase(q => q.eq('status', 'Demo Scheduled')),
+    countBase(q => q.eq('status', 'Closed Won')),
+    countBase(q => q.in('source', ['Facebook', 'LinkedIn'])),
+  ])
+
+  const leads = (pageRes.data || []) as unknown as Lead[]
+  const filteredCount = pageRes.count || 0
+  const stats = {
+    total:  totalRes.count || 0,
+    newCt:  newRes.count || 0,
+    gmb:    gmbRes.count || 0,
+    demo:   demoRes.count || 0,
+    closed: closedRes.count || 0,
+    social: socialRes.count || 0,
+  }
+  const cities = ((citiesRes.data as { city: string }[] | null) || []).map(r => r.city)
+
+  let filterBanner: string | undefined
+  if (agentId) {
+    const agentName = (agentsRes.data || []).find(a => a.id === agentId)?.full_name || 'Agent'
     const periodLabel = hasRange ? range.label : (PERIOD_LABELS[period] || period)
     filterBanner = `Leads added by ${agentName} · ${periodLabel}`
   }
@@ -90,8 +153,14 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     <>
       <Header title="Lead Management" profile={profile as Profile} />
       <LeadsPageClient
-        initialLeads={filteredLeads}
-        agents={(agents || []) as Profile[]}
+        leads={leads}
+        stats={stats}
+        cities={cities}
+        totalCount={filteredCount}
+        page={page}
+        perPage={PER_PAGE}
+        filters={{ tab, q: sp.q || '', src: srcF, status: statusF, assignee, city: cityF }}
+        agents={(agentsRes.data || []) as unknown as Profile[]}
         profile={profile as Profile}
         userId={user.id}
         filterBanner={filterBanner}

@@ -6,6 +6,7 @@ import { Profile, PIPELINE_STAGES } from '@/types'
 import { STATUS_COLORS, timeAgo } from '@/lib/utils'
 import { resolveRange } from '@/lib/report-range'
 import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
+import { AgentPerformanceDownload } from '@/components/reports/AgentPerformanceDownload'
 import {
   ArrowLeft, UserPlus, Users, Calendar, CheckCircle, Handshake, DollarSign, Activity,
 } from 'lucide-react'
@@ -141,7 +142,10 @@ export default async function AgentProfilePage({ params, searchParams }: PagePro
 
         {/* KPI cards */}
         <div>
-          <h3 className="text-sm font-semibold text-slate-200 mb-3">Performance · <span className="text-slate-400 font-normal">{label}</span></h3>
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <h3 className="text-sm font-semibold text-slate-200">Performance · <span className="text-slate-400 font-normal">{label}</span></h3>
+            <AgentPerformanceDownload agentId={agent.id} />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {kpis.map(k => (
               <div key={k.label} className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { Profile } from '@/types'
 import { timeAgo } from '@/lib/utils'
-import { ChevronRight, UsersRound } from 'lucide-react'
+import { ChevronRight, UsersRound, Download } from 'lucide-react'
 
 const ROLE_COLORS: Record<string, string> = {
   admin:       'from-orange-500 to-orange-700',
@@ -54,12 +54,24 @@ export default async function TeamPage() {
       <Header title="Team" profile={profile as Profile} />
 
       <div className="p-6 space-y-6">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-            <UsersRound size={16} className="text-orange-400" aria-hidden="true" />
-            Agents
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Open a profile to see KPIs, current workload and recent activity.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <UsersRound size={16} className="text-orange-400" aria-hidden="true" />
+              Agents
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">Open a profile to see KPIs, current workload and recent activity.</p>
+          </div>
+          {list.length > 0 && (
+            <a
+              href="/api/reports/agent-performance"
+              download
+              className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shrink-0"
+            >
+              <Download size={14} aria-hidden="true" />
+              Performance report (CSV)
+            </a>
+          )}
         </div>
 
         {rows.length === 0 ? (

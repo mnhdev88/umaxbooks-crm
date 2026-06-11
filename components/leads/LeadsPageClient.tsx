@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Lead, Profile } from '@/types'
 import { cn, formatDate } from '@/lib/utils'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
-  Eye, Edit2, Download, AlertCircle, CheckCircle, Filter,
+  Eye, Edit2, Download, AlertCircle, Filter,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -131,26 +131,31 @@ const CRM_FIELDS = [
   'website_url', 'gmb_url', 'gmb_review_rating', 'number_of_reviews', 'gmb_category', '— Skip —',
 ]
 
-const PER_PAGE = 25
+interface Stats { total: number; newCt: number; gmb: number; demo: number; closed: number; social: number }
+interface Filters { tab: string; q: string; src: string; status: string; assignee: string; city: string }
 
 interface Props {
-  initialLeads: Lead[]
+  leads: Lead[]
+  stats: Stats
+  cities: string[]
+  totalCount: number
+  page: number
+  perPage: number
+  filters: Filters
   agents: Profile[]
   profile: Profile
   userId: string
   filterBanner?: string
 }
 
-export function LeadsPageClient({ initialLeads, agents, profile, userId, filterBanner }: Props) {
+export function LeadsPageClient({
+  leads, stats, cities, totalCount, page, perPage, filters, agents, profile, userId, filterBanner,
+}: Props) {
   const router = useRouter()
-  const [search, setSearch]           = useState('')
-  const [srcFilter, setSrcFilter]     = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [agentFilter, setAgentFilter] = useState('')
-  const [cityFilter, setCityFilter]   = useState('')
-  const [activeTab, setActiveTab]     = useState('all')
-  const [page, setPage]               = useState(1)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const searchParams = useSearchParams()
+  const [searchInput, setSearchInput]   = useState(filters.q)
+  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
+  const [loadingEdit, setLoadingEdit]   = useState(false)
 
   // Add / Edit modal
   const [showAdd, setShowAdd]         = useState(false)
@@ -168,61 +173,59 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
   const [importResult, setImportResult] = useState<{ ok: number; dup: number; err: number; log: string[] } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // ── Stats ──────────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    total:  initialLeads.length,
-    newCt:  initialLeads.filter(l => l.status === 'New').length,
-    gmb:    initialLeads.filter(l => l.source === 'GMB').length,
-    demo:   initialLeads.filter(l => l.status === 'Demo Scheduled').length,
-    closed: initialLeads.filter(l => l.status === 'Closed Won').length,
-    social: initialLeads.filter(l => l.source === 'Facebook' || l.source === 'LinkedIn').length,
-  }), [initialLeads])
+  // Keep the search box in sync when the URL changes elsewhere (e.g. "Clear filter").
+  useEffect(() => { setSearchInput(filters.q) }, [filters.q])
 
-  // ── Tabs ───────────────────────────────────────────────────────
+  // ── URL-driven filtering ───────────────────────────────────────
+  // The server reads these params and returns the matching page, so filters /
+  // search / paging never load the whole table into the browser.
+  function setParams(updates: Record<string, string | null>, resetPage = true) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (resetPage) params.delete('page')
+    for (const [k, v] of Object.entries(updates)) {
+      if (v) params.set(k, v)
+      else params.delete(k)
+    }
+    const qs = params.toString()
+    router.push(qs ? `/leads?${qs}` : '/leads')
+  }
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function onSearchChange(v: string) {
+    setSearchInput(v)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => setParams({ q: v.trim() || null }), 350)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage))
+  const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.city || (filters.tab && filters.tab !== 'all'))
+
+  // ── Tabs (counts come from server-side aggregates) ─────────────
   const tabs = [
-    { id: 'all',    label: `All Leads (${initialLeads.length})` },
+    { id: 'all',    label: `All Leads (${stats.total})` },
     { id: 'new',    label: `New (${stats.newCt})` },
     { id: 'gmb',    label: `GMB (${stats.gmb})` },
     { id: 'social', label: `Social (${stats.social})` },
-    { id: 'other',  label: `Other (${initialLeads.length - stats.gmb - stats.social})` },
+    { id: 'other',  label: `Other (${stats.total - stats.gmb - stats.social})` },
   ]
 
-  // ── Filtered leads ─────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    let data = initialLeads
-    if (activeTab === 'new')    data = data.filter(l => l.status === 'New')
-    else if (activeTab === 'gmb')    data = data.filter(l => l.source === 'GMB')
-    else if (activeTab === 'social') data = data.filter(l => l.source === 'Facebook' || l.source === 'LinkedIn')
-    else if (activeTab === 'other')  data = data.filter(l => !l.source || !['GMB','Facebook','LinkedIn'].includes(l.source))
-    if (search) {
-      const q = search.toLowerCase()
-      data = data.filter(l =>
-        l.name.toLowerCase().includes(q) ||
-        l.company_name.toLowerCase().includes(q) ||
-        (l.city || '').toLowerCase().includes(q) ||
-        (l.website_url || '').toLowerCase().includes(q) ||
-        (l.phone || '').toLowerCase().includes(q) ||
-        (l.email || '').toLowerCase().includes(q) ||
-        (l.lead_number != null && String(l.lead_number).includes(q))
-      )
-    }
-    if (srcFilter)    data = data.filter(l => l.source === srcFilter)
-    if (statusFilter) data = data.filter(l => l.status === statusFilter)
-    if (agentFilter)  data = data.filter(l => l.assigned_agent_id === agentFilter)
-    if (cityFilter)   data = data.filter(l => l.city === cityFilter)
-    return data
-  }, [initialLeads, search, srcFilter, statusFilter, agentFilter, cityFilter, activeTab])
+  function goToPage(p: number) {
+    setParams({ page: String(Math.min(Math.max(1, p), totalPages)) }, false)
+  }
 
-  useEffect(() => setPage(1), [search, srcFilter, statusFilter, agentFilter, cityFilter, activeTab])
-
-  const totalPages = Math.ceil(filtered.length / PER_PAGE)
-  const paginated  = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-
-  const cities = useMemo(() => [...new Set(initialLeads.map(l => l.city).filter(Boolean))].sort(), [initialLeads])
-
-  // ── Bulk select ────────────────────────────────────────────────
+  // ── Bulk select (current page) ─────────────────────────────────
   function toggleAll(checked: boolean) {
-    setSelectedIds(checked ? new Set(paginated.map(l => l.id)) : new Set())
+    setSelectedIds(checked ? new Set(leads.map(l => l.id)) : new Set())
+  }
+
+  // Edit needs every column; the list query is narrowed, so fetch the full row.
+  async function openEdit(id: string) {
+    setLoadingEdit(true)
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data } = await supabase.from('leads').select('*').eq('id', id).single()
+    setLoadingEdit(false)
+    if (data) setEditLead(data as Lead)
   }
 
   // ── File upload (CSV / Excel) ──────────────────────────────────
@@ -277,7 +280,6 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
     let ok = 0, dup = 0, err = 0
     const log: string[] = []
 
-    const existingNames = new Set(initialLeads.map(l => l.company_name.toLowerCase()))
     const { slugify } = await import('@/lib/utils')
 
     for (let i = 0; i < csvRows.length; i++) {
@@ -288,15 +290,17 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
       })
       if (!record.company_name) { err++; log.push(`Row ${i + 2}: Missing company name — skipped`); continue }
       if (!record.name) record.name = record.company_name
-      if (existingNames.has(record.company_name.toLowerCase())) {
-        dup++; log.push(`Row ${i + 2}: Duplicate — ${record.company_name} (skipped)`); continue
-      }
       record.slug = slugify(record.company_name) + '-' + Date.now() + i
       record.gmb_review_rating = record.gmb_review_rating ? parseFloat(record.gmb_review_rating) : null
       record.number_of_reviews = record.number_of_reviews ? parseInt(record.number_of_reviews) : null
       const { error } = await supabase.from('leads').insert(record)
-      if (error) { err++; log.push(`Row ${i + 2}: Error — ${error.message}`) }
-      else { ok++; log.push(`Row ${i + 2}: Imported — ${record.company_name}`) }
+      if (error) {
+        // The DB enforces uniqueness on company/phone/email; treat a constraint
+        // hit as a duplicate (the browser no longer holds every lead to pre-check).
+        const isDup = error.code === '23505' || /duplicate|unique/i.test(error.message)
+        if (isDup) { dup++; log.push(`Row ${i + 2}: Duplicate — ${record.company_name} (skipped)`) }
+        else { err++; log.push(`Row ${i + 2}: Error — ${error.message}`) }
+      } else { ok++; log.push(`Row ${i + 2}: Imported — ${record.company_name}`) }
     }
 
     setImportResult({ ok, dup, err, log })
@@ -352,10 +356,10 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-full overflow-x-auto md:w-fit">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
+          <button key={t.id} onClick={() => setParams({ tab: t.id === 'all' ? null : t.id })}
             className={cn(
               'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
-              activeTab === t.id
+              filters.tab === t.id
                 ? 'bg-slate-700 text-slate-100'
                 : 'text-slate-500 hover:text-slate-300'
             )}>
@@ -369,19 +373,19 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
         <div className="relative flex-1 min-w-[200px]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
-            value={search} onChange={e => setSearch(e.target.value)}
+            value={searchInput} onChange={e => onSearchChange(e.target.value)}
             placeholder="Search by name, company, city, website, phone..."
             aria-label="Search leads"
             className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
           />
         </div>
         {[
-          { val: srcFilter,    set: setSrcFilter,    opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
-          { val: statusFilter, set: setStatusFilter, opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost','Disqualified'], placeholder: 'All Status' },
-          { val: agentFilter,  set: setAgentFilter,  opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
-          { val: cityFilter,   set: setCityFilter,   opts: cities as string[], placeholder: 'All Cities' },
+          { key: 'src',      val: filters.src,      opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
+          { key: 'status',   val: filters.status,   opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost','Disqualified'], placeholder: 'All Status' },
+          { key: 'assignee', val: filters.assignee, opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
+          { key: 'city',     val: filters.city,     opts: cities as string[], placeholder: 'All Cities' },
         ].map((f, i) => (
-          <select key={i} value={f.val} onChange={e => f.set(e.target.value)}
+          <select key={i} value={f.val} onChange={e => setParams({ [f.key]: e.target.value || null })}
             aria-label={f.placeholder}
             className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 cursor-pointer">
             <option value="">{f.placeholder}</option>
@@ -411,7 +415,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
-                {['Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Competitors','Status','Assigned','Added',''].map(h => (
+                {['Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
                   <th scope="col" key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
                     {h}
                   </th>
@@ -419,7 +423,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
               </tr>
             </thead>
             <tbody>
-              {paginated.map(lead => (
+              {leads.map(lead => (
                 <tr key={lead.id} className={cn(
                   'border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors',
                   selectedIds.has(lead.id) && 'bg-orange-900/10'
@@ -477,13 +481,6 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                     {lead.gmb_last_seen ? new Date(lead.gmb_last_seen).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—'}
                   </td>
                   <td className="px-3 py-3">
-                    {lead.competitor_count != null ? (
-                      <span className={cn('text-xs font-medium', lead.competitor_count === 0 ? 'text-slate-500' : lead.competitor_count >= 7 ? 'text-red-400' : lead.competitor_count >= 4 ? 'text-amber-400' : 'text-green-400')}>
-                        {lead.competitor_count} nearby
-                      </span>
-                    ) : <span className="text-slate-600 text-xs">—</span>}
-                  </td>
-                  <td className="px-3 py-3">
                     <StatusBadge status={lead.status} />
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-400">
@@ -500,9 +497,9 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                         <Eye size={14} aria-hidden="true" />
                       </Link>
                       {canEdit && (
-                        <button onClick={() => setEditLead(lead)}
+                        <button onClick={() => openEdit(lead.id)} disabled={loadingEdit}
                           aria-label={`Edit ${lead.name}`}
-                          className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                          className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors disabled:opacity-50">
                           <Edit2 size={14} aria-hidden="true" />
                         </button>
                       )}
@@ -510,10 +507,10 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                   </td>
                 </tr>
               ))}
-              {paginated.length === 0 && (
+              {leads.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
-                    {search || srcFilter || statusFilter || agentFilter || cityFilter ? 'No leads match your filters.' : 'No leads yet. Add your first lead!'}
+                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
+                    {anyFilter ? 'No leads match your filters.' : 'No leads yet. Add your first lead!'}
                   </td>
                 </tr>
               )}
@@ -523,9 +520,9 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
 
         {/* Pagination */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800 text-xs text-slate-500">
-          <span>Showing {Math.min((page - 1) * PER_PAGE + 1, filtered.length)}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} leads</span>
+          <span>Showing {totalCount === 0 ? 0 : (page - 1) * perPage + 1}–{Math.min(page * perPage, totalCount)} of {totalCount} leads</span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            <button onClick={() => goToPage(page - 1)} disabled={page === 1}
               aria-label="Previous page"
               className="w-8 h-8 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
               <ChevronLeft size={13} aria-hidden="true" />
@@ -534,7 +531,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
               const p = page <= 3 ? i + 1 : page - 2 + i
               if (p > totalPages) return null
               return (
-                <button key={p} onClick={() => setPage(p)}
+                <button key={p} onClick={() => goToPage(p)}
                   aria-label={`Page ${p}`}
                   aria-current={p === page ? 'page' : undefined}
                   className={cn('w-8 h-8 flex items-center justify-center rounded border text-xs',
@@ -543,7 +540,7 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
                 </button>
               )
             })}
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages || totalPages === 0}
+            <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages}
               aria-label="Next page"
               className="w-8 h-8 flex items-center justify-center rounded border border-slate-700 text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
               <ChevronRight size={13} aria-hidden="true" />
@@ -569,7 +566,6 @@ export function LeadsPageClient({ initialLeads, agents, profile, userId, filterB
               <LeadForm
                 agents={agents}
                 userId={userId}
-                existingLeads={initialLeads}
                 onSuccess={() => { setShowAdd(false); router.refresh() }}
               />
             </div>

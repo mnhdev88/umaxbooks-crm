@@ -109,7 +109,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       address:              lead?.address || '',
       city:                 lead?.city || '',
       zip_code:             lead?.zip_code || '',
-      country:              lead?.country || 'India',
+      country:              lead?.country || 'USA',
       website_url:          lead?.website_url || '',
       website_status:       lead?.website_status || '',
       social_url:           lead?.social_url || '',
@@ -501,12 +501,12 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={L}>Contact Name <span className="text-orange-500">*</span></label>
-          <input {...register('name')} className={cn(F, errors.name && 'border-red-600')} placeholder="Dr. Ramesh Sharma" />
+          <input {...register('name')} className={cn(F, errors.name && 'border-red-600')} placeholder="John Smith" />
           {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
         </div>
         <div>
           <label className={L}>Company / Business Name <span className="text-orange-500">*</span></label>
-          <input {...register('company_name')} className={cn(F, errors.company_name && 'border-red-600')} placeholder="Sharma Dental Clinic" />
+          <input {...register('company_name')} className={cn(F, errors.company_name && 'border-red-600')} placeholder="Acme Dental Clinic" />
           {errors.company_name && <p className="text-xs text-red-400 mt-1">{errors.company_name.message}</p>}
         </div>
         <div>
@@ -515,7 +515,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
         </div>
         <div>
           <label className={L}>Phone Number</label>
-          <input {...register('phone')} type="tel" className={F} placeholder="+91 98XXXXXXXX" />
+          <input {...register('phone')} type="tel" className={F} placeholder="+1 555 000 0000" />
         </div>
         <div>
           <label className={L}>Email ID</label>
@@ -530,7 +530,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
                 emailValidation?.verdict === 'Risky' && 'border-amber-500',
                 (emailValidation?.verdict === 'Invalid' || emailValidation?.verdict === 'Error') && 'border-red-500',
               )}
-              placeholder="dr@email.com"
+              placeholder="name@company.com"
               onChange={(e) => { emailReg.onChange(e); setEmailValidation(null) }}
               onBlur={(e) => { emailReg.onBlur(e); runEmailValidation() }}
             />
@@ -621,25 +621,25 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       <div className="space-y-3">
         <div>
           <label className={L}>Address</label>
-          <input {...register('address')} className={F} placeholder="Shop 12, Sector 14, Dwarka" />
+          <input {...register('address')} className={F} placeholder="123 Main Street, Suite 100" />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={L}>City</label>
-            <input {...register('city')} className={F} placeholder="New Delhi" />
+            <input {...register('city')} className={F} placeholder="New York" />
           </div>
           <div>
-            <label className={L}>ZIP / Pin Code</label>
-            <input {...register('zip_code')} className={F} placeholder="110075" />
+            <label className={L}>ZIP / Postal Code</label>
+            <input {...register('zip_code')} className={F} placeholder="10001" />
           </div>
           <div>
             <label className={L}>Country</label>
             <select {...register('country')} className={cn(F, 'cursor-pointer')}>
-              <option>India</option>
               <option>USA</option>
               <option>Canada</option>
-              <option>UAE</option>
               <option>UK</option>
+              <option>UAE</option>
+              <option>India</option>
               <option>Other</option>
             </select>
           </div>
@@ -651,7 +651,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={L}>Website URL</label>
-          <input {...register('website_url')} type="url" className={F} placeholder="https://sharmadental.in" />
+          <input {...register('website_url')} type="url" className={F} placeholder="https://example.com" />
         </div>
         <div>
           <label className={L}>Website Status</label>
@@ -666,7 +666,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
         </div>
         <div>
           <label className={L}>WhatsApp Number</label>
-          <input {...register('whatsapp_number')} type="tel" className={F} placeholder="+91 98XXXXXXXX" />
+          <input {...register('whatsapp_number')} type="tel" className={F} placeholder="+1 555 000 0000" />
         </div>
       </div>
 
@@ -713,7 +713,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           </div>
           <div>
             <label className={L}>Value 1</label>
-            <input {...register('custom_field_1_value')} className={F} placeholder="e.g. Raj Malhotra, BNI Delhi..." />
+            <input {...register('custom_field_1_value')} className={F} placeholder="e.g. Referrer name, Networking event..." />
           </div>
           <div>
             <label className={L}>Label 2</label>
@@ -721,7 +721,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           </div>
           <div>
             <label className={L}>Value 2</label>
-            <input {...register('custom_field_2_value')} className={F} placeholder="e.g. ₹20k–₹50k, Q2 2026..." />
+            <input {...register('custom_field_2_value')} className={F} placeholder="e.g. 10k–20k, Q2 2026..." />
           </div>
         </div>
         <div>

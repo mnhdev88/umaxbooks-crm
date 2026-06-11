@@ -25,35 +25,37 @@ export default async function ReportsPage({ searchParams }: PageProps) {
   if (!profile || profile.role === 'developer') redirect('/')
 
   // Leads + deals filtered by created_at within the selected calendar range.
-  let leadsQ = supabase.from('leads').select('status, created_at, assigned_agent_id')
-  if (fromISO) leadsQ = leadsQ.gte('created_at', fromISO)
-  if (toISO) leadsQ = leadsQ.lt('created_at', toISO)
+  // Counts/sums are aggregated in SQL (RPCs) so they aren't capped at PostgREST's
+  // 1000-row limit the way fetching rows and counting in JS was.
+  const [breakdownRes, revenueRes, agentsRes] = await Promise.all([
+    supabase.rpc('report_lead_breakdown', { from_ts: fromISO ?? null, to_ts: toISO ?? null }),
+    supabase.rpc('report_deal_revenue',   { from_ts: fromISO ?? null, to_ts: toISO ?? null }),
+    supabase.from('profiles').select('id, full_name').in('role', ['agent', 'sales_agent']),
+  ])
 
-  let dealsQ = supabase.from('deals').select('payment_status, final_payment_amount, token_amount, created_at')
-  if (fromISO) dealsQ = dealsQ.gte('created_at', fromISO)
-  if (toISO) dealsQ = dealsQ.lt('created_at', toISO)
+  const breakdown = (breakdownRes.data ?? []) as { status: string; assigned_agent_id: string | null; cnt: number | string }[]
+  const agents = agentsRes.data
+  const sumWhere = (pred: (r: { status: string; assigned_agent_id: string | null }) => boolean) =>
+    breakdown.filter(pred).reduce((s, r) => s + Number(r.cnt), 0)
 
-  const { data: leads } = await leadsQ
-  const { data: deals } = await dealsQ
-  const { data: agents } = await supabase.from('profiles').select('id, full_name').in('role', ['agent', 'sales_agent'])
+  const totalLeads = sumWhere(() => true)
+  const wonLeads = sumWhere((r) => r.status === 'Closed Won')
+  const completedLeads = sumWhere((r) => r.status === 'Completed')
+  const lostLeads = sumWhere((r) => r.status === 'Lost')
 
-  const totalLeads = leads?.length || 0
-  const wonLeads = leads?.filter((l) => l.status === 'Closed Won').length || 0
-  const completedLeads = leads?.filter((l) => l.status === 'Completed').length || 0
-  const lostLeads = leads?.filter((l) => l.status === 'Lost').length || 0
-
-  const totalRevenue = deals?.reduce((sum, d) => sum + (d.final_payment_amount || 0), 0) || 0
-  const paidRevenue = deals?.filter((d) => d.payment_status === 'Paid').reduce((sum, d) => sum + (d.final_payment_amount || 0), 0) || 0
+  const revenue = (revenueRes.data?.[0] ?? null) as { total_revenue: number | string; paid_revenue: number | string } | null
+  const totalRevenue = Number(revenue?.total_revenue ?? 0)
+  const paidRevenue = Number(revenue?.paid_revenue ?? 0)
 
   const byStatus = PIPELINE_STAGES.reduce<Record<string, number>>((acc, stage) => {
-    acc[stage] = leads?.filter((l) => l.status === stage).length || 0
+    acc[stage] = sumWhere((r) => r.status === stage)
     return acc
   }, {})
 
   const agentPerformance = agents?.map((agent) => ({
     ...agent,
-    total: leads?.filter((l) => l.assigned_agent_id === agent.id).length || 0,
-    won: leads?.filter((l) => l.assigned_agent_id === agent.id && l.status === 'Closed Won').length || 0,
+    total: sumWhere((r) => r.assigned_agent_id === agent.id),
+    won: sumWhere((r) => r.assigned_agent_id === agent.id && r.status === 'Closed Won'),
   })).sort((a, b) => b.total - a.total)
 
   return (

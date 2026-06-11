@@ -11,15 +11,6 @@ function periodStart(period: string): string | null {
   return null
 }
 
-// Apply the resolved [start, end) calendar bounds to a query on `column`.
-function withRange<T extends { gte: (c: string, v: string) => T; lt: (c: string, v: string) => T }>(
-  q: T, column: string, start: string | null, end: string | null,
-): T {
-  if (start) q = q.gte(column, start)
-  if (end) q = q.lt(column, end)
-  return q
-}
-
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -47,56 +38,27 @@ export async function GET(req: NextRequest) {
 
   const userIds = allUsers.map(u => u.id)
 
-  // Leads Added — via activity_logs
-  let addedQ = supabase.from('activity_logs').select('user_id').in('user_id', userIds).eq('action', 'Lead Created')
-  addedQ = withRange(addedQ, 'created_at', start, end)
-  const { data: leadsAdded } = await addedQ
+  // Aggregate every KPI in SQL (one call) so counts aren't capped at PostgREST's
+  // 1000-row limit the way fetching rows + counting in JS was.
+  const { data: rows } = await supabase.rpc('report_user_kpis', {
+    user_ids: userIds,
+    from_ts: start ?? null,
+    to_ts: end ?? null,
+  })
+  const byId = new Map((rows ?? []).map((r: any) => [r.user_id, r]))
 
-  // Leads Assigned — total leads currently assigned to each user (no date filter;
-  // assignment date is not tracked separately so we show the current snapshot)
-  const { data: leadsAssigned } = await supabase
-    .from('leads')
-    .select('assigned_agent_id')
-    .in('assigned_agent_id', userIds)
-
-  // Leads Completed (status = Completed, assigned to user, completed in period)
-  let completedQ = supabase.from('leads').select('assigned_agent_id').in('assigned_agent_id', userIds).eq('status', 'Completed')
-  completedQ = withRange(completedQ, 'updated_at', start, end)
-  const { data: completedLeads } = await completedQ
-
-  // Demos Booked (appointments with a demo datetime, created by user, in period)
-  let demosQ = supabase.from('appointments').select('created_by').in('created_by', userIds).not('appointment_datetime', 'is', null)
-  demosQ = withRange(demosQ, 'created_at', start, end)
-  const { data: demosBooked } = await demosQ
-
-  // Deals Closed (Paid) + Revenue — filter by when payment was recorded (updated_at)
-  let dealsQ = supabase
-    .from('deals')
-    .select('final_payment_amount, lead_id, leads!inner(assigned_agent_id)')
-    .eq('payment_status', 'Paid')
-  dealsQ = withRange(dealsQ, 'updated_at', start, end)
-  const { data: deals } = await dealsQ
-
-  // Build per-user aggregates
   const kpis = allUsers.map(u => {
-    const leadsAddedCount    = leadsAdded?.filter(l => l.user_id === u.id).length || 0
-    const leadsAssignedCount = leadsAssigned?.filter(l => l.assigned_agent_id === u.id).length || 0
-    const completedCount     = completedLeads?.filter(l => l.assigned_agent_id === u.id).length || 0
-    const demosBookedCount   = demosBooked?.filter(a => a.created_by === u.id).length || 0
-    const userDeals          = (deals as any[])?.filter(d => (d.leads as any)?.assigned_agent_id === u.id) || []
-    const dealsClosedCount   = userDeals.length
-    const revenue            = userDeals.reduce((sum: number, d: any) => sum + (d.final_payment_amount || 0), 0)
-
+    const r: any = byId.get(u.id)
     return {
       id: u.id,
       full_name: u.full_name,
       role: u.role,
-      leads_added:     leadsAddedCount,
-      leads_assigned:  leadsAssignedCount,
-      leads_completed: completedCount,
-      demos_booked:    demosBookedCount,
-      deals_closed:    dealsClosedCount,
-      revenue,
+      leads_added:     Number(r?.leads_added ?? 0),
+      leads_assigned:  Number(r?.leads_assigned ?? 0),
+      leads_completed: Number(r?.leads_completed ?? 0),
+      demos_booked:    Number(r?.demos_booked ?? 0),
+      deals_closed:    Number(r?.deals_closed ?? 0),
+      revenue:         Number(r?.revenue ?? 0),
     }
   })
 
