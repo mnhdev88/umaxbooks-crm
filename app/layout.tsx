@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
+import { createClient } from "@/lib/supabase/server";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,19 +15,44 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Noveliotech CRM",
-  description: "Digital Agency CRM Platform",
-  icons: {
-    icon: '/favicon.svg',
-    apple: '/apple-touch-icon.png',
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Novelio CRM',
-  },
-};
+// The manifest <link> is what makes the browser offer "install app", so it is
+// only emitted for admins (manifest.webmanifest itself stays public — browsers
+// fetch it without cookies). Other roles never see the install prompt.
+export async function generateMetadata(): Promise<Metadata> {
+  const base: Metadata = {
+    title: "Noveliotech CRM",
+    description: "Digital Agency CRM Platform",
+    icons: {
+      icon: '/favicon.svg',
+      apple: '/apple-touch-icon.png',
+    },
+  };
+
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return base;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (profile?.role !== 'admin') return base;
+
+    return {
+      ...base,
+      manifest: '/manifest.webmanifest',
+      appleWebApp: {
+        capable: true,
+        statusBarStyle: 'black-translucent',
+        title: 'Novelio CRM',
+      },
+    };
+  } catch {
+    return base;
+  }
+}
 
 export const viewport: Viewport = {
   themeColor: '#0A0820',
