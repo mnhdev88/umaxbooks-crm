@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
-import { Lead, PipelineStatus } from '@/types'
+import { Header } from '@/components/layout/Header'
+import { Lead, PipelineStatus, Profile } from '@/types'
 import { ActivityMap } from '@/app/(dashboard)/page'
 
 const DEV_STAGES: PipelineStatus[] = [
@@ -85,9 +86,7 @@ export default function DevPipelinePage() {
 
   return (
     <>
-      <div className="h-14 bg-[#160E32]/80 border-b border-slate-800 flex items-center px-6 sticky top-0 z-30">
-        <h1 className="text-base font-semibold text-slate-100">Dev Pipeline</h1>
-      </div>
+      <Header title="Dev Pipeline" profile={profile as Profile} />
       <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center gap-3 py-24 text-slate-500 text-sm">

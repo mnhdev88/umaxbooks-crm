@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
-import { Lead, PipelineStatus, PIPELINE_STAGES } from '@/types'
+import { Header } from '@/components/layout/Header'
+import { Lead, PipelineStatus, PIPELINE_STAGES, Profile } from '@/types'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -99,14 +100,15 @@ export default function PipelinePage() {
 
   return (
     <>
-      <div className="h-14 bg-[#160E32]/80 border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-30">
-        <h1 className="text-base font-semibold text-slate-100">Pipeline</h1>
-        {profile?.role !== 'developer' && (
+      <Header
+        title="Pipeline"
+        profile={profile as Profile}
+        actions={profile?.role !== 'developer' ? (
           <Link href="/leads/new">
             <Button size="sm"><Plus size={14} /> New Lead</Button>
           </Link>
-        )}
-      </div>
+        ) : undefined}
+      />
       {profile && (profile.role === 'sales_agent' || profile.role === 'admin') && (
         <FollowUpsWidget userId={profile.id} />
       )}
