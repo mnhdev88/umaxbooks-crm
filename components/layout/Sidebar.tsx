@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -34,6 +34,7 @@ const agentSections: NavSection[] = [
 const salesAgentSections: NavSection[] = [
   { items: [
     { href: '/',                label: 'Pipeline',           icon: LayoutDashboard },
+    { href: '/dashboard',       label: 'Dashboard',          icon: Gauge },
     { href: '/leads',           label: 'All Leads',          icon: Users },
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
@@ -72,9 +73,11 @@ const adminSections: NavSection[] = [
     { href: '/support-tickets',  label: 'Support Tickets',   icon: LifeBuoy },
   ]},
   { label: 'Analytics', items: [
+    { href: '/dashboard', label: 'Dashboard', icon: Gauge },
     { href: '/reports', label: 'Reports', icon: BarChart3 },
     { href: '/team',    label: 'Team',    icon: UsersRound },
     { href: '/clients', label: 'Clients', icon: Globe },
+    { href: '/careers', label: 'Careers', icon: Briefcase },
   ]},
   { label: 'System', items: [
     { href: '/notifications', label: 'Notifications', icon: Bell },
