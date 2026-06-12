@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -19,7 +19,21 @@ export const metadata: Metadata = {
   description: "Digital Agency CRM Platform",
   icons: {
     icon: '/favicon.svg',
+    apple: '/apple-touch-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Novelio CRM',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0A0820',
+  width: 'device-width',
+  initialScale: 1,
+  // App-like feel when installed; pages handle their own scroll containers
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({

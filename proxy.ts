@@ -38,8 +38,12 @@ export async function proxy(request: NextRequest) {
   const isVoiceApi       = path.startsWith('/api/voice')
   // /api/contracts/{token} and /api/contracts/{token}/sign — but NOT the bare /api/contracts (admin list/create)
   const isSigningApi  = /^\/api\/contracts\/[^/]/.test(path)
+  // Hit by the Supabase notifications trigger (pg_net, no session); Bearer CRON_SECRET gated internally
+  const isPushDispatch = path === '/api/push/dispatch'
+  // Hit by the server crontab (no session); each route verifies Bearer CRON_SECRET itself
+  const isCronApi      = path.startsWith('/api/cron')
 
-  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi) {
+  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi && !isPushDispatch && !isCronApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -84,6 +88,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // manifest.webmanifest and sw.js are excluded: browsers fetch the manifest
+    // without cookies, and the service worker must register before login —
+    // behind the auth redirect both 307 to /login and the PWA silently breaks.
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

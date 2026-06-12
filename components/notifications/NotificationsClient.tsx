@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Notification } from '@/types'
 import { timeAgo } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { PushSettings } from '@/components/pwa/PushSettings'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import {
@@ -154,6 +155,9 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
           )}
         </div>
       </div>
+
+      {/* Device push notifications toggle */}
+      <PushSettings />
 
       {/* Filter tabs */}
       <div className="flex items-center gap-1 mb-5 border-b border-slate-800 pb-0">
