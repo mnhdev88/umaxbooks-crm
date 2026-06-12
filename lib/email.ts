@@ -89,16 +89,28 @@ interface TemplateLead {
   city?: string | null
   business_type?: string | null
   gmb_category?: string | null
+  /** When set, agent placeholders render from this profile; otherwise agency defaults. */
+  assigned_agent_id?: string | null
+}
+
+interface TemplateAgent {
+  full_name: string | null
+  email: string | null
 }
 
 /** Replace every placeholder convention used across our templates. */
-function fillPlaceholders(text: string, lead: TemplateLead): string {
+function fillPlaceholders(text: string, lead: TemplateLead, agent?: TemplateAgent | null): string {
   const company      = lead.company_name || lead.name || 'your business'
   const fullName     = lead.name || 'there'
   const firstName    = (lead.name || '').trim().split(/\s+/)[0] || 'there'
   const city         = lead.city || 'your area'
   // Explicit business_type wins; fall back to the Google Business category, then a safe generic.
   const businessType = lead.business_type || lead.gmb_category || 'local'
+  // Agent/agency placeholders — same values ComposeModal uses, so templates render
+  // identically whether sent by hand or auto-sent (no logged-in user on this path).
+  const agencyName    = process.env.NEXT_PUBLIC_AGENCY_NAME    || 'Novelio Technologies'
+  const agencyPhone   = process.env.NEXT_PUBLIC_AGENCY_PHONE   || ''
+  const agencyWebsite = process.env.NEXT_PUBLIC_AGENCY_WEBSITE || 'noveliotech.com'
   return text
     .replace(/\{\{\s*company_name\s*\}\}/gi, company)
     .replace(/\{\{\s*business_name\s*\}\}/gi, company)
@@ -107,6 +119,13 @@ function fillPlaceholders(text: string, lead: TemplateLead): string {
     .replace(/\{\{\s*first_name\s*\}\}/gi, firstName)
     .replace(/\{\{\s*city\s*\}\}/gi, city)
     .replace(/\{\{\s*business_type\s*\}\}/gi, businessType)
+    .replace(/\{\{\s*agent_name\s*\}\}/gi, agent?.full_name || agencyName)
+    .replace(/\{\{\s*agent_email\s*\}\}/gi, agent?.email || '')
+    .replace(/\{\{\s*agent_phone\s*\}\}/gi, agencyPhone)
+    .replace(/\{\{\s*agent_whatsapp\s*\}\}/gi, process.env.NEXT_PUBLIC_AGENT_WHATSAPP || '')
+    .replace(/\{\{\s*agency_name\s*\}\}/gi, agencyName)
+    .replace(/\{\{\s*agency_website\s*\}\}/gi, agencyWebsite)
+    .replace(/\{\{\s*report_url\s*\}\}/gi, '')
 }
 
 /**
@@ -145,8 +164,33 @@ export async function sendTemplateEmailToLead(opts: {
 
   if (!template) return { sent: false, error: `template "${templateName}" not found` }
 
-  const subject = fillPlaceholders(template.subject || '', lead)
-  const html    = fillPlaceholders(template.html_body || '', lead)
+  // Resolve the lead's assigned agent for {{agent_*}} placeholders. Callers may pass
+  // assigned_agent_id; otherwise look it up. Falls back to agency defaults if none.
+  let agent: TemplateAgent | null = null
+  try {
+    let agentId = lead.assigned_agent_id
+    if (agentId === undefined) {
+      const { data } = await supabase
+        .from('leads')
+        .select('assigned_agent_id')
+        .eq('id', lead.id)
+        .maybeSingle()
+      agentId = data?.assigned_agent_id ?? null
+    }
+    if (agentId) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', agentId)
+        .maybeSingle()
+      agent = data
+    }
+  } catch (e) {
+    console.error('[email] sendTemplateEmailToLead: agent lookup failed, using agency defaults', e)
+  }
+
+  const subject = fillPlaceholders(template.subject || '', lead, agent)
+  const html    = fillPlaceholders(template.html_body || '', lead, agent)
 
   const { error } = await sendEmail({ to: lead.email, subject, html })
   if (error) return { sent: false, error }

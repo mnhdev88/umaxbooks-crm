@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
         try {
           const { data: lead } = await supabase
             .from('leads')
-            .select('id, name, company_name, email, city, business_type, gmb_category, do_not_call, email_unsubscribed, cold_outreach_sent_at')
+            .select('id, name, company_name, email, city, business_type, gmb_category, assigned_agent_id, do_not_call, email_unsubscribed, cold_outreach_sent_at')
             .eq('id', leadId)
             .single()
 
@@ -166,6 +166,7 @@ export async function POST(req: NextRequest) {
               lead: {
                 id: lead.id, name: lead.name, company_name: lead.company_name, email: lead.email,
                 city: lead.city, business_type: lead.business_type, gmb_category: lead.gmb_category,
+                assigned_agent_id: lead.assigned_agent_id ?? null,
               },
               templateName: COLD_OUTREACH_TEMPLATE,
               context: 'auto-sent after AI voice call',
