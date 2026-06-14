@@ -363,6 +363,31 @@ export interface Notification {
   user?: { full_name: string; role: string } | null
 }
 
+// ── Chat (staff DMs) ────────────────────────────────────────────────────────
+export interface ChatMessage {
+  id: string
+  conversation_id: string
+  sender_id: string
+  body: string
+  created_at: string
+}
+
+// A conversation as shown in the list, with the other participant resolved
+// (for 1:1 DMs) and a computed unread flag.
+export interface ChatConversation {
+  id: string
+  is_group: boolean
+  title: string | null
+  last_message_at: string
+  created_at: string
+  other: Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'> | null
+  last_message?: string | null
+  unread: boolean
+}
+
+// A staff member you can start a DM with.
+export type ChatContact = Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'>
+
 export interface BeforeAfterComparison {
   id: string
   lead_id: string

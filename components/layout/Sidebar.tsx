@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -27,6 +27,7 @@ const agentSections: NavSection[] = [
     { href: '/email-status',   label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',   label: 'Unsubscribes',       icon: MailX },
     { href: '/reports',        label: 'Reports',            icon: BarChart3 },
+    { href: '/messages',       label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',  label: 'Notifications',      icon: Bell },
   ]},
 ]
@@ -43,6 +44,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
     { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
     { href: '/reports',         label: 'Reports',            icon: BarChart3 },
+    { href: '/messages',        label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',   label: 'Notifications',      icon: Bell },
   ]},
 ]
@@ -53,6 +55,7 @@ const developerSections: NavSection[] = [
     { href: '/leads',                           label: 'All Leads',  icon: Users },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/developer-queue?filter=to-build', label: 'To Build',   icon: Hammer },
+    { href: '/messages',                        label: 'Messages',   icon: MessageSquare },
     { href: '/notifications',                   label: 'Notifications', icon: Bell },
   ]},
 ]
@@ -80,6 +83,7 @@ const adminSections: NavSection[] = [
     { href: '/careers', label: 'Careers', icon: Briefcase },
   ]},
   { label: 'System', items: [
+    { href: '/messages',      label: 'Messages',      icon: MessageSquare },
     { href: '/notifications', label: 'Notifications', icon: Bell },
     { href: '/settings',      label: 'Settings',      icon: Settings },
   ]},
@@ -103,6 +107,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const { theme, toggleTheme } = useTheme()
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
+  const [chatUnread, setChatUnread]     = useState(0)
   const [signingOut, setSigningOut]     = useState(false)
 
   const sections =
@@ -129,6 +134,18 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     return () => { supabase.removeChannel(channel) }
   }, [profile.id])
 
+  useEffect(() => {
+    fetchChatUnread()
+    // messages stream is RLS-filtered to my conversations; refetch on any change
+    // (new message in, or my read state advancing on another tab/device).
+    const channel = supabase
+      .channel('sidebar-chat')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchChatUnread)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${profile.id}` }, fetchChatUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profile.id, pathname])
+
   async function fetchPendingCount() {
     const { count } = await supabase
       .from('project_approvals')
@@ -144,6 +161,11 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       .eq('user_id', profile.id)
       .eq('read', false)
     setUnreadCount(count || 0)
+  }
+
+  async function fetchChatUnread() {
+    const { data } = await supabase.rpc('chat_unread_count')
+    setChatUnread(typeof data === 'number' ? data : 0)
   }
 
   async function handleLogout() {
@@ -214,6 +236,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
                 const badge =
                   href === '/approvals'    && pendingCount > 0 ? pendingCount :
                   href === '/notifications' && unreadCount  > 0 ? unreadCount  :
+                  href === '/messages'      && chatUnread   > 0 ? chatUnread   :
                   0
                 return (
                   <Link
