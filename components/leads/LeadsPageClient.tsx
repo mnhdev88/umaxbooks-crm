@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
-  Eye, Edit2, Download, AlertCircle, Filter,
+  Eye, Edit2, Download, AlertCircle, Filter, ChevronDown, Check,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 
 // ── Template download helpers ─────────────────────────────────────────────────
@@ -75,6 +76,12 @@ const STATUS_CLS: Record<string, string> = {
   'Disqualified':   'bg-slate-700/40 text-slate-400 border border-slate-600/40',
 }
 
+// Ordered list of statuses for the inline quick-edit dropdown (matches the filter).
+const STATUSES = [
+  'New', 'Contacted', 'Audit Ready', 'Callback Booked', 'Demo Scheduled', 'Demo Done',
+  'Closed Won', 'Revision', 'Live', 'Completed', 'Lost', 'Disqualified',
+]
+
 const PRIORITY_CLS: Record<string, string> = {
   'Urgent': 'text-red-400',
   'High':   'text-amber-400',
@@ -100,6 +107,119 @@ function StatusBadge({ status }: { status: string }) {
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
       {status}
     </span>
+  )
+}
+
+// Inline quick-edit status control for the All Leads table. Click the badge to
+// pick a new status — saves instantly (optimistic) and mirrors the Kanban board:
+// it logs an activity entry and fires the status-change notification.
+function StatusCell({ lead, userId }: { lead: Lead; userId: string }) {
+  const [status, setStatus] = useState<string>(lead.status)
+  const [open, setOpen]     = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  // Resync if the row's status changes underneath us (e.g. router.refresh()).
+  useEffect(() => { setStatus(lead.status) }, [lead.status])
+
+  // The status column lives inside an overflow-scrolling table, so anchor the
+  // menu with fixed positioning to avoid clipping. Close it if the page scrolls.
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
+
+  function openMenu() {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) setCoords({ top: r.bottom + 4, left: r.left })
+    setOpen(true)
+  }
+
+  async function changeStatus(next: string) {
+    setOpen(false)
+    if (next === status) return
+    const prev = status
+    setStatus(next)            // optimistic
+    setSaving(true)
+
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('leads')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+
+    if (error) {
+      setStatus(prev)
+      setSaving(false)
+      toast.error('Failed to update status. Reverted.')
+      return
+    }
+
+    await supabase.from('activity_logs').insert({
+      lead_id: lead.id,
+      user_id: userId,
+      action: 'Status Changed',
+      details: `Status changed from "${prev}" to "${next}"`,
+    })
+
+    if (next === 'Demo Scheduled' || next === 'Revision') {
+      fetch('/api/notifications/status-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id, newStatus: next }),
+      }).catch(() => {})
+    }
+
+    setSaving(false)
+    toast.success(`Status updated to "${next}"`)
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef} type="button" disabled={saving}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        aria-haspopup="menu" aria-expanded={open}
+        aria-label={`Change status, currently ${status}`}
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50 cursor-pointer',
+          STATUS_CLS[status] || 'bg-slate-700 text-slate-300'
+        )}>
+        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+        {status}
+        <ChevronDown size={11} className="opacity-60" aria-hidden="true" />
+      </button>
+
+      {open && coords && (
+        <>
+          <button type="button" aria-hidden="true" tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
+          <div role="menu" style={{ position: 'fixed', top: coords.top, left: coords.left }}
+            className="z-50 w-44 max-h-72 overflow-y-auto bg-slate-900 border border-slate-700 rounded-lg shadow-xl shadow-black/40 py-1">
+            {STATUSES.map(s => (
+              <button key={s} type="button" role="menuitem" onClick={() => changeStatus(s)}
+                className={cn(
+                  'flex items-center justify-between w-full text-left px-3 py-1.5 text-xs hover:bg-slate-800 transition-colors',
+                  s === status ? 'text-orange-400' : 'text-slate-300'
+                )}>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium', STATUS_CLS[s] || 'bg-slate-700 text-slate-300')}>{s}</span>
+                </span>
+                {s === status && <Check size={12} className="shrink-0" aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
   )
 }
 
@@ -381,7 +501,7 @@ export function LeadsPageClient({
         </div>
         {[
           { key: 'src',      val: filters.src,      opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
-          { key: 'status',   val: filters.status,   opts: ['New','Contacted','Audit Ready','Callback Booked','Demo Scheduled','Demo Done','Closed Won','Revision','Live','Completed','Lost','Disqualified'], placeholder: 'All Status' },
+          { key: 'status',   val: filters.status,   opts: STATUSES, placeholder: 'All Status' },
           { key: 'assignee', val: filters.assignee, opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
           { key: 'city',     val: filters.city,     opts: cities as string[], placeholder: 'All Cities' },
         ].map((f, i) => (
@@ -415,7 +535,7 @@ export function LeadsPageClient({
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
-                {['Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
+                {['Lead ID','Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
                   <th scope="col" key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
                     {h}
                   </th>
@@ -440,15 +560,18 @@ export function LeadsPageClient({
                         }} />
                     </td>
                   )}
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    {lead.lead_number ? (
+                      <Link href={`/leads/${lead.id}`}
+                        className="inline-flex font-mono text-[11px] font-semibold px-2 py-1 rounded-md bg-slate-800 text-orange-400/90 border border-slate-700 hover:border-orange-500/50 hover:text-orange-400 transition-colors">
+                        NVL-{String(lead.lead_number).padStart(3, '0')}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-600 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
-                      {lead.lead_number && (
-                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 border border-slate-600/40 whitespace-nowrap">
-                          NVL-{String(lead.lead_number).padStart(3, '0')}
-                        </span>
-                      )}
-                    </div>
+                    <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
                     <p className="text-xs text-slate-500 mt-0.5">{lead.company_name}</p>
                     {lead.priority && lead.priority !== 'Normal' && (
                       <span className={cn('text-xs font-semibold', PRIORITY_CLS[lead.priority])}>
@@ -481,7 +604,9 @@ export function LeadsPageClient({
                     {lead.gmb_last_seen ? new Date(lead.gmb_last_seen).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—'}
                   </td>
                   <td className="px-3 py-3">
-                    <StatusBadge status={lead.status} />
+                    {canEdit
+                      ? <StatusCell lead={lead} userId={userId} />
+                      : <StatusBadge status={lead.status} />}
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-400">
                     {(lead as any).assigned_agent?.full_name || <span className="text-slate-600">—</span>}
@@ -509,7 +634,7 @@ export function LeadsPageClient({
               ))}
               {leads.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
                     {anyFilter ? 'No leads match your filters.' : 'No leads yet. Add your first lead!'}
                   </td>
                 </tr>
