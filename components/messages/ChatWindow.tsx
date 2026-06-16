@@ -8,6 +8,16 @@ import { describeSupabaseError } from './errorMessage'
 import { toast } from 'sonner'
 import { Send, X, Minus } from 'lucide-react'
 
+// Time for today's messages; date + time for older ones.
+function formatTime(iso: string) {
+  const d = new Date(iso)
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) return time
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`
+}
+
 interface Props {
   userId: string
   conversationId: string
@@ -148,13 +158,14 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
               messages.map((m) => {
                 const mine = m.sender_id === userId
                 return (
-                  <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+                  <div key={m.id} className={cn('flex flex-col', mine ? 'items-end' : 'items-start')}>
                     <div className={cn(
                       'max-w-[80%] rounded-2xl px-3 py-1.5 text-[13px] break-words',
                       mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 rounded-bl-sm'
                     )}>
                       <p className="whitespace-pre-wrap">{m.body}</p>
                     </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 px-1">{formatTime(m.created_at)}</span>
                   </div>
                 )
               })
