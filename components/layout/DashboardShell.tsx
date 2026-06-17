@@ -60,7 +60,9 @@ export function DashboardShell({ userId, children }: { userId: string; children:
   // Last-seen heartbeat: stamp profiles.last_seen_at on load, every 60s, and
   // whenever the tab regains focus. Powers "Last seen X ago" in chat.
   useEffect(() => {
-    const touch = () => { supabase.rpc('touch_last_seen') }
+    // .then() is required — the supabase query builder is lazy and won't send
+    // the request unless it's awaited/thened.
+    const touch = () => { supabase.rpc('touch_last_seen').then(() => {}, () => {}) }
     touch()
     const id = setInterval(touch, 60_000)
     const onVisible = () => { if (document.visibilityState === 'visible') touch() }
