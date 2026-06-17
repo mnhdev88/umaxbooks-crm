@@ -141,6 +141,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     const channel = supabase
       .channel('sidebar-chat')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchChatUnread)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, fetchChatUnread)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${profile.id}` }, fetchChatUnread)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

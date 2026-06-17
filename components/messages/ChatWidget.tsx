@@ -103,23 +103,26 @@ export function ChatWidget({ userId }: { userId: string }) {
     const [{ data: convs }, { data: members }, { data: recent }] = await Promise.all([
       supabase.from('conversations').select('id, is_group, title, last_message_at, created_at').in('id', ids),
       supabase.from('conversation_participants').select('conversation_id, user_id, profile:profiles(id, full_name, role, avatar_url, last_seen_at)').in('conversation_id', ids),
-      supabase.from('messages').select('conversation_id, body, created_at, sender_id').in('conversation_id', ids).order('created_at', { ascending: false }).limit(400),
+      supabase.from('messages').select('conversation_id, body, created_at, sender_id, attachment_name, attachment_path').in('conversation_id', ids).order('created_at', { ascending: false }).limit(400),
     ])
 
     const otherByConv = new Map<string, ChatContact>()
     for (const m of members ?? []) {
       if (m.user_id !== userId && m.profile) otherByConv.set(m.conversation_id, m.profile as unknown as ChatContact)
     }
-    const lastByConv = new Map<string, { body: string; created_at: string; sender_id: string }>()
-    for (const msg of recent ?? []) {
+    type RecentMsg = { conversation_id: string; body: string | null; created_at: string; sender_id: string; attachment_name: string | null; attachment_path: string | null }
+    const lastByConv = new Map<string, RecentMsg>()
+    for (const msg of (recent ?? []) as RecentMsg[]) {
       if (!lastByConv.has(msg.conversation_id)) lastByConv.set(msg.conversation_id, msg)
     }
+    const preview = (m: RecentMsg) => m.body ?? (m.attachment_path ? `📎 ${m.attachment_name ?? 'Attachment'}` : null)
 
     const list = (convs ?? [])
+      .filter((c) => lastByConv.has(c.id))   // only threads that have messages
       .map((c): ChatConversation => {
-        const last = lastByConv.get(c.id)
+        const last = lastByConv.get(c.id)!
         const lastRead = lastReadById.get(c.id)
-        const unread = !!last && last.sender_id !== userId &&
+        const unread = last.sender_id !== userId &&
           (!lastRead || new Date(last.created_at) > new Date(lastRead))
         return {
           id: c.id,
@@ -128,11 +131,10 @@ export function ChatWidget({ userId }: { userId: string }) {
           last_message_at: c.last_message_at,
           created_at: c.created_at,
           other: otherByConv.get(c.id) ?? null,
-          last_message: last?.body ?? null,
+          last_message: preview(last),
           unread,
         }
       })
-      .filter((c) => c.last_message != null)   // hide empty just-created threads
       .sort((a, b) => +new Date(b.last_message_at) - +new Date(a.last_message_at))
 
     setConversations(list)
@@ -145,6 +147,7 @@ export function ChatWidget({ userId }: { userId: string }) {
     const channel = supabase
       .channel('chat-widget')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => { fetchUnread(); loadConversations() })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => { fetchUnread(); loadConversations() })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` }, () => { fetchUnread(); loadConversations() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }

@@ -52,7 +52,7 @@ export default async function MessagesPage() {
       // Newest-first; enough to derive a preview + unread flag per thread.
       supabase
         .from('messages')
-        .select('conversation_id, body, created_at, sender_id')
+        .select('conversation_id, body, created_at, sender_id, attachment_name, attachment_path')
         .in('conversation_id', convIds)
         .order('created_at', { ascending: false })
         .limit(400),
@@ -65,10 +65,12 @@ export default async function MessagesPage() {
       }
     }
 
-    const lastMsgByConv = new Map<string, { body: string; created_at: string; sender_id: string }>()
-    for (const msg of recent ?? []) {
+    type RecentMsg = { conversation_id: string; body: string | null; created_at: string; sender_id: string; attachment_name: string | null; attachment_path: string | null }
+    const lastMsgByConv = new Map<string, RecentMsg>()
+    for (const msg of (recent ?? []) as RecentMsg[]) {
       if (!lastMsgByConv.has(msg.conversation_id)) lastMsgByConv.set(msg.conversation_id, msg)
     }
+    const preview = (m: RecentMsg) => m.body ?? (m.attachment_path ? `📎 ${m.attachment_name ?? 'Attachment'}` : null)
 
     conversations = (convs ?? [])
       .map((c): ChatConversation => {
@@ -83,7 +85,7 @@ export default async function MessagesPage() {
           last_message_at: c.last_message_at,
           created_at: c.created_at,
           other: otherByConv.get(c.id) ?? null,
-          last_message: last?.body ?? null,
+          last_message: last ? preview(last) : null,
           unread,
         }
       })

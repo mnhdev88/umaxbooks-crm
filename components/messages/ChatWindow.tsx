@@ -5,8 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { ChatContact, ChatMessage } from '@/types'
 import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
+import { Attachment, uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
 import { toast } from 'sonner'
-import { Send, X, Minus } from 'lucide-react'
+import { Send, X, Minus, Paperclip, Loader2, Download, Trash2 } from 'lucide-react'
+
+const MESSAGE_COLUMNS = 'id, conversation_id, sender_id, body, created_at, attachment_path, attachment_name, attachment_type, attachment_size'
 
 // Time for today's messages; date + time for older ones.
 function formatTime(iso: string) {
@@ -36,8 +39,10 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
   const [minimized, setMinimized] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastSeen, setLastSeen] = useState<string | null>(contact.last_seen_at ?? null)
+  const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // Refresh "last seen" the moment they're offline, so it isn't a stale snapshot.
   useEffect(() => {
@@ -61,7 +66,7 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     setLoading(true)
     supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, body, created_at')
+      .select(MESSAGE_COLUMNS)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(200)
@@ -82,6 +87,13 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
         if (msg.sender_id !== userId) markRead()
       })
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const old = payload.old as { id: string }
+        setMessages((prev) => prev.filter((m) => m.id !== old.id))
+      })
       .subscribe()
 
     return () => { active = false; supabase.removeChannel(channel) }
@@ -92,27 +104,76 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     if (!minimized) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, minimized])
 
+  // Insert a message row (text and/or attachment) and append it locally.
+  async function insertMessage(row: Record<string, unknown>): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: conversationId, sender_id: userId, ...row })
+      .select(MESSAGE_COLUMNS)
+      .single()
+    if (error || !data) {
+      const detail = describeSupabaseError(error)
+      console.error('Chat send failed:', detail, error)
+      toast.error(`Send failed: ${detail}`)
+      return false
+    }
+    const msg = data as ChatMessage
+    setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+    return true
+  }
+
   async function send() {
     const body = input.trim()
     if (!body || sending) return
     setSending(true)
     setInput('')
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: userId, body })
-      .select('id, conversation_id, sender_id, body, created_at')
-      .single()
+    const ok = await insertMessage({ body })
     setSending(false)
-    if (error || !data) {
-      const detail = describeSupabaseError(error)
-      console.error('Chat send failed:', detail, error)
-      toast.error(`Send failed: ${detail}`)
-      setInput(body)
+    if (!ok) setInput(body)
+    inputRef.current?.focus()
+  }
+
+  async function removeMessage(m: ChatMessage) {
+    if (!window.confirm('Delete this attachment for everyone?')) return
+    setMessages((prev) => prev.filter((x) => x.id !== m.id)) // optimistic
+    try {
+      await deleteChatMessage(supabase, m)
+    } catch (err) {
+      console.error('Delete failed:', err)
+      toast.error(`Delete failed: ${describeSupabaseError(err)}`)
+      setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m].sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)))
+    }
+  }
+
+  async function download(m: ChatMessage) {
+    if (!m.attachment_path) return
+    try {
+      await downloadAttachment(supabase, m.attachment_path, m.attachment_name)
+    } catch (err) {
+      toast.error(`Download failed: ${describeSupabaseError(err)}`)
+    }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (!file || uploading) return
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error('File too large (max 25 MB)')
       return
     }
-    const msg = data as ChatMessage
-    setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
-    inputRef.current?.focus()
+    setUploading(true)
+    try {
+      const attachment = await uploadChatFile(supabase, conversationId, file)
+      const caption = input.trim()
+      const ok = await insertMessage({ body: caption || null, ...attachment })
+      if (ok) setInput('')
+    } catch (err) {
+      console.error('Attachment upload failed:', err)
+      toast.error(`Upload failed: ${describeSupabaseError(err)}`)
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -168,14 +229,47 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
               messages.map((m) => {
                 const mine = m.sender_id === userId
                 return (
-                  <div key={m.id} className={cn('flex flex-col', mine ? 'items-end' : 'items-start')}>
-                    <div className={cn(
-                      'max-w-[80%] rounded-2xl px-3 py-1.5 text-[13px] break-words',
-                      mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 rounded-bl-sm'
-                    )}>
-                      <p className="whitespace-pre-wrap">{m.body}</p>
+                  <div key={m.id} className={cn('group flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+                    {m.attachment_path && (
+                      <div className="max-w-[80%]">
+                        <Attachment
+                          path={m.attachment_path}
+                          name={m.attachment_name}
+                          type={m.attachment_type}
+                          size={m.attachment_size}
+                          mine={mine}
+                        />
+                      </div>
+                    )}
+                    {m.body && (
+                      <div className={cn(
+                        'max-w-[80%] rounded-2xl px-3 py-1.5 text-[13px] break-words',
+                        mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 rounded-bl-sm'
+                      )}>
+                        <p className="whitespace-pre-wrap">{m.body}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 px-1">
+                      <span className="text-[10px] text-slate-500">{formatTime(m.created_at)}</span>
+                      {m.attachment_path && (
+                        <button
+                          onClick={() => download(m)}
+                          aria-label="Download file"
+                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-200 transition-opacity"
+                        >
+                          <Download size={12} />
+                        </button>
+                      )}
+                      {mine && m.attachment_path && (
+                        <button
+                          onClick={() => removeMessage(m)}
+                          aria-label="Delete attachment"
+                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-opacity"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-0.5 px-1">{formatTime(m.created_at)}</span>
                   </div>
                 )
               })
@@ -183,14 +277,23 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
             <div ref={bottomRef} />
           </div>
 
-          <div className="p-2 border-t border-slate-800 shrink-0 flex items-end gap-2">
+          <div className="p-2 border-t border-slate-800 shrink-0 flex items-end gap-1.5">
+            <input ref={fileRef} type="file" className="hidden" onChange={handleFile} />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              aria-label="Attach file"
+              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors shrink-0"
+            >
+              {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+            </button>
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               rows={1}
-              placeholder="Aa"
+              placeholder={uploading ? 'Uploading…' : 'Aa'}
               className="flex-1 resize-none max-h-24 bg-slate-900 border border-slate-700 rounded-full px-3.5 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
             />
             <button
