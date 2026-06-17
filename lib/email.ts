@@ -221,6 +221,9 @@ export async function sendTemplateEmailToLead(opts: {
       action:  'Auto Cold-Outreach Email Sent',
       details: `Sent "${templateName}" to ${lead.email}${context ? ` (${context})` : ''}.`,
     })
+
+    // Promote New leads to Contacted on first email — mirrors sendLeadEmail().
+    await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id).eq('status', 'New')
   } catch (e) {
     console.error('[email] sendTemplateEmailToLead: send succeeded but logging failed', e)
   }

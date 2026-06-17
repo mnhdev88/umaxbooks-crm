@@ -117,6 +117,9 @@ export async function POST(req: NextRequest) {
       if (extracted?.do_not_call) leadUpdate.do_not_call = true
       await supabase.from('leads').update(leadUpdate).eq('id', leadId)
 
+      // Promote New leads to Contacted — a completed AI call counts as first contact.
+      await supabase.from('leads').update({ status: 'Contacted' }).eq('id', leadId).eq('status', 'New')
+
       // 3. Timeline entry so the call shows on the lead's Activity tab.
       const details = [
         summary || transcript.slice(0, 500) || '(no transcript)',
