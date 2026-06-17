@@ -57,6 +57,17 @@ export function DashboardShell({ userId, children }: { userId: string; children:
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
+  // Last-seen heartbeat: stamp profiles.last_seen_at on load, every 60s, and
+  // whenever the tab regains focus. Powers "Last seen X ago" in chat.
+  useEffect(() => {
+    const touch = () => { supabase.rpc('touch_last_seen') }
+    touch()
+    const id = setInterval(touch, 60_000)
+    const onVisible = () => { if (document.visibilityState === 'visible') touch() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
+  }, [userId])
+
   // Escape closes the mobile sidebar drawer
   useEffect(() => {
     if (!sidebarOpen) return

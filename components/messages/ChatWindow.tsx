@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatContact, ChatMessage } from '@/types'
-import { cn } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
 import { toast } from 'sonner'
 import { Send, X, Minus } from 'lucide-react'
@@ -35,8 +35,18 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
   const [sending, setSending] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [lastSeen, setLastSeen] = useState<string | null>(contact.last_seen_at ?? null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Refresh "last seen" the moment they're offline, so it isn't a stale snapshot.
+  useEffect(() => {
+    if (online) return
+    let active = true
+    supabase.from('profiles').select('last_seen_at').eq('id', contact.id).single()
+      .then(({ data }) => { if (active && data) setLastSeen(data.last_seen_at) })
+    return () => { active = false }
+  }, [online, contact.id, supabase])
 
   async function markRead() {
     await supabase
@@ -128,7 +138,7 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-slate-100 truncate leading-tight">{contact.full_name}</p>
           <p className={cn('text-[10px] leading-tight', online ? 'text-green-400' : 'text-slate-500')}>
-            {online ? 'Active now' : 'Offline'}
+            {online ? 'Active now' : lastSeen ? `Last seen ${timeAgo(lastSeen)}` : 'Offline'}
           </p>
         </div>
         <button

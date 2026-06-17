@@ -80,6 +80,7 @@ export interface Profile {
   role: UserRole
   avatar_url?: string
   lead_id?: string
+  last_seen_at?: string | null
   created_at: string
 }
 
@@ -380,13 +381,13 @@ export interface ChatConversation {
   title: string | null
   last_message_at: string
   created_at: string
-  other: Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'> | null
+  other: ChatContact | null
   last_message?: string | null
   unread: boolean
 }
 
 // A staff member you can start a DM with.
-export type ChatContact = Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'>
+export type ChatContact = Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url' | 'last_seen_at'>
 
 export interface BeforeAfterComparison {
   id: string

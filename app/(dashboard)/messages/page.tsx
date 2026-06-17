@@ -22,7 +22,7 @@ export default async function MessagesPage() {
   // Everyone you can DM: all staff except yourself.
   const { data: contactsRaw } = await supabase
     .from('profiles')
-    .select('id, full_name, role, avatar_url')
+    .select('id, full_name, role, avatar_url, last_seen_at')
     .neq('role', 'client')
     .neq('id', user.id)
     .order('full_name')
@@ -47,7 +47,7 @@ export default async function MessagesPage() {
         .in('id', convIds),
       supabase
         .from('conversation_participants')
-        .select('conversation_id, user_id, profile:profiles(id, full_name, role, avatar_url)')
+        .select('conversation_id, user_id, profile:profiles(id, full_name, role, avatar_url, last_seen_at)')
         .in('conversation_id', convIds),
       // Newest-first; enough to derive a preview + unread flag per thread.
       supabase

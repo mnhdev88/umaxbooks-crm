@@ -77,7 +77,7 @@ export function ChatWidget({ userId }: { userId: string }) {
   useEffect(() => {
     supabase
       .from('profiles')
-      .select('id, full_name, role, avatar_url')
+      .select('id, full_name, role, avatar_url, last_seen_at')
       .neq('role', 'client')
       .neq('id', userId)
       .order('full_name')
@@ -102,7 +102,7 @@ export function ChatWidget({ userId }: { userId: string }) {
 
     const [{ data: convs }, { data: members }, { data: recent }] = await Promise.all([
       supabase.from('conversations').select('id, is_group, title, last_message_at, created_at').in('id', ids),
-      supabase.from('conversation_participants').select('conversation_id, user_id, profile:profiles(id, full_name, role, avatar_url)').in('conversation_id', ids),
+      supabase.from('conversation_participants').select('conversation_id, user_id, profile:profiles(id, full_name, role, avatar_url, last_seen_at)').in('conversation_id', ids),
       supabase.from('messages').select('conversation_id, body, created_at, sender_id').in('conversation_id', ids).order('created_at', { ascending: false }).limit(400),
     ])
 

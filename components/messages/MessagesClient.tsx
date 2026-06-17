@@ -56,6 +56,7 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loadingThread, setLoadingThread] = useState(false)
+  const [activeLastSeen, setActiveLastSeen] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -73,7 +74,7 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
   const fetchConversationMeta = useCallback(async (convId: string): Promise<ChatConversation | null> => {
     const [{ data: conv }, { data: members }, { data: last }] = await Promise.all([
       supabase.from('conversations').select('id, is_group, title, last_message_at, created_at').eq('id', convId).single(),
-      supabase.from('conversation_participants').select('user_id, profile:profiles(id, full_name, role, avatar_url)').eq('conversation_id', convId),
+      supabase.from('conversation_participants').select('user_id, profile:profiles(id, full_name, role, avatar_url, last_seen_at)').eq('conversation_id', convId),
       supabase.from('messages').select('body, created_at, sender_id').eq('conversation_id', convId).order('created_at', { ascending: false }).limit(1),
     ])
     if (!conv) return null
@@ -170,6 +171,19 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Refresh "last seen" for the open thread's other user when they're offline.
+  useEffect(() => {
+    const other = activeConv?.other
+    if (!other) { setActiveLastSeen(null); return }
+    if (isOnline) return
+    setActiveLastSeen(other.last_seen_at ?? null)
+    let active = true
+    supabase.from('profiles').select('last_seen_at').eq('id', other.id).single()
+      .then(({ data }) => { if (active && data) setActiveLastSeen(data.last_seen_at) })
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, isOnline])
 
   // ── Start (or open existing) DM with a contact ─────────────────────────────
   async function startConversation(contact: ChatContact) {
@@ -315,7 +329,9 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
                     ? <span className="text-[11px] text-green-400 flex items-center gap-1 leading-tight">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Active now
                       </span>
-                    : <span className="text-[11px] text-slate-500 leading-tight">{formatRole(activeConv.other.role)}</span>
+                    : <span className="text-[11px] text-slate-500 leading-tight">
+                        {activeLastSeen ? `Last seen ${timeAgo(activeLastSeen)}` : formatRole(activeConv.other.role)}
+                      </span>
                 )}
               </div>
             </div>
