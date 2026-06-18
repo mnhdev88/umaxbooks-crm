@@ -119,26 +119,40 @@ function StatusCell({ lead, userId }: { lead: Lead; userId: string }) {
   const [saving, setSaving] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // Resync if the row's status changes underneath us (e.g. router.refresh()).
   useEffect(() => { setStatus(lead.status) }, [lead.status])
 
   // The status column lives inside an overflow-scrolling table, so anchor the
-  // menu with fixed positioning to avoid clipping. Close it if the page scrolls.
+  // menu with fixed positioning to avoid clipping. Close it when the PAGE
+  // scrolls — but NOT when scrolling inside the menu itself.
   useEffect(() => {
     if (!open) return
-    const close = () => setOpen(false)
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
+    const onScroll = (e: Event) => {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return
+      setOpen(false)
+    }
+    const onResize = () => setOpen(false)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
     return () => {
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
     }
   }, [open])
 
   function openMenu() {
     const r = btnRef.current?.getBoundingClientRect()
-    if (r) setCoords({ top: r.bottom + 4, left: r.left })
+    if (r) {
+      const MENU_H = 288 // max-h-72
+      // Keep the (scrollable) menu fully inside the viewport.
+      let top = r.bottom + 4
+      if (top + MENU_H > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - MENU_H - 8)
+      }
+      setCoords({ top, left: r.left })
+    }
     setOpen(true)
   }
 
@@ -202,7 +216,7 @@ function StatusCell({ lead, userId }: { lead: Lead; userId: string }) {
         <>
           <button type="button" aria-hidden="true" tabIndex={-1}
             className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
-          <div role="menu" style={{ position: 'fixed', top: coords.top, left: coords.left }}
+          <div ref={menuRef} role="menu" style={{ position: 'fixed', top: coords.top, left: coords.left }}
             className="z-50 w-44 max-h-72 overflow-y-auto bg-slate-900 border border-slate-700 rounded-lg shadow-xl shadow-black/40 py-1">
             {STATUSES.map(s => (
               <button key={s} type="button" role="menuitem" onClick={() => changeStatus(s)}
