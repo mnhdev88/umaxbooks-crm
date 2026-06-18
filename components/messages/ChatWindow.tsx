@@ -6,6 +6,7 @@ import { ChatContact, ChatMessage } from '@/types'
 import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
 import { Attachment, uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
+import { EmojiPicker } from './EmojiPicker'
 import { toast } from 'sonner'
 import { Send, X, Minus, Paperclip, Loader2, Download, Trash2 } from 'lucide-react'
 
@@ -120,6 +121,19 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     const msg = data as ChatMessage
     setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
     return true
+  }
+
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current
+    if (!el) { setInput((v) => v + emoji); return }
+    const start = el.selectionStart ?? input.length
+    const end = el.selectionEnd ?? input.length
+    setInput(input.slice(0, start) + emoji + input.slice(end))
+    setTimeout(() => {
+      el.focus()
+      const pos = start + emoji.length
+      el.setSelectionRange(pos, pos)
+    }, 0)
   }
 
   async function send() {
@@ -279,6 +293,11 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
 
           <div className="p-2 border-t border-slate-800 shrink-0 flex items-end gap-1.5">
             <input ref={fileRef} type="file" className="hidden" onChange={handleFile} />
+            <EmojiPicker
+              onPick={insertEmoji}
+              size={16}
+              buttonClassName="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            />
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
