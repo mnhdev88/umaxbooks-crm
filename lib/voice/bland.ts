@@ -74,14 +74,31 @@ export interface StartCallInput {
   leadId?: string
 }
 
-/** Normalise a US phone number to E.164 (+1XXXXXXXXXX). */
+/**
+ * Normalise a phone number to E.164 (+1XXXXXXXXXX for US). Strips ALL formatting
+ * (spaces, dots, parens, dashes) — including from numbers that already start with "+",
+ * which is the common case that previously slipped through as "+1 304.556.4839" and
+ * got rejected by Bland as invalid.
+ */
 export function toE164US(raw: string): string {
-  const trimmed = raw.trim()
-  if (trimmed.startsWith('+')) return trimmed
+  const trimmed = (raw || '').trim()
+  const intl = trimmed.startsWith('+')
   const digits = trimmed.replace(/\D/g, '')
-  if (digits.length === 10) return `+1${digits}`
+  if (intl) return `+${digits}`                          // already international — just drop formatting
+  if (digits.length === 10) return `+1${digits}`          // bare US 10-digit
   if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
-  return `+${digits}`
+  return `+${digits}`                                     // best effort; validated by isValidE164()
+}
+
+/**
+ * True when the value is a dialable E.164 number. Enforces NANP rules for +1 numbers
+ * (exactly 11 digits; area code and exchange must start 2–9) so junk like "9090909000",
+ * double numbers, UK "0…" numbers, or "+1 555 12" are rejected before we ever call Bland.
+ */
+export function isValidE164(e164: string): boolean {
+  if (!/^\+[1-9]\d{7,14}$/.test(e164)) return false      // E.164: 8–15 digits, can't start with 0
+  if (e164.startsWith('+1')) return /^\+1[2-9]\d{2}[2-9]\d{6}$/.test(e164)
+  return true
 }
 
 /** First name or a safe fallback. */
@@ -244,8 +261,19 @@ export async function startOutboundCall(input: StartCallInput): Promise<StartCal
   const apiKey = process.env.BLAND_API_KEY
   if (!apiKey) return { ok: false, status: 500, error: 'BLAND_API_KEY is not set' }
 
+  // Normalise + validate before we ever hit Bland, so the user gets a clear message
+  // instead of Bland's opaque "invalid number".
+  const phoneNumber = toE164US(input.phone)
+  if (!isValidE164(phoneNumber)) {
+    return {
+      ok: false,
+      status: 422,
+      error: `"${input.phone}" isn't a valid phone number we can dial. Please correct it on the lead (US numbers should be 10 digits, e.g. (325) 795-0103).`,
+    }
+  }
+
   const payload: Record<string, unknown> = {
-    phone_number: toE164US(input.phone),
+    phone_number: phoneNumber,
     // Caller ID — the number you purchased in Bland. If unset, Bland uses a shared/random number.
     from: process.env.BLAND_FROM_NUMBER || undefined,
     voice: process.env.BLAND_VOICE || 'june',
