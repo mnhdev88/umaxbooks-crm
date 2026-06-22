@@ -9,6 +9,7 @@ import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
 import { Attachment, uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
 import { EmojiPicker } from './EmojiPicker'
+import { receiptFor, ReceiptTicks } from './receipts'
 import { toast } from 'sonner'
 import { Send, Plus, ArrowLeft, Search, MessageSquare, X, Paperclip, Loader2, Download, Trash2 } from 'lucide-react'
 
@@ -68,6 +69,8 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loadingThread, setLoadingThread] = useState(false)
   const [activeLastSeen, setActiveLastSeen] = useState<string | null>(null)
+  const [otherRead, setOtherRead] = useState<string | null>(null)
+  const [otherDelivered, setOtherDelivered] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -109,6 +112,8 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
   const openConversation = useCallback(async (convId: string) => {
     setActiveId(convId)
     setLoadingThread(true)
+    setOtherRead(null)
+    setOtherDelivered(null)
     const { data } = await supabase
       .from('messages')
       .select(MESSAGE_COLUMNS)
@@ -117,6 +122,15 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
       .limit(500)
     setMessages((data as ChatMessage[]) ?? [])
     setLoadingThread(false)
+
+    // Other participant's receipt timestamps (for my message ticks).
+    supabase
+      .from('conversation_participants')
+      .select('last_read_at, delivered_at')
+      .eq('conversation_id', convId)
+      .neq('user_id', userId)
+      .maybeSingle()
+      .then(({ data: p }) => { if (p) { setOtherRead(p.last_read_at); setOtherDelivered(p.delivered_at) } })
 
     await supabase
       .from('conversation_participants')
@@ -174,6 +188,13 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
         const old = payload.old as { id: string; conversation_id?: string }
         if (old.conversation_id === activeIdRef.current || !old.conversation_id) {
           setMessages((prev) => prev.filter((m) => m.id !== old.id))
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants' }, (payload) => {
+        const row = payload.new as { conversation_id: string; user_id: string; last_read_at: string | null; delivered_at: string | null }
+        if (row.conversation_id === activeIdRef.current && row.user_id !== userId) {
+          setOtherRead(row.last_read_at)
+          setOtherDelivered(row.delivered_at)
         }
       })
       .subscribe()
@@ -449,6 +470,7 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
                         <span className="text-[10px] text-slate-500">
                           {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
+                        {mine && <ReceiptTicks status={receiptFor(m.created_at, otherRead, otherDelivered)} />}
                         {m.attachment_path && (
                           <button
                             onClick={() => download(m)}

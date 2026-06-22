@@ -70,6 +70,12 @@ export function DashboardShell({ userId, children }: { userId: string; children:
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
   }, [userId])
 
+  // Mark all my conversations delivered on load — clears the receipt backlog for
+  // messages that arrived while I was offline (powers WhatsApp-style ✓✓).
+  useEffect(() => {
+    supabase.rpc('mark_all_delivered').then(() => {}, () => {})
+  }, [userId])
+
   // Escape closes the mobile sidebar drawer
   useEffect(() => {
     if (!sidebarOpen) return

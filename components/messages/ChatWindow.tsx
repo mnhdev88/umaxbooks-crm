@@ -7,6 +7,7 @@ import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
 import { Attachment, uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
 import { EmojiPicker } from './EmojiPicker'
+import { receiptFor, ReceiptTicks } from './receipts'
 import { toast } from 'sonner'
 import { Send, X, Minus, Paperclip, Loader2, Download, Trash2 } from 'lucide-react'
 
@@ -40,6 +41,8 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
   const [minimized, setMinimized] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastSeen, setLastSeen] = useState<string | null>(contact.last_seen_at ?? null)
+  const [otherRead, setOtherRead] = useState<string | null>(null)
+  const [otherDelivered, setOtherDelivered] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -78,6 +81,19 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         markRead()
       })
 
+    // The other participant's receipt timestamps (for my message ticks).
+    supabase
+      .from('conversation_participants')
+      .select('last_read_at, delivered_at')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active || !data) return
+        setOtherRead(data.last_read_at)
+        setOtherDelivered(data.delivered_at)
+      })
+
     const channel = supabase
       .channel(`chat-window-${conversationId}`)
       .on('postgres_changes', {
@@ -94,6 +110,16 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
       }, (payload) => {
         const old = payload.old as { id: string }
         setMessages((prev) => prev.filter((m) => m.id !== old.id))
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'conversation_participants',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const row = payload.new as { user_id: string; last_read_at: string | null; delivered_at: string | null }
+        if (row.user_id !== userId) {
+          setOtherRead(row.last_read_at)
+          setOtherDelivered(row.delivered_at)
+        }
       })
       .subscribe()
 
@@ -265,6 +291,7 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
                     )}
                     <div className="flex items-center gap-1.5 px-1">
                       <span className="text-[10px] text-slate-500">{formatTime(m.created_at)}</span>
+                      {mine && <ReceiptTicks status={receiptFor(m.created_at, otherRead, otherDelivered)} />}
                       {m.attachment_path && (
                         <button
                           onClick={() => download(m)}

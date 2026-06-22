@@ -146,7 +146,14 @@ export function ChatWidget({ userId }: { userId: string }) {
     loadConversations()
     const channel = supabase
       .channel('chat-widget')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => { fetchUnread(); loadConversations() })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new as { conversation_id: string; sender_id: string }
+        // Acknowledge delivery of messages others send me (powers ✓✓ for them).
+        if (msg.sender_id !== userId) {
+          supabase.rpc('mark_delivered', { p_conversation: msg.conversation_id }).then(() => {}, () => {})
+        }
+        fetchUnread(); loadConversations()
+      })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => { fetchUnread(); loadConversations() })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` }, () => { fetchUnread(); loadConversations() })
       .subscribe()
