@@ -156,6 +156,8 @@ export function ChatWidget({ userId }: { userId: string }) {
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => { fetchUnread(); loadConversations() })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` }, () => { fetchUnread(); loadConversations() })
+      // Someone started a brand-new DM with me → my participant row appears.
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` }, () => { fetchUnread(); loadConversations() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [supabase, userId, fetchUnread, loadConversations])
