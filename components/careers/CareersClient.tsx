@@ -11,7 +11,7 @@ import {
 export interface JobPosting {
   id: string
   title: string
-  region: 'us' | 'india'
+  region: 'us' | 'india' | 'freelance'
   openings: number
   job_location: string | null
   shift: string | null
@@ -53,6 +53,18 @@ interface Props {
 
 const APP_STATUSES = ['new', 'reviewed', 'interview', 'hired', 'rejected'] as const
 
+const REGION_LABELS: Record<JobPosting['region'], string> = {
+  us:        '🇺🇸 United States',
+  india:     '🇮🇳 India',
+  freelance: '🌐 Remote / Freelance',
+}
+
+const REGION_STYLES: Record<JobPosting['region'], string> = {
+  us:        'bg-blue-500/15 text-blue-300 border-blue-500/30',
+  india:     'bg-green-500/15 text-green-300 border-green-500/30',
+  freelance: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+}
+
 const STATUS_STYLES: Record<string, string> = {
   new:       'bg-orange-500/15 text-orange-300 border-orange-500/30',
   reviewed:  'bg-blue-500/15 text-blue-300 border-blue-500/30',
@@ -70,7 +82,7 @@ function fmtDate(iso: string) {
 
 const EMPTY_FORM = {
   title: '',
-  region: 'us' as 'us' | 'india',
+  region: 'us' as 'us' | 'india' | 'freelance',
   openings: 1,
   job_location: '',
   shift: '',
@@ -284,12 +296,8 @@ export function CareersClient({ initialJobs, initialApplications }: Props) {
                       {job.openings > 1 && <span className="text-xs text-slate-500">({job.openings} openings)</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                        job.region === 'us'
-                          ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-                          : 'bg-green-500/15 text-green-300 border-green-500/30'
-                      }`}>
-                        {job.region === 'us' ? '🇺🇸 United States' : '🇮🇳 India'}
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${REGION_STYLES[job.region]}`}>
+                        {REGION_LABELS[job.region]}
                       </span>
                       {job.shift && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600/40">{job.shift}</span>
@@ -478,6 +486,7 @@ export function CareersClient({ initialJobs, initialApplications }: Props) {
                   <select className={inputCls} value={form.region} onChange={set('region')}>
                     <option value="us">🇺🇸 United States</option>
                     <option value="india">🇮🇳 India</option>
+                    <option value="freelance">🌐 Remote / Freelance</option>
                   </select>
                 </div>
                 <div>
