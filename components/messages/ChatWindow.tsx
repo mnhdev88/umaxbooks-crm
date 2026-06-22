@@ -194,17 +194,17 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     }
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = '' // allow re-picking the same file
-    if (!file || uploading) return
+  async function uploadAndSend(file: File) {
+    if (uploading) return
     if (file.size > MAX_ATTACHMENT_BYTES) {
       toast.error('File too large (max 25 MB)')
       return
     }
     setUploading(true)
     try {
-      const attachment = await uploadChatFile(supabase, conversationId, file)
+      // Pasted images often arrive nameless — give them one.
+      const named = file.name ? file : new File([file], `pasted-${Date.now()}.png`, { type: file.type || 'image/png' })
+      const attachment = await uploadChatFile(supabase, conversationId, named)
       const caption = input.trim()
       const ok = await insertMessage({ body: caption || null, ...attachment })
       if (ok) setInput('')
@@ -214,6 +214,19 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-picking the same file
+    if (file) uploadAndSend(file)
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const item = Array.from(e.clipboardData?.items ?? []).find(
+      (i) => i.kind === 'file' && i.type.startsWith('image/'))
+    const file = item?.getAsFile()
+    if (file) { e.preventDefault(); uploadAndSend(file) }
   }
 
   return (
@@ -338,6 +351,7 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              onPaste={handlePaste}
               rows={1}
               placeholder={uploading ? 'Uploading…' : 'Aa'}
               className="flex-1 resize-none max-h-24 bg-slate-900 border border-slate-700 rounded-full px-3.5 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50"

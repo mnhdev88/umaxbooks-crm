@@ -289,17 +289,17 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
     inputRef.current?.focus()
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !activeId || uploading) return
+  async function uploadAndSend(file: File) {
+    if (!activeId || uploading) return
     if (file.size > MAX_ATTACHMENT_BYTES) {
       toast.error('File too large (max 25 MB)')
       return
     }
     setUploading(true)
     try {
-      const attachment = await uploadChatFile(supabase, activeId, file)
+      // Pasted images often arrive nameless — give them one.
+      const named = file.name ? file : new File([file], `pasted-${Date.now()}.png`, { type: file.type || 'image/png' })
+      const attachment = await uploadChatFile(supabase, activeId, named)
       const caption = input.trim()
       const ok = await insertMessage(activeId, { body: caption || null, ...attachment })
       if (ok) setInput('')
@@ -309,6 +309,19 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) uploadAndSend(file)
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const item = Array.from(e.clipboardData?.items ?? []).find(
+      (i) => i.kind === 'file' && i.type.startsWith('image/'))
+    const file = item?.getAsFile()
+    if (file) { e.preventDefault(); uploadAndSend(file) }
   }
 
   async function removeMessage(m: ChatMessage) {
@@ -520,8 +533,9 @@ export function MessagesClient({ userId, contacts, initialConversations }: Props
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
                   }}
+                  onPaste={handlePaste}
                   rows={1}
-                  placeholder={uploading ? 'Uploading…' : 'Type a message…  (Enter to send, Shift+Enter for newline)'}
+                  placeholder={uploading ? 'Uploading…' : 'Type a message…  (Enter to send, Shift+Enter for newline, paste an image to attach)'}
                   className="flex-1 resize-none max-h-32 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />
                 <button
