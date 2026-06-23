@@ -194,20 +194,26 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     }
   }
 
-  async function uploadAndSend(file: File) {
-    if (uploading) return
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error('File too large (max 25 MB)')
-      return
-    }
+  // Upload each file as its own message (one attachment per row). The typed
+  // caption rides along with the first one.
+  async function uploadAndSend(files: File[]) {
+    if (uploading || !files.length) return
+    const valid = files.filter((f) => {
+      if (f.size > MAX_ATTACHMENT_BYTES) { toast.error(`"${f.name || 'file'}" is too large (max 25 MB)`); return false }
+      return true
+    })
+    if (!valid.length) return
     setUploading(true)
+    const caption = input.trim()
     try {
-      // Pasted images often arrive nameless — give them one.
-      const named = file.name ? file : new File([file], `pasted-${Date.now()}.png`, { type: file.type || 'image/png' })
-      const attachment = await uploadChatFile(supabase, conversationId, named)
-      const caption = input.trim()
-      const ok = await insertMessage({ body: caption || null, ...attachment })
-      if (ok) setInput('')
+      for (let i = 0; i < valid.length; i++) {
+        const f = valid[i]
+        // Pasted images often arrive nameless — give them one.
+        const named = f.name ? f : new File([f], `pasted-${Date.now()}-${i}.png`, { type: f.type || 'image/png' })
+        const attachment = await uploadChatFile(supabase, conversationId, named)
+        await insertMessage({ body: i === 0 ? (caption || null) : null, ...attachment })
+      }
+      if (caption) setInput('')
     } catch (err) {
       console.error('Attachment upload failed:', err)
       toast.error(`Upload failed: ${describeSupabaseError(err)}`)
@@ -217,16 +223,17 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = '' // allow re-picking the same file
-    if (file) uploadAndSend(file)
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // allow re-picking the same file(s)
+    if (files.length) uploadAndSend(files)
   }
 
   function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const item = Array.from(e.clipboardData?.items ?? []).find(
-      (i) => i.kind === 'file' && i.type.startsWith('image/'))
-    const file = item?.getAsFile()
-    if (file) { e.preventDefault(); uploadAndSend(file) }
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => !!f)
+    if (files.length) { e.preventDefault(); uploadAndSend(files) }
   }
 
   return (
@@ -332,7 +339,7 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
           </div>
 
           <div className="p-2 border-t border-slate-800 shrink-0 flex items-end gap-1.5">
-            <input ref={fileRef} type="file" className="hidden" onChange={handleFile} />
+            <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
             <EmojiPicker
               onPick={insertEmoji}
               size={16}
