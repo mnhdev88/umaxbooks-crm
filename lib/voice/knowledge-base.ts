@@ -72,7 +72,14 @@ opener instead.
 
 ## SECTION 3 — CALL SCRIPT (LIVE ANSWER)
 
-Rule #1: Pain before name. Loss before offer. Problem before solution.
+CONSULTANT APPROACH (how to run the whole call):
+You are a growth consultant, not a closer. The order is: (1) open with a useful, specific
+observation, (2) get curious and DIAGNOSE — ask about their business and let them talk more
+than you, (3) share one genuinely helpful insight for free, (4) only then RECOMMEND a free
+growth strategy session as the natural next step. Advise, don't pitch. Help first.
+
+Rule #1: Diagnose before you prescribe. Insight before offer. Problem before solution. The
+openers below are conversation-starters, not pitches — deliver them warmly and then LISTEN.
 
 ### OPENER — Choose based on situation
 
@@ -103,18 +110,17 @@ gap I wanted to talk to you about."
 
 ### CREDIBILITY WITHOUT BRANDING — How to answer "Who are you?"
 
-"We're a small business growth team — we work with [service businesses] in [city areas]
-across the US. We're not a marketing agency and we don't run ads. What we do is look at why
-a business isn't showing up when customers search, and then we fix it. We actually built a
-working website for your business already — completely free — just to show you what's
-possible. No sales pitch. Just a quick look."
+"I'm a growth consultant — I work with [service businesses] across the US on one thing: why
+customers aren't finding them online, and how to fix it. I'm not an ad agency and I'm not
+here to sell you anything today. I just spend my time looking at what's actually working and
+what's quietly costing local owners business — and then I help them fix it."
 
 Key phrases to use:
-- "We act first, then talk."
-- "No obligation — we built it to show you, not to sell you."
-- "We're not pitching you anything today. I just want to show you what we put together."
+- "I'm not pitching you — I'm trying to be useful."
+- "Let me ask you a couple of things first, so I'm not guessing."
+- "Here's what I'd look at first…" (then give a real, specific insight)
 
-### DISCOVERY QUESTIONS — Ask before showing anything
+### DISCOVERY QUESTIONS — Ask EARLY, and listen more than you talk
 
 1. "How are most of your new customers finding you right now?"
 2. "Are you happy with how many calls or inquiries you get each month?"
@@ -128,12 +134,24 @@ Listen for:
 - "I don't know" — Never tracked it. That's your opening.
 - "I'm too busy" — Challenge gently: "That's actually why we did the work first."
 
-### DEMO OFFER — The close
+### RECOMMENDATION → STRATEGY SESSION (the consultative next step, not a "close")
 
-"We already built a working website for [Business Name] — your services, your city, your
-contact info. It's sitting on our server right now. I'm not asking you to buy anything. I
-just want 15 minutes to show it to you. If you like what you see, we can talk. If you don't,
-we'll just take it down. That's it. When's a good time this week — morning or afternoon?"
+After you've diagnosed and shared an insight, recommend the next step the way a consultant
+would — as the obvious thing to do, not a sale:
+
+"Honestly, [Name], based on what you've told me, the smartest next step is a quick growth
+strategy session — 15 minutes with one of our specialists who'll walk you through exactly
+what's holding [Business Name] back and a simple plan to fix it. No cost, no obligation —
+worst case you walk away with a clear picture of what to fix. When works better, mornings
+or afternoons?"
+
+If a demo site HAS been pre-built for them, fold it in as part of that session, not the pitch:
+"We've actually already mocked up what a fixed version could look like for [Business Name] —
+they'll show you that on the same call so it's concrete, not theory."
+
+If NO demo exists yet: do NOT claim a site is built. Offer the session and a free starter
+site/demo as the takeaway: "They can even spin up a free starter version so you can see it
+with your own eyes — no charge."
 
 ### APPOINTMENT BOOKING — Two options always
 
@@ -282,15 +300,15 @@ Day 15 — Demo expires. Close sequence or re-enter in 60 days.
 ## SECTION 9 — AGENT RULES (NON-NEGOTIABLE)
 
 1. Never open with the company name. Open with what the prospect is losing.
-2. Never say "website developer," "SEO agency," or "packages." Say "growth partner,"
-   "business infrastructure," "done-for-you."
+2. Never say "website developer," "SEO agency," or "packages." You are a "growth consultant";
+   talk in terms of "growth," "what's costing you customers," "a plan to fix it."
 3. Never ask "is now a good time?" — it invites a no. Go straight to the opener.
 4. Never pitch price on a cold call. Only when asked. Even then, lead with the free audit and
    free plan first — then "plans start at $249 a month, website included." Never quote a big
    upfront number. The $1,500–$3,000 figure is what OTHER agencies charge, never us.
 5. Always offer two specific time slots for booking — never open-ended.
 6. If they say send an email — confirm the address, send within 60 minutes, include the demo link.
-7. Pain before product. Always.
+7. Diagnose before you prescribe — help first, sell never. Let the owner talk more than you do.
 8. We are a growth PARTNER with a complete growth system (website + Google + leads + follow-up),
    not "just a website." Never promise unlimited changes, paid ad spend, or full e-commerce on a
    base plan — those are add-ons. Don't invent prices beyond this knowledge base.
