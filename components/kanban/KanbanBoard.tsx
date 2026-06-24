@@ -124,6 +124,10 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
         if (!db) return 1
         return new Date(da).getTime() - new Date(db).getTime()
       })
+    } else if (stage === 'New') {
+      // Freshest leads on top — speed-to-lead matters most for new, uncontacted leads.
+      // Stale ones are still flagged by the amber/red border + "Follow-up Due" badge on the card.
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     } else {
       // Follow-up-due leads float to the top
       list.sort((a, b) => {
