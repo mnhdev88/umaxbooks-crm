@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const agentUserId = userIdFromIdentity(agentIdentity)
 
   const callSid = params.CallSid || params.ParentCallSid || ''
-  if (!callSid) return NextResponse.json({ ok: true })
+  if (!callSid) return twiml()
 
   // Build the partial row for this callback kind. Upsert merges with the other kind.
   const row: Record<string, unknown> = {
@@ -116,5 +116,18 @@ export async function POST(req: NextRequest) {
     console.error('[voice/twilio/status] failed to persist', callSid, e)
   }
 
-  return NextResponse.json({ ok: true })
+  return twiml()
+}
+
+/**
+ * Empty TwiML response. The <Dial action> callback REQUIRES a TwiML document back —
+ * returning JSON makes Twilio raise error 12300 (Invalid Content-Type) and tear down the
+ * call (surfacing as ConnectionError 31005 in the browser SDK). An empty <Response/> tells
+ * Twilio there's nothing more to do, so the parent call ends cleanly. The recording
+ * status-callback ignores the body, so this is harmless there too.
+ */
+function twiml(): NextResponse {
+  return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response/>', {
+    headers: { 'Content-Type': 'text/xml' },
+  })
 }
