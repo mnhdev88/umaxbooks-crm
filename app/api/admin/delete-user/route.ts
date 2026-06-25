@@ -31,18 +31,19 @@ export async function DELETE(req: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Delete profile first (in case no cascade)
-  await admin.from('profiles').delete().eq('id', userId)
-
-  // Delete auth user
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
-    method: 'DELETE',
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+  // Re-home everything the departing user authored onto the acting admin, then
+  // delete the account. reassign_and_delete_user (migration 066) discovers every
+  // restrict/no-action FK to profiles(id) from the catalog — so it can't miss a
+  // table the way a hand-maintained list does — reassigns them to the heir, and
+  // deletes auth.users (cascading the profile + all ON DELETE CASCADE children:
+  // notifications, follow_ups, round_robin_agents, push_subscriptions, chat).
+  const { error: delErr } = await admin.rpc('reassign_and_delete_user', {
+    p_target: userId,
+    p_heir: user.id,
   })
 
-  if (!res.ok) {
-    const json = await res.json()
-    return NextResponse.json({ error: json.msg || json.message || 'Delete failed' }, { status: 400 })
+  if (delErr) {
+    return NextResponse.json({ error: delErr.message }, { status: 400 })
   }
 
   return NextResponse.json({ success: true })
