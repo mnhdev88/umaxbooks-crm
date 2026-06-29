@@ -112,7 +112,7 @@ export function DealTab({ leadId, userId, userRole }: DealTabProps) {
     router.refresh()
   }
 
-  const canEdit = userRole === 'admin' || userRole === 'sales_agent'
+  const canEdit = userRole === 'admin' || userRole === 'sales_agent' || userRole === 'sales_manager'
 
   const durationDays = form.start_date && form.end_date
     ? Math.ceil((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86400000)

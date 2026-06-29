@@ -98,7 +98,7 @@ export function RevisionTab({ leadId, leadSlug, userId, userRole }: RevisionTabP
     fetchRevisions()
   }
 
-  const canEdit = userRole === 'admin' || userRole === 'sales_agent'
+  const canEdit = userRole === 'admin' || userRole === 'sales_agent' || userRole === 'sales_manager'
 
   return (
     <div className="space-y-4">

@@ -18,20 +18,22 @@ import { WebsiteDetailsTab } from './tabs/WebsiteDetailsTab'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
+// sales_manager has the same lead-working tabs as sales_agent (everything except the
+// admin-only Client Portal) — they oversee and can step in for their team's leads.
 const ALL_TABS = [
-  { id: 'audits',          label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'developer'] },
-  { id: 'notes',           label: 'Notes',           roles: ['admin', 'agent', 'sales_agent', 'developer'] },
-  { id: 'demo',            label: 'Demo',            roles: ['admin', 'sales_agent', 'developer'] },
-  { id: 'calls',           label: 'AI Calls',        roles: ['admin', 'agent', 'sales_agent'] },
-  { id: 'appointments',    label: 'Calls & Appts',   roles: ['admin', 'sales_agent'] },
-  { id: 'deal',            label: 'Deal',            roles: ['admin', 'sales_agent'] },
-  { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent'] },
-  { id: 'revisions',       label: 'Revisions',       roles: ['admin', 'sales_agent'] },
-  { id: 'live',            label: 'Live',            roles: ['admin', 'sales_agent'] },
-  { id: 'before-after',    label: 'Before / After',  roles: ['admin', 'sales_agent'] },
+  { id: 'audits',          label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'notes',           label: 'Notes',           roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'demo',            label: 'Demo',            roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'calls',           label: 'AI Calls',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager'] },
+  { id: 'appointments',    label: 'Calls & Appts',   roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'deal',            label: 'Deal',            roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'revisions',       label: 'Revisions',       roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'live',            label: 'Live',            roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'before-after',    label: 'Before / After',  roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'website-details', label: 'Client Portal',   roles: ['admin'] },
-  { id: 'send-content',    label: 'Send Content',    roles: ['admin', 'sales_agent', 'developer'] },
-  { id: 'activity',        label: 'Activity',        roles: ['admin', 'agent', 'sales_agent', 'developer'] },
+  { id: 'send-content',    label: 'Send Content',    roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'activity',        label: 'Activity',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
 ]
 
 interface LeadDetailTabsProps {

@@ -76,7 +76,7 @@ export function SendContentTab({ lead, userId, userRole }: SendContentTabProps) 
   const [refreshingLogs, setRefreshingLogs] = useState(false)
 
   const isDeveloper = userRole === 'developer'
-  const canEdit = userRole === 'admin' || userRole === 'sales_agent'
+  const canEdit = userRole === 'admin' || userRole === 'sales_agent' || userRole === 'sales_manager'
   const canUploadTemplate = canEdit || isDeveloper
 
   function applyTemplatePlaceholders(html: string): string {

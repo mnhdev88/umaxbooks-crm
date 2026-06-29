@@ -232,9 +232,9 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [savingDevNotes, setSavingDevNotes] = useState(false)
   const [devNotesSaved, setDevNotesSaved]   = useState(false)
 
-  const canEdit   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
-  const canNote   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent'
-  const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'developer'
+  const canEdit   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'sales_manager'
+  const canNote   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'sales_manager'
+  const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'sales_manager' || userRole === 'developer'
   const isDev = userRole === 'developer'
 
   useEffect(() => { fetchAudit(); fetchDemoUrl(); fetchAuditNotes() }, [leadId])
@@ -932,7 +932,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
 
       {/* ── Send to Client Modal ─────────────────────────────────────────── */}
       {/* Email History */}
-      {(userRole === 'admin' || userRole === 'sales_agent' || userRole === 'agent') && (
+      {(userRole === 'admin' || userRole === 'sales_agent' || userRole === 'sales_manager' || userRole === 'agent') && (
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <Mail size={13} /> Email History

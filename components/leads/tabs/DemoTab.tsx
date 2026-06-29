@@ -42,7 +42,7 @@ export function DemoTab({ leadId, leadSlug, companyName, userId, userRole, devel
   const supabase = createClient()
 
   const isAdmin = userRole === 'admin'
-  const isSalesAgent = userRole === 'sales_agent'
+  const isSalesAgent = userRole === 'sales_agent' || userRole === 'sales_manager'
   const isDeveloper = userRole === 'developer'
 
   useEffect(() => { fetchDemos(); fetchApprovals() }, [leadId])

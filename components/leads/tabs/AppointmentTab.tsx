@@ -240,7 +240,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     fetchAppointments()
   }
 
-  const canEdit = userRole === 'admin' || userRole === 'sales_agent'
+  const canEdit = userRole === 'admin' || userRole === 'sales_agent' || userRole === 'sales_manager'
 
   return (
     <div className="space-y-4">
