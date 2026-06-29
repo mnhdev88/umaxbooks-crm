@@ -12,9 +12,10 @@ import {
 } from 'lucide-react'
 
 const ROLE_COLORS: Record<string, string> = {
-  admin:       'from-orange-500 to-orange-700',
-  agent:       'from-blue-500 to-blue-700',
-  sales_agent: 'from-purple-500 to-purple-700',
+  admin:         'from-orange-500 to-orange-700',
+  agent:         'from-blue-500 to-blue-700',
+  sales_agent:   'from-purple-500 to-purple-700',
+  sales_manager: 'from-amber-500 to-amber-700',
 }
 
 const TERMINAL = ['Completed', 'Lost', 'Disqualified']
@@ -34,14 +35,19 @@ export default async function AgentProfilePage({ params, searchParams }: PagePro
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') redirect('/')
+  const isAdmin = profile?.role === 'admin'
+  const isManager = profile?.role === 'sales_manager'
+  if (!profile || (!isAdmin && !isManager)) redirect('/')
 
   const { data: agent } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role, created_at')
+    .select('id, full_name, email, role, manager_id, created_at')
     .eq('id', agentId)
     .single()
   if (!agent) redirect('/team')
+
+  // A manager may only open agents on their own team (or their own profile).
+  if (isManager && agent.manager_id !== user.id && agent.id !== user.id) redirect('/team')
 
   const notTerminal = `(${TERMINAL.map(s => `"${s}"`).join(',')})`
 

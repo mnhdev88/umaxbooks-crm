@@ -10,19 +10,21 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, ShieldCheck, AlertCircle, Edit2, Trash2 } from 'lucide-react'
 
 const ROLE_OPTIONS = [
-  { value: 'agent',       label: 'Agent' },
-  { value: 'sales_agent', label: 'Sales Agent' },
-  { value: 'developer',   label: 'Developer' },
-  { value: 'admin',       label: 'Admin' },
-  { value: 'client',      label: 'Client' },
+  { value: 'agent',         label: 'Agent' },
+  { value: 'sales_agent',   label: 'Sales Agent' },
+  { value: 'sales_manager', label: 'Sales Manager' },
+  { value: 'developer',     label: 'Developer' },
+  { value: 'admin',         label: 'Admin' },
+  { value: 'client',        label: 'Client' },
 ]
 
 const ROLE_COLORS: Record<string, string> = {
-  admin:       'text-orange-400 bg-orange-900/30',
-  agent:       'text-blue-400 bg-blue-900/30',
-  sales_agent: 'text-green-400 bg-green-900/30',
-  developer:   'text-purple-400 bg-purple-900/30',
-  client:      'text-green-400 bg-green-900/30',
+  admin:         'text-orange-400 bg-orange-900/30',
+  agent:         'text-blue-400 bg-blue-900/30',
+  sales_agent:   'text-green-400 bg-green-900/30',
+  sales_manager: 'text-amber-400 bg-amber-900/30',
+  developer:     'text-purple-400 bg-purple-900/30',
+  client:        'text-green-400 bg-green-900/30',
 }
 
 interface UserManagementProps {
@@ -30,7 +32,7 @@ interface UserManagementProps {
   currentUserId: string
 }
 
-const EMPTY_FORM = { email: '', full_name: '', password: '', role: 'agent' }
+const EMPTY_FORM = { email: '', full_name: '', password: '', role: 'agent', manager_id: '' }
 
 export function UserManagement({ users: initialUsers, currentUserId }: UserManagementProps) {
   const [users, setUsers] = useState<Profile[]>(initialUsers)
@@ -43,6 +45,8 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
   const [form, setForm] = useState(EMPTY_FORM)
   const supabase = createClient()
 
+  const managers = users.filter(u => u.role === 'sales_manager')
+
   function openAdd() {
     setError(null)
     setForm(EMPTY_FORM)
@@ -51,7 +55,7 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
 
   function openEdit(u: Profile) {
     setError(null)
-    setForm({ email: u.email, full_name: u.full_name, password: '', role: u.role })
+    setForm({ email: u.email, full_name: u.full_name, password: '', role: u.role, manager_id: u.manager_id || '' })
     setEditUser(u)
   }
 
@@ -203,6 +207,7 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
         <UserForm
           form={form}
           setForm={setForm}
+          managers={managers}
           error={error}
           loading={loading}
           onSubmit={handleCreate}
@@ -217,6 +222,7 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
         <UserForm
           form={form}
           setForm={setForm}
+          managers={managers}
           error={error}
           loading={loading}
           onSubmit={handleUpdate}
@@ -230,8 +236,9 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
 }
 
 interface UserFormProps {
-  form: { email: string; full_name: string; password: string; role: string }
+  form: { email: string; full_name: string; password: string; role: string; manager_id: string }
   setForm: (fn: (f: any) => any) => void
+  managers: Profile[]
   error: string | null
   loading: boolean
   onSubmit: () => void
@@ -240,7 +247,7 @@ interface UserFormProps {
   passwordRequired: boolean
 }
 
-function UserForm({ form, setForm, error, loading, onSubmit, onCancel, submitLabel, passwordRequired }: UserFormProps) {
+function UserForm({ form, setForm, managers, error, loading, onSubmit, onCancel, submitLabel, passwordRequired }: UserFormProps) {
   return (
     <div className="space-y-4">
       {error && (
@@ -275,6 +282,17 @@ function UserForm({ form, setForm, error, loading, onSubmit, onCancel, submitLab
         value={form.role}
         onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
       />
+      {form.role === 'sales_agent' && (
+        <Select
+          label="Reports to (Sales Manager)"
+          options={[
+            { value: '', label: '— No manager —' },
+            ...managers.map(m => ({ value: m.id, label: m.full_name || m.email })),
+          ]}
+          value={form.manager_id}
+          onChange={e => setForm(f => ({ ...f, manager_id: e.target.value }))}
+        />
+      )}
       <div className="flex justify-end gap-3 pt-2">
         <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
         <Button onClick={onSubmit} loading={loading}>{submitLabel}</Button>

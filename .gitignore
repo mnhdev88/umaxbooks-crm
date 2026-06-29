@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# data exports (may contain personal contact data)
+*-export.csv
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

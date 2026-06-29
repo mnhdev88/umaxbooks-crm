@@ -60,6 +60,24 @@ const developerSections: NavSection[] = [
   ]},
 ]
 
+const salesManagerSections: NavSection[] = [
+  { items: [
+    { href: '/',                label: 'Pipeline',           icon: LayoutDashboard },
+    { href: '/dashboard',       label: 'Dashboard',          icon: Gauge },
+    { href: '/leads',           label: 'All Leads',          icon: Users },
+    { href: '/team',            label: 'My Team',            icon: UsersRound },
+    { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
+    { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
+    { href: '/email-status',    label: 'Email Status',       icon: Mail },
+    { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
+    { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
+    { href: '/reports',         label: 'Reports',            icon: BarChart3 },
+    { href: '/messages',        label: 'Messages',           icon: MessageSquare },
+    { href: '/notifications',   label: 'Notifications',      icon: Bell },
+  ]},
+]
+
 const adminSections: NavSection[] = [
   { items: [
     { href: '/',    label: 'Pipeline',  icon: LayoutDashboard },
@@ -111,9 +129,10 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const [signingOut, setSigningOut]     = useState(false)
 
   const sections =
-    profile.role === 'admin'       ? adminSections :
-    profile.role === 'developer'   ? developerSections :
-    profile.role === 'sales_agent' ? salesAgentSections :
+    profile.role === 'admin'         ? adminSections :
+    profile.role === 'developer'     ? developerSections :
+    profile.role === 'sales_manager' ? salesManagerSections :
+    profile.role === 'sales_agent'   ? salesAgentSections :
     agentSections
 
   useEffect(() => {

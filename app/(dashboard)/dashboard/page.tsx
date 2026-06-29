@@ -79,7 +79,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin' && profile.role !== 'sales_agent') redirect('/')
+  if (!['admin', 'sales_agent', 'sales_manager'].includes(profile.role)) redirect('/')
 
   const { data, error } = await supabase.rpc('report_executive_summary', { from_ts: fromISO ?? null, to_ts: toISO ?? null })
   const s: ExecSummary = error || !data ? EMPTY : { ...EMPTY, ...(data as ExecSummary) }

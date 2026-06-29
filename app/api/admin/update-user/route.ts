@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
 
-  const { userId, full_name, email, password, role } = await req.json()
+  const { userId, full_name, email, password, role, manager_id } = await req.json()
   if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 })
   if (!full_name?.trim() || !email?.trim() || !role) {
     return NextResponse.json({ error: 'Name, email and role are required' }, { status: 400 })
@@ -56,7 +56,13 @@ export async function PATCH(req: NextRequest) {
   const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
-  await admin.from('profiles').update({ full_name: full_name.trim(), email: email.trim(), role }).eq('id', userId)
+  await admin.from('profiles').update({
+    full_name: full_name.trim(),
+    email: email.trim(),
+    role,
+    // Only sales_agents belong to a manager; clear it for any other role.
+    manager_id: role === 'sales_agent' ? (manager_id || null) : null,
+  }).eq('id', userId)
 
   return NextResponse.json({ success: true })
 }

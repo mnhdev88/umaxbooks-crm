@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
 
   // ── 2. Validate body ─────────────────────────────────────────────────────
-  const { email, full_name, password, role } = await req.json()
+  const { email, full_name, password, role, manager_id } = await req.json()
 
   if (!email?.trim() || !full_name?.trim() || !password?.trim() || !role) {
     return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
@@ -77,6 +77,8 @@ export async function POST(req: NextRequest) {
     email: email.trim(),
     full_name: full_name.trim(),
     role,
+    // Only sales_agents belong to a manager; ignore the field for any other role.
+    manager_id: role === 'sales_agent' ? (manager_id || null) : null,
   })
 
   return NextResponse.json({ success: true, userId: newUserId, email, full_name, role })

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'developer' | 'client'
+export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'sales_manager' | 'developer' | 'client'
 
 export type LeadSource =
   | 'GMB'
@@ -78,6 +78,7 @@ export interface Profile {
   email: string
   full_name: string
   role: UserRole
+  manager_id?: string | null
   avatar_url?: string
   lead_id?: string
   last_seen_at?: string | null
