@@ -147,8 +147,11 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           endCall()
         })
         call.on('error', (e: { message?: string }) => {
+          // A call that fails/drops before the client answers surfaces here rather than as a
+          // clean 'disconnect'. Still route to wrap-up (via endCall) so the agent can log the
+          // attempt — "no answer", "do not call", a note — instead of losing it to idle.
           toast.error(e?.message || 'Call failed.')
-          cleanupCall()
+          endCall()
         })
       } catch (err) {
         const msg = (err as Error).message || 'Could not start the call.'
