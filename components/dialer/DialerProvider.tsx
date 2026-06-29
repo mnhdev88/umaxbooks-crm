@@ -20,7 +20,7 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, Loader2, Ban, Check } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, Loader2, Ban, Check, Grid3x3 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup'
@@ -34,6 +34,7 @@ export interface StartCallArgs {
 interface DialerContextValue {
   startCall: (args: StartCallArgs) => Promise<void>
   hangup: () => void
+  sendDigit: (digit: string) => void
   state: CallState
   ready: boolean
 }
@@ -209,6 +210,12 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     setMuted(next)
   }, [muted])
 
+  // Send DTMF tones over the live call so the agent can navigate the lead's phone menu
+  // ("press 9 for sales"). Twilio plays the tone on the far end; no-op if no live call.
+  const sendDigit = useCallback((digit: string) => {
+    callRef.current?.sendDigits(digit)
+  }, [])
+
   // Tick the in-call timer while a call is live.
   useEffect(() => {
     if (state !== 'active') return
@@ -227,7 +234,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const ready = state === 'idle'
 
   return (
-    <DialerContext.Provider value={{ startCall, hangup, state, ready }}>
+    <DialerContext.Provider value={{ startCall, hangup, sendDigit, state, ready }}>
       {children}
       {state === 'wrapup' ? (
         <DispositionForm
@@ -244,6 +251,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           seconds={seconds}
           onMute={toggleMute}
           onHangup={hangup}
+          onDigit={sendDigit}
         />
       ) : null}
     </DialerContext.Provider>
@@ -265,6 +273,13 @@ function statusLabel(state: CallState): string {
   }
 }
 
+const KEYPAD_ROWS = [
+  ['1', '2', '3'],
+  ['4', '5', '6'],
+  ['7', '8', '9'],
+  ['*', '0', '#'],
+]
+
 function CallWidget({
   state,
   muted,
@@ -272,6 +287,7 @@ function CallWidget({
   seconds,
   onMute,
   onHangup,
+  onDigit,
 }: {
   state: CallState
   muted: boolean
@@ -279,8 +295,17 @@ function CallWidget({
   seconds: number
   onMute: () => void
   onHangup: () => void
+  onDigit: (digit: string) => void
 }) {
   const connecting = state === 'connecting' || state === 'ringing'
+  const [keypadOpen, setKeypadOpen] = useState(false)
+  const [sent, setSent] = useState('')
+
+  const press = (d: string) => {
+    onDigit(d)
+    setSent((s) => (s + d).slice(-20))
+  }
+
   return (
     <div
       role="dialog"
@@ -315,6 +340,18 @@ function CallWidget({
           {muted ? <MicOff size={18} /> : <Mic size={18} />}
         </button>
         <button
+          onClick={() => setKeypadOpen((v) => !v)}
+          disabled={state !== 'active'}
+          title="Keypad"
+          aria-pressed={keypadOpen}
+          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border text-slate-200
+                     transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 ${
+                       keypadOpen ? 'border-orange-500 bg-orange-500/15 text-orange-300' : 'border-slate-700'
+                     }`}
+        >
+          <Grid3x3 size={18} />
+        </button>
+        <button
           onClick={onHangup}
           title="Hang up"
           className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white
@@ -323,6 +360,26 @@ function CallWidget({
           <PhoneOff size={20} />
         </button>
       </div>
+
+      {keypadOpen && state === 'active' ? (
+        <div className="mt-4 border-t border-slate-700 pt-3">
+          <div className="mb-2 h-5 truncate text-center text-sm tabular-nums tracking-widest text-slate-300">
+            {sent}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {KEYPAD_ROWS.flat().map((d) => (
+              <button
+                key={d}
+                onClick={() => press(d)}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-700 text-base font-semibold
+                           text-slate-100 transition-colors hover:bg-slate-800 active:bg-slate-700"
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
