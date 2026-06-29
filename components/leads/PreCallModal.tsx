@@ -6,7 +6,7 @@ import { VoiceCall } from '@/types'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 import {
   Phone, PhoneCall, PhoneOff, Voicemail, Ban, Loader2, X,
-  User, Calendar, MessageSquare,
+  User, Calendar, MessageSquare, Delete,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,8 +17,10 @@ type CallWithAgent = VoiceCall & { agent?: { full_name: string | null } | null }
  * Pre-call confirmation popup shared by the dialer ("Call") and AI ("AI Call") buttons.
  *
  * On open it loads this lead's last 5 calls so the agent can review recent history before
- * dialing. "Call" runs the caller-supplied action (browser dial or AI call); "Do not call"
- * flags the lead (leads.do_not_call = true) and closes without dialing.
+ * dialing. For browser ("dialer") calls it also shows an editable number + keypad, pre-filled
+ * with the lead's phone, so the agent can dial an alternate number for this lead. "Call" runs
+ * the caller-supplied action with the number to dial; "Do not call" flags the lead
+ * (leads.do_not_call = true) and closes without dialing.
  */
 export function PreCallModal({
   open,
@@ -34,13 +36,20 @@ export function PreCallModal({
   phone?: string | null
   name?: string | null
   callType: 'dialer' | 'ai'
-  onConfirm: () => void
+  /** Receives the number the agent chose to dial (the editable field, or the lead's phone). */
+  onConfirm: (dialNumber: string) => void
   onClose: () => void
 }) {
   const [calls, setCalls] = useState<CallWithAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [flagging, setFlagging] = useState(false)
+  const [dialNumber, setDialNumber] = useState('')
   const supabase = createClient()
+
+  // Reset the dial field to the lead's number each time the modal opens.
+  useEffect(() => {
+    if (open) setDialNumber(phone || '')
+  }, [open, phone])
 
   useEffect(() => {
     if (!open) return
@@ -94,11 +103,15 @@ export function PreCallModal({
   }
 
   function handleCall() {
-    onConfirm()
+    // AI calls dial the lead server-side (leadId only); browser calls use the editable field.
+    const number = callType === 'ai' ? (phone || '') : dialNumber.trim()
+    if (!number) return
+    onConfirm(number)
     onClose()
   }
 
   const title = callType === 'ai' ? 'Place AI voice call' : 'Call this lead'
+  const canCall = callType === 'ai' ? !!phone : !!dialNumber.trim()
 
   return (
     <div
@@ -124,6 +137,54 @@ export function PreCallModal({
             <X size={16} />
           </button>
         </div>
+
+        {callType === 'dialer' && (
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Number to dial
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                value={dialNumber}
+                onChange={(e) => setDialNumber(e.target.value)}
+                inputMode="tel"
+                placeholder="Enter a number"
+                aria-label="Number to dial"
+                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm
+                           font-medium tracking-wide text-slate-100 placeholder:text-slate-600
+                           focus:border-orange-500/60 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setDialNumber((n) => n.slice(0, -1))}
+                disabled={!dialNumber}
+                aria-label="Backspace"
+                className="rounded-lg border border-slate-700 p-2 text-slate-400 transition-colors
+                           hover:bg-slate-800 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Delete size={16} />
+              </button>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setDialNumber((n) => n + k)}
+                  className="rounded-lg border border-slate-700 bg-slate-900/40 py-2 text-base font-semibold
+                             text-slate-200 transition-colors hover:bg-slate-800 active:bg-slate-700"
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            {phone && dialNumber.trim() !== phone.trim() && (
+              <p className="mt-1.5 text-[10px] text-amber-400/80">
+                Dialing a number other than the one on file for this lead.
+              </p>
+            )}
+          </div>
+        )}
 
         <p className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Last 5 calls
@@ -156,9 +217,9 @@ export function PreCallModal({
           </button>
           <button
             onClick={handleCall}
-            disabled={flagging}
+            disabled={flagging || !canCall}
             className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white
-                       transition-colors hover:bg-orange-400 disabled:opacity-50"
+                       transition-colors hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {callType === 'ai' ? <PhoneCall size={13} /> : <Phone size={13} />}
             Call
