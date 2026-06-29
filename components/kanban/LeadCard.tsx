@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Lead, Profile } from '@/types'
 import { Star, UserCheck, Phone, MailWarning, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { assignableAgents } from '@/lib/leads/assignable'
 import { ComposeModal } from '@/components/email/ComposeModal'
 
 interface LeadCardProps {
@@ -87,6 +88,7 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
   const isRed          = staleDays >= 5
   const isStale        = isAmber || isRed
   const isAdmin        = userRole === 'admin'
+  const canReassign    = userRole === 'admin' || userRole === 'sales_manager'
   const callbackInfo   = callbackDate ? formatCallbackDate(callbackDate) : null
   const callbackLevel  = callbackInfo?.level ?? null
   const callbackUrgent = callbackLevel === 'overdue' || callbackLevel === 'today'
@@ -216,8 +218,8 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
           </div>
         )}
 
-        {/* Assign / Reassign button — admin only */}
-        {isAdmin && (isStale || lead.status === 'New') && (
+        {/* Assign / Reassign button — admin (any agent) or sales manager (their team) */}
+        {canReassign && (isStale || lead.status === 'New') && (
           <div
             className="flex items-center justify-between gap-2 mt-1.5"
             onClick={e => e.stopPropagation()}
@@ -248,8 +250,7 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
                 defaultValue=""
               >
                 <option value="" disabled>Select agent…</option>
-                {agents
-                  .filter((a) => a.role === 'sales_agent')
+                {assignableAgents(agents, userRole, userId)
                   .map((a) => (
                     <option key={a.id} value={a.id}>{a.full_name}</option>
                   ))}

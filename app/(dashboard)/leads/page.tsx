@@ -120,7 +120,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     applyView(supabase.from('leads').select(LIST_COLUMNS, { count: 'exact' }))
       .order('created_at', { ascending: false })
       .range(fromRow, fromRow + PER_PAGE - 1),
-    supabase.from('profiles').select('id, full_name, role').in('role', ['agent', 'sales_agent', 'admin']).order('full_name'),
+    supabase.from('profiles').select('id, full_name, role, manager_id').in('role', ['agent', 'sales_agent', 'sales_manager', 'admin']).order('full_name'),
     supabase.rpc('distinct_lead_cities'),
     countBase(),
     countBase(q => q.eq('status', 'New')),

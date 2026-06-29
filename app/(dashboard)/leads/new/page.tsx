@@ -16,7 +16,7 @@ export default async function NewLeadPage() {
   const { data: agents } = await supabase
     .from('profiles')
     .select('*')
-    .in('role', ['agent', 'sales_agent', 'admin'])
+    .in('role', ['agent', 'sales_agent', 'sales_manager', 'admin'])
 
   return (
     <>
@@ -26,6 +26,7 @@ export default async function NewLeadPage() {
           <LeadForm
             agents={(agents || []) as Profile[]}
             userId={user.id}
+            userRole={profile.role}
           />
         </div>
       </div>

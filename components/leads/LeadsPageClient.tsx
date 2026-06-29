@@ -705,6 +705,7 @@ export function LeadsPageClient({
               <LeadForm
                 agents={agents}
                 userId={userId}
+                userRole={profile.role}
                 onSuccess={() => { setShowAdd(false); router.refresh() }}
               />
             </div>
@@ -730,6 +731,7 @@ export function LeadsPageClient({
                 lead={editLead}
                 agents={agents}
                 userId={userId}
+                userRole={profile.role}
                 onSuccess={() => { setEditLead(null); router.refresh() }}
               />
             </div>

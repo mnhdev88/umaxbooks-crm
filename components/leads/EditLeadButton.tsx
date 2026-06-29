@@ -30,7 +30,7 @@ export function EditLeadButton({ lead, agents, userId, role }: Props) {
         </Button>
       </div>
       <Modal open={open} onClose={() => setOpen(false)} title="Edit Lead" size="lg">
-        <LeadForm lead={lead} agents={agents} userId={userId} onSuccess={() => setOpen(false)} />
+        <LeadForm lead={lead} agents={agents} userId={userId} userRole={role} onSuccess={() => setOpen(false)} />
       </Modal>
     </>
   )

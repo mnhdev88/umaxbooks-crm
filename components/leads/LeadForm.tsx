@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { slugify, cn } from '@/lib/utils'
+import { assignableAgents } from '@/lib/leads/assignable'
 import { Lead, LeadSource, Profile, PIPELINE_STAGES } from '@/types'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
@@ -70,10 +71,12 @@ interface LeadFormProps {
   agents: Profile[]
   onSuccess?: () => void
   userId: string
+  /** Current user's role — scopes the "Assign to Agent" options (managers see their team). */
+  userRole?: string
   existingLeads?: Lead[]
 }
 
-export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }: LeadFormProps) {
+export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLeads = [] }: LeadFormProps) {
   const [loading, setLoading]           = useState(false)
   const [error, setError]               = useState<string | null>(null)
   const [dupLead, setDupLead]           = useState<{ id: string; company_name: string; field: string } | null>(null)
@@ -677,8 +680,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, existingLeads = [] }
           <label className={L}>Assign to Agent</label>
           <select {...register('assigned_agent_id')} className={cn(F, 'cursor-pointer')}>
             <option value="">— Unassigned —</option>
-            {agents
-              .filter(a => a.role === 'sales_agent' && a.id !== userId)
+            {assignableAgents(agents, userRole, userId)
               .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
           </select>
         </div>

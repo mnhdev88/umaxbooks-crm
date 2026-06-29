@@ -118,7 +118,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     .limit(1)
     .maybeSingle()
 
-  const { data: agents } = await supabase.from('profiles').select('*').in('role', ['agent', 'sales_agent', 'admin'])
+  const { data: agents } = await supabase.from('profiles').select('*').in('role', ['agent', 'sales_agent', 'sales_manager', 'admin'])
   const { data: developers } = await supabase.from('profiles').select('*').eq('role', 'developer')
 
   const stars = lead.gmb_review_rating

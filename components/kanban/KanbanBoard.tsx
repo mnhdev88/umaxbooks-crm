@@ -41,14 +41,24 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
   const supabase = createClient()
 
   useEffect(() => {
-    if (userRole !== 'admin') return
-    supabase
-      .from('profiles')
-      .select('*')
-      .in('role', ['agent', 'sales_agent'])
-      .order('full_name')
-      .then(({ data }) => { if (data) setAgents(data as Profile[]) })
-  }, [userRole])
+    // Admins pick from all agents; sales managers from their own team + themselves
+    // (mirrors the assignableAgents rule / migration 067 RLS). Other roles can't reassign.
+    if (userRole === 'admin') {
+      supabase
+        .from('profiles')
+        .select('*')
+        .in('role', ['agent', 'sales_agent'])
+        .order('full_name')
+        .then(({ data }) => { if (data) setAgents(data as Profile[]) })
+    } else if (userRole === 'sales_manager') {
+      supabase
+        .from('profiles')
+        .select('*')
+        .or(`manager_id.eq.${userId},id.eq.${userId}`)
+        .order('full_name')
+        .then(({ data }) => { if (data) setAgents(data as Profile[]) })
+    }
+  }, [userRole, userId])
 
   function scrollBoard(direction: 'left' | 'right') {
     scrollRef.current?.scrollBy({ left: direction === 'left' ? -300 : 300, behavior: 'smooth' })
