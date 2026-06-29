@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/eod-dialer-report",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/demo-reminder",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
