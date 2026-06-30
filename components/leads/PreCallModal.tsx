@@ -6,7 +6,7 @@ import { VoiceCall } from '@/types'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 import {
   Phone, PhoneCall, PhoneOff, Voicemail, Ban, Loader2, X,
-  User, Calendar, MessageSquare, Delete,
+  User, Calendar, MessageSquare, Delete, ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -44,11 +44,16 @@ export function PreCallModal({
   const [loading, setLoading] = useState(true)
   const [flagging, setFlagging] = useState(false)
   const [dialNumber, setDialNumber] = useState('')
+  // History is reference-only, so it starts collapsed to keep the Call button in view.
+  const [showHistory, setShowHistory] = useState(false)
   const supabase = createClient()
 
-  // Reset the dial field to the lead's number each time the modal opens.
+  // Reset the dial field to the lead's number, and collapse history, each time the modal opens.
   useEffect(() => {
-    if (open) setDialNumber(phone || '')
+    if (open) {
+      setDialNumber(phone || '')
+      setShowHistory(false)
+    }
   }, [open, phone])
 
   useEffect(() => {
@@ -122,7 +127,7 @@ export function PreCallModal({
         role="dialog"
         aria-label="Confirm call"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-[#0E0B24] p-5 shadow-2xl shadow-black/40"
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-[#0E0B24] p-5 shadow-2xl shadow-black/40"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -138,6 +143,8 @@ export function PreCallModal({
           </button>
         </div>
 
+        {/* Scrollable middle so the footer (Call / Do not call) stays pinned and always visible. */}
+        <div className="-mx-1 mt-1 flex-1 overflow-y-auto px-1">
         {callType === 'dialer' && (
           <div className="mt-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -186,25 +193,43 @@ export function PreCallModal({
           </div>
         )}
 
-        <p className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <button
+          type="button"
+          onClick={() => setShowHistory((v) => !v)}
+          aria-expanded={showHistory}
+          className="mt-4 mb-2 flex w-full items-center gap-1.5 text-[11px] font-semibold uppercase
+                     tracking-wide text-slate-500 transition-colors hover:text-slate-300"
+        >
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${showHistory ? '' : '-rotate-90'}`}
+          />
           Last 5 calls
-        </p>
+          {!loading && calls.length > 0 && (
+            <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+              {calls.length}
+            </span>
+          )}
+        </button>
 
-        {loading ? (
-          <div className="py-6 text-center text-xs text-slate-500">Loading history…</div>
-        ) : calls.length === 0 ? (
-          <div className="rounded-lg border border-slate-800 bg-slate-900/40 py-6 text-center text-xs text-slate-500">
-            No previous calls for this lead.
-          </div>
-        ) : (
-          <ul className="max-h-64 space-y-1.5 overflow-y-auto">
-            {calls.map((c) => (
-              <CallRow key={c.id} call={c} />
-            ))}
-          </ul>
+        {showHistory && (
+          loading ? (
+            <div className="py-6 text-center text-xs text-slate-500">Loading history…</div>
+          ) : calls.length === 0 ? (
+            <div className="rounded-lg border border-slate-800 bg-slate-900/40 py-6 text-center text-xs text-slate-500">
+              No previous calls for this lead.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {calls.map((c) => (
+                <CallRow key={c.id} call={c} />
+              ))}
+            </ul>
+          )
         )}
+        </div>
 
-        <div className="mt-5 flex items-center justify-between gap-2">
+        <div className="mt-4 flex shrink-0 items-center justify-between gap-2">
           <button
             onClick={handleDoNotCall}
             disabled={flagging}
