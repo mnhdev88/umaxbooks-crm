@@ -7,6 +7,7 @@ import { TrendingUp, Users, DollarSign, CheckCircle } from 'lucide-react'
 import { UserKpiSection } from '@/components/reports/UserKpiSection'
 import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
 import { DialerReportDownload } from '@/components/reports/DialerReportDownload'
+import { CallPerformanceSection } from '@/components/reports/CallPerformanceSection'
 import { resolveRange } from '@/lib/report-range'
 
 interface PageProps {
@@ -72,6 +73,17 @@ export default async function ReportsPage({ searchParams }: PageProps) {
             <DialerReportDownload />
           </div>
         )}
+
+        {/* Dialer call performance — scoped per role (admin: all, manager: team, agent: self) */}
+        <CallPerformanceSection
+          title={
+            profile.role === 'admin' ? 'Call Performance — All Agents'
+            : profile.role === 'sales_manager' ? 'Team Call Performance'
+            : 'My Call Performance'
+          }
+          from={from}
+          to={to}
+        />
 
         {/* Per-user KPI cards */}
         <UserKpiSection isAdmin={profile.role === 'admin'} from={from} to={to} />
