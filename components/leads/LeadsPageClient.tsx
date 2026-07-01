@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
-  Eye, Edit2, Download, AlertCircle, Filter, ChevronDown, Check, Phone,
+  Eye, Edit2, Download, AlertCircle, Filter, ChevronDown, Check, Phone, UserCheck, Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { CallWindowBadge } from './CallWindowBadge'
+import { assignableAgents } from '@/lib/leads/assignable'
 
 // ── Template download helpers ─────────────────────────────────────────────────
 function downloadCsv(filename: string, rows: string[][]) {
@@ -356,6 +357,58 @@ export function LeadsPageClient({
     setSelectedIds(checked ? new Set(leads.map(l => l.id)) : new Set())
   }
 
+  // ── Bulk assign ────────────────────────────────────────────────
+  // Only admins and sales managers can reassign leads to someone else; a
+  // sales_agent's RLS pins assigned_agent_id to themselves so the DB would
+  // reject it. The picker is scoped by assignableAgents() (manager → own team),
+  // and migration 067's WITH CHECK is the hard backstop if the UI is ever wrong.
+  const canAssign = profile.role === 'admin' || profile.role === 'sales_manager'
+  const assignable = assignableAgents(agents, profile.role, userId)
+  const [assigning, setAssigning] = useState(false)
+
+  async function bulkAssign(agentId: string) {
+    if (!agentId || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    const agent = agents.find(a => a.id === agentId)
+    setAssigning(true)
+
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+
+    const { error } = await supabase
+      .from('leads')
+      .update({ assigned_agent_id: agentId, updated_at: new Date().toISOString() })
+      .in('id', ids)
+
+    if (error) {
+      setAssigning(false)
+      toast.error(`Failed to assign leads: ${error.message}`)
+      return
+    }
+
+    // Lead-level history + a single roll-up notification to the new owner.
+    await supabase.from('activity_logs').insert(
+      ids.map(id => ({
+        lead_id: id, user_id: userId,
+        action: 'Lead Reassigned',
+        details: `Bulk-assigned to ${agent?.full_name ?? 'agent'}`,
+      }))
+    )
+    if (agentId !== userId) {
+      await supabase.from('notifications').insert({
+        user_id: agentId,
+        title: 'Leads Assigned to You',
+        message: `${ids.length} lead${ids.length !== 1 ? 's have' : ' has'} been assigned to you.`,
+        type: 'info',
+      })
+    }
+
+    setAssigning(false)
+    setSelectedIds(new Set())
+    toast.success(`Assigned ${ids.length} lead${ids.length !== 1 ? 's' : ''} to ${agent?.full_name ?? 'agent'}`)
+    router.refresh()
+  }
+
   // Edit needs every column; the list query is narrowed, so fetch the full row.
   async function openEdit(id: string) {
     setLoadingEdit(true)
@@ -552,6 +605,39 @@ export function LeadsPageClient({
           </Button>
         </>}
       </div>
+
+      {/* Bulk action bar — appears when leads are selected (assign-capable roles) */}
+      {canAssign && selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 flex-wrap bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-2.5">
+          <span className="text-sm font-medium text-orange-300">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <UserCheck size={14} className="text-slate-400 shrink-0" />
+            <select
+              defaultValue=""
+              disabled={assigning}
+              onChange={e => { const v = e.target.value; if (v) bulkAssign(v); e.target.value = '' }}
+              aria-label="Assign selected leads to agent"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[180px] disabled:opacity-50 cursor-pointer"
+            >
+              <option value="">{assigning ? 'Assigning…' : 'Assign to agent…'}</option>
+              {assignable.map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.full_name}{a.id === userId ? ' (me)' : ''}
+                </option>
+              ))}
+            </select>
+            {assigning && <Loader2 size={14} className="text-orange-400 animate-spin" />}
+          </div>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1 transition-colors ml-auto"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
