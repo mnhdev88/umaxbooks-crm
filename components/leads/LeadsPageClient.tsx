@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
   Search, Plus, Upload, ExternalLink, X, ChevronLeft, ChevronRight,
-  Eye, Edit2, Download, AlertCircle, Filter, ChevronDown, Check,
+  Eye, Edit2, Download, AlertCircle, Filter, ChevronDown, Check, Phone,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import { CallWindowBadge } from './CallWindowBadge'
 
 // ── Template download helpers ─────────────────────────────────────────────────
 function downloadCsv(filename: string, rows: string[][]) {
@@ -280,10 +281,13 @@ interface Props {
   profile: Profile
   userId: string
   filterBanner?: string
+  sortCallable: boolean
+  callWindow: { start: string; end: string }
 }
 
 export function LeadsPageClient({
   leads, stats, cities, totalCount, page, perPage, filters, agents, profile, userId, filterBanner,
+  sortCallable, callWindow,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -526,6 +530,19 @@ export function LeadsPageClient({
             {f.opts.map((o, j) => <option key={o} value={o}>{f.labels ? f.labels[j] : o}</option>)}
           </select>
         ))}
+        <button
+          type="button"
+          onClick={() => setParams({ sort: sortCallable ? null : 'callable' })}
+          aria-pressed={sortCallable}
+          title="Sort leads it's currently past the local calling time for to the top"
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border transition-colors',
+            sortCallable
+              ? 'bg-orange-500/15 border-orange-500/50 text-orange-300'
+              : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+          )}>
+          <Phone size={13} /> Call-ready first
+        </button>
         {canEdit && <>
           <Button variant="ghost" size="sm" onClick={() => setShowImport(true)}>
             <Upload size={13} /> Bulk Import
@@ -549,7 +566,7 @@ export function LeadsPageClient({
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
-                {['Lead ID','Lead / Company','Source','Location','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
+                {['Lead ID','Lead / Company','Source','Location','Call Window','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
                   <th scope="col" key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
                     {h}
                   </th>
@@ -598,6 +615,13 @@ export function LeadsPageClient({
                   </td>
                   <td className="px-3 py-3 text-sm text-slate-400">
                     {lead.city || <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3">
+                    <CallWindowBadge
+                      timeZone={(lead as any).timezone}
+                      windowStart={callWindow.start}
+                      windowEnd={callWindow.end}
+                    />
                   </td>
                   <td className="px-3 py-3 max-w-[160px]">
                     {lead.website_url
@@ -648,7 +672,7 @@ export function LeadsPageClient({
               ))}
               {leads.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={13} className="px-4 py-12 text-center text-slate-500">
                     {anyFilter ? 'No leads match your filters.' : 'No leads yet. Add your first lead!'}
                   </td>
                 </tr>

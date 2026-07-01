@@ -9,7 +9,7 @@ interface PageProps {
   searchParams: Promise<{
     agent?: string; period?: string; from?: string; to?: string
     q?: string; src?: string; status?: string; assignee?: string; city?: string
-    tab?: string; page?: string
+    tab?: string; page?: string; sort?: string
   }>
 }
 
@@ -17,11 +17,20 @@ const PER_PAGE = 25
 
 // Only the columns the list table / filters render. The edit modal fetches the
 // full row on demand, so heavy text columns (notes, etc.) stay out of the list.
+// `timezone` (generated from zip_code) powers the live call-window badge.
 const LIST_COLUMNS =
   'id, name, company_name, lead_number, priority, source, city, website_url, ' +
-  'gmb_review_rating, number_of_reviews, gmb_last_seen, status, ' +
+  'gmb_review_rating, number_of_reviews, gmb_last_seen, status, timezone, ' +
   'assigned_agent_id, created_at, slug, ' +
   'assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)'
+
+// Same columns off the leads_call_queue view (migration 072) for the "Call-ready
+// first" sort: the view bakes the agent-name join in and adds call_rank, so we
+// select a flat agent-name column instead of the PostgREST embed.
+const VIEW_COLUMNS =
+  'id, name, company_name, lead_number, priority, source, city, website_url, ' +
+  'gmb_review_rating, number_of_reviews, gmb_last_seen, status, timezone, ' +
+  'assigned_agent_id, created_at, slug, assigned_agent_name, call_rank'
 
 function periodStart(period: string): string | null {
   const now = new Date()
@@ -66,6 +75,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const assignee = sp.assignee || ''
   const cityF    = sp.city || ''
   const page     = Math.max(1, parseInt(sp.page || '1', 10) || 1)
+  // "Call-ready first": order by which leads it's currently inside the local
+  // calling window for (see leads_call_queue / lead_call_rank in migration 072).
+  const sortCallable = sp.sort === 'callable'
 
   // Applies the base scope shared by the list AND every stat count: role
   // constraints, the always-excluded "Live" status, and the Reports drill-down.
@@ -113,15 +125,25 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   }
 
   const fromRow = (page - 1) * PER_PAGE
+  // The list query runs off the leads_call_queue view when sorting by call
+  // readiness (adds call_rank + a flat agent-name column), else off leads.
+  const listQuery = sortCallable
+    ? applyView(supabase.from('leads_call_queue').select(VIEW_COLUMNS, { count: 'exact' }))
+        .order('call_rank', { ascending: true })
+        .order('created_at', { ascending: false })
+        .range(fromRow, fromRow + PER_PAGE - 1)
+    : applyView(supabase.from('leads').select(LIST_COLUMNS, { count: 'exact' }))
+        .order('created_at', { ascending: false })
+        .range(fromRow, fromRow + PER_PAGE - 1)
+
   const [
-    pageRes, agentsRes, citiesRes,
+    pageRes, agentsRes, citiesRes, windowRes,
     totalRes, newRes, gmbRes, demoRes, closedRes, socialRes,
   ] = await Promise.all([
-    applyView(supabase.from('leads').select(LIST_COLUMNS, { count: 'exact' }))
-      .order('created_at', { ascending: false })
-      .range(fromRow, fromRow + PER_PAGE - 1),
+    listQuery,
     supabase.from('profiles').select('id, full_name, role, manager_id').in('role', ['agent', 'sales_agent', 'sales_manager', 'admin']).order('full_name'),
     supabase.rpc('distinct_lead_cities'),
+    supabase.from('app_settings').select('key, value').in('key', ['call_window_start', 'call_window_end']),
     countBase(),
     countBase(q => q.eq('status', 'New')),
     countBase(q => q.eq('source', 'GMB')),
@@ -130,7 +152,18 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     countBase(q => q.in('source', ['Facebook', 'LinkedIn'])),
   ])
 
-  const leads = (pageRes.data || []) as unknown as Lead[]
+  // The view returns a flat assigned_agent_name; reshape it into the {full_name}
+  // object the table already renders so LeadsPageClient needs no branching.
+  const rawLeads = (pageRes.data || []) as any[]
+  const leads = (sortCallable
+    ? rawLeads.map(r => ({ ...r, assigned_agent: r.assigned_agent_name ? { full_name: r.assigned_agent_name } : null }))
+    : rawLeads) as unknown as Lead[]
+
+  const winMap = Object.fromEntries(((windowRes.data as { key: string; value: string }[] | null) || []).map(r => [r.key, r.value]))
+  const callWindow = {
+    start: winMap['call_window_start'] || '09:30',
+    end:   winMap['call_window_end']   || '20:00',
+  }
   const filteredCount = pageRes.count || 0
   const stats = {
     total:  totalRes.count || 0,
@@ -164,6 +197,8 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         profile={profile as Profile}
         userId={user.id}
         filterBanner={filterBanner}
+        sortCallable={sortCallable}
+        callWindow={callWindow}
       />
     </>
   )

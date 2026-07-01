@@ -6,6 +6,7 @@ import { UserManagement } from '@/components/settings/UserManagement'
 import { EmailProviders } from '@/components/settings/EmailProviders'
 import { EmailTemplates } from '@/components/settings/EmailTemplates'
 import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
+import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -27,6 +28,7 @@ export default async function SettingsPage() {
       <div className="p-6 max-w-3xl space-y-6">
         <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
         <CallTargetSetting />
+        <CallWindowSetting />
         <EmailProviders />
         <EmailTemplates />
       </div>
