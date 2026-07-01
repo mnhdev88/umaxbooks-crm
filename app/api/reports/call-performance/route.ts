@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { resolveRange } from '@/lib/report-range'
+import { resolveReportingRange } from '@/lib/reporting-day'
+import { getReportDayConfig } from '@/lib/report-config'
 import { buildDialerReport } from '@/lib/dialer-report'
 
 // Per-agent dialer-call performance for the in-app Call Performance dashboard.
@@ -37,7 +38,8 @@ export async function GET(req: NextRequest) {
 
   const from = req.nextUrl.searchParams.get('from') || undefined
   const to = req.nextUrl.searchParams.get('to') || undefined
-  const { fromISO, toISO, label } = resolveRange(from, to)
+  const dayCfg = await getReportDayConfig(supabase)
+  const { fromISO, toISO, label } = resolveReportingRange(from, to, dayCfg)
 
   // Daily call target (configurable in app_settings; default 50).
   const service = createServiceClient()

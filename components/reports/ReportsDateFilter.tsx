@@ -1,59 +1,48 @@
 'use client'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Calendar, X } from 'lucide-react'
+import { reportingDate, DEFAULT_REPORT_TZ, DEFAULT_DAY_START_HOUR, type ReportDayConfig } from '@/lib/reporting-day'
 
-// Format a Date as YYYY-MM-DD in LOCAL time (not UTC — toISOString would shift).
-function ymd(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
+// Shift a 'YYYY-MM-DD' wall date by whole days (pure calendar arithmetic).
+function shift(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
 }
 
 type Preset = { key: string; label: string; range: () => { from: string; to: string } }
 
-const PRESETS: Preset[] = [
-  {
-    key: 'today',
-    label: 'Today',
-    range: () => { const t = ymd(new Date()); return { from: t, to: t } },
-  },
-  {
-    key: 'yesterday',
-    label: 'Yesterday',
-    range: () => { const d = new Date(); d.setDate(d.getDate() - 1); const t = ymd(d); return { from: t, to: t } },
-  },
-  {
-    key: 'week',
-    label: 'This Week',
-    range: () => {
-      const now = new Date()
-      const start = new Date(now)
-      const dow = (now.getDay() + 6) % 7 // days since Monday (Mon=0 … Sun=6)
-      start.setDate(now.getDate() - dow)
-      return { from: ymd(start), to: ymd(now) }
-    },
-  },
-  {
-    key: 'month',
-    label: 'This Month',
-    range: () => {
-      const now = new Date()
-      return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) }
-    },
-  },
-]
+// Presets are anchored to the business reporting date (timezone + day-start hour),
+// so "Today" tracks the current shift's day rather than the browser's calendar day.
+function buildPresets(cfg: ReportDayConfig): Preset[] {
+  const today = reportingDate(new Date(), cfg)   // 'YYYY-MM-DD' in the business tz
+  const [ty, tm] = today.split('-').map(Number)
+  const dow = (new Date(Date.UTC(ty, tm - 1, Number(today.slice(8)))).getUTCDay() + 6) % 7 // days since Monday
+  return [
+    { key: 'today',     label: 'Today',      range: () => ({ from: today, to: today }) },
+    { key: 'yesterday', label: 'Yesterday',  range: () => { const y = shift(today, -1); return { from: y, to: y } } },
+    { key: 'week',      label: 'This Week',  range: () => ({ from: shift(today, -dow), to: today }) },
+    { key: 'month',     label: 'This Month', range: () => ({ from: `${today.slice(0, 8)}01`, to: today }) },
+  ]
+}
 
 interface Props {
   from?: string
   to?: string
   label: string
+  tz?: string
+  startHour?: number
 }
 
-export function ReportsDateFilter({ from, to, label }: Props) {
+export function ReportsDateFilter({ from, to, label, tz, startHour }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  const PRESETS = useMemo(
+    () => buildPresets({ tz: tz || DEFAULT_REPORT_TZ, startHour: startHour ?? DEFAULT_DAY_START_HOUR }),
+    [tz, startHour],
+  )
 
   const apply = useCallback((next: { from?: string; to?: string }) => {
     const params = new URLSearchParams(searchParams.toString())

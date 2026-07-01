@@ -7,6 +7,9 @@ import { EmailProviders } from '@/components/settings/EmailProviders'
 import { EmailTemplates } from '@/components/settings/EmailTemplates'
 import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
 import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
+import { ReportingDaySetting } from '@/components/settings/ReportingDaySetting'
+import { KpiScorecardSettings } from '@/components/settings/KpiScorecardSettings'
+import { ManualKpiEntries } from '@/components/settings/ManualKpiEntries'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -29,6 +32,13 @@ export default async function SettingsPage() {
         <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
         <CallTargetSetting />
         <CallWindowSetting />
+        <ReportingDaySetting />
+        <KpiScorecardSettings />
+        <ManualKpiEntries
+          staff={((users || []) as Profile[])
+            .filter(u => ['agent', 'sales_agent', 'sales_manager'].includes(u.role))
+            .map(u => ({ id: u.id, full_name: u.full_name, role: u.role }))}
+        />
         <EmailProviders />
         <EmailTemplates />
       </div>

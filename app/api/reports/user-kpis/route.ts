@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveRange } from '@/lib/report-range'
+import { resolveReportingRange, reportingDate, reportingDayWindow, type ReportDayConfig } from '@/lib/reporting-day'
+import { getReportDayConfig } from '@/lib/report-config'
 
-function periodStart(period: string): string | null {
+// Preset windows anchored to the business reporting day (start hour + timezone),
+// so 'today' means the current shift's day — not server-local midnight.
+function periodStart(period: string, cfg: ReportDayConfig): string | null {
   const now = new Date()
-  if (period === 'today') { return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString() }
+  if (period === 'today') { return reportingDayWindow(reportingDate(now, cfg), cfg).fromISO }
   if (period === '7d')    { const d = new Date(now); d.setDate(d.getDate() - 7);  return d.toISOString() }
   if (period === '30d')   { const d = new Date(now); d.setDate(d.getDate() - 30); return d.toISOString() }
   if (period === 'month') { return new Date(now.getFullYear(), now.getMonth(), 1).toISOString() }
@@ -24,8 +27,9 @@ export async function GET(req: NextRequest) {
   const to   = req.nextUrl.searchParams.get('to') || undefined
   const period = req.nextUrl.searchParams.get('period') || 'month'
   const hasRange = Boolean(from || to)
-  const range = resolveRange(from, to)
-  const start = hasRange ? range.fromISO : periodStart(period)
+  const dayCfg = await getReportDayConfig(supabase)
+  const range = resolveReportingRange(from, to, dayCfg)
+  const start = hasRange ? range.fromISO : periodStart(period, dayCfg)
   const end   = hasRange ? range.toISO : null
   const isAdmin = myProfile.role === 'admin'
 

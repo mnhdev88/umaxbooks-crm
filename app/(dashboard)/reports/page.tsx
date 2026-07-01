@@ -5,10 +5,12 @@ import { Profile, PIPELINE_STAGES } from '@/types'
 import { STATUS_COLORS } from '@/lib/utils'
 import { TrendingUp, Users, DollarSign, CheckCircle } from 'lucide-react'
 import { UserKpiSection } from '@/components/reports/UserKpiSection'
+import { KpiScorecardSection } from '@/components/reports/KpiScorecardSection'
 import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
 import { DialerReportDownload } from '@/components/reports/DialerReportDownload'
 import { CallPerformanceSection } from '@/components/reports/CallPerformanceSection'
-import { resolveRange } from '@/lib/report-range'
+import { resolveReportingRange } from '@/lib/reporting-day'
+import { getReportDayConfig } from '@/lib/report-config'
 
 interface PageProps {
   searchParams: Promise<{ from?: string; to?: string }>
@@ -17,7 +19,8 @@ interface PageProps {
 export default async function ReportsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
   const { from, to } = await searchParams
-  const { fromISO, toISO, label } = resolveRange(from, to)
+  const dayCfg = await getReportDayConfig(supabase)
+  const { fromISO, toISO, label } = resolveReportingRange(from, to, dayCfg)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -65,7 +68,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
 
       <div className="p-6 space-y-6">
         {/* Calendar date-range filter — drives the whole page */}
-        <ReportsDateFilter from={from} to={to} label={label} />
+        <ReportsDateFilter from={from} to={to} label={label} tz={dayCfg.tz} startHour={dayCfg.startHour} />
 
         {/* Per-agent dialer-call CSV export (admin only) */}
         {profile.role === 'admin' && (
@@ -84,6 +87,9 @@ export default async function ReportsPage({ searchParams }: PageProps) {
           from={from}
           to={to}
         />
+
+        {/* Weighted funnel KPI scorecard — one grade per agent */}
+        <KpiScorecardSection isAdmin={profile.role === 'admin'} currentUserId={user.id} from={from} to={to} />
 
         {/* Per-user KPI cards */}
         <UserKpiSection isAdmin={profile.role === 'admin'} from={from} to={to} />
