@@ -270,15 +270,17 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
           )}
         </div>
 
-        {/* Agent filter — admin only */}
-        {userRole === 'admin' && agents.length > 0 && (
+        {/* Agent filter — admin (all agents) and sales managers (their own team).
+            `agents` is already loaded per-role above, and the visible leads are
+            RLS-scoped, so a manager only ever sees/filters their own team here. */}
+        {(userRole === 'admin' || userRole === 'sales_manager') && agents.length > 0 && (
           <select
             value={filterAgentId}
             onChange={e => setFilterAgentId(e.target.value)}
             aria-label="Filter by agent"
             className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[160px]"
           >
-            <option value="">All agents</option>
+            <option value="">{userRole === 'sales_manager' ? 'All my agents' : 'All agents'}</option>
             {agents.map(a => (
               <option key={a.id} value={a.id}>{a.full_name}</option>
             ))}
