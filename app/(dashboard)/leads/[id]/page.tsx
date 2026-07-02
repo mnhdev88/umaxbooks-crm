@@ -268,6 +268,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           <Section title="Location">
             <InfoRow icon={MapPin}  label="Address"        value={lead.address} />
             <InfoRow icon={MapPin}  label="City"           value={lead.city} />
+            <InfoRow icon={MapPin}  label="State"          value={lead.state} iconCls="text-slate-500" />
             <InfoRow icon={MapPin}  label="ZIP / Pin Code" value={lead.zip_code} iconCls="text-slate-500" />
             <InfoRow icon={Flag}    label="Country"        value={lead.country} iconCls="text-slate-500" />
             {getTimezoneFromZip(lead.zip_code) && (

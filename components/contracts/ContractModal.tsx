@@ -24,7 +24,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     contact_person:    lead.name || '',
     address:           lead.address || '',
     city:              lead.city || '',
-    state:             '',
+    state:             lead.state || '',
     zip_code:          lead.zip_code || '',
     phone:             lead.phone || '',
     client_email:      lead.email || '',

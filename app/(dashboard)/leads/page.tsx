@@ -8,7 +8,7 @@ import { resolveRange } from '@/lib/report-range'
 interface PageProps {
   searchParams: Promise<{
     agent?: string; period?: string; from?: string; to?: string
-    q?: string; src?: string; status?: string; assignee?: string; city?: string
+    q?: string; src?: string; status?: string; assignee?: string; state?: string
     tab?: string; page?: string; sort?: string
   }>
 }
@@ -73,7 +73,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const srcF     = sp.src || ''
   const statusF  = sp.status || ''
   const assignee = sp.assignee || ''
-  const cityF    = sp.city || ''
+  const stateF   = sp.state || ''
   const page     = Math.max(1, parseInt(sp.page || '1', 10) || 1)
   // "Call-ready first": order by which leads it's currently inside the local
   // calling window for (see leads_call_queue / lead_call_rank in migration 072).
@@ -114,7 +114,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     if (srcF)     q = q.eq('source', srcF)
     if (statusF)  q = q.eq('status', statusF)
     if (assignee) q = q.eq('assigned_agent_id', assignee)
-    if (cityF)    q = q.eq('city', cityF)
+    if (stateF)   q = q.eq('state', stateF)
     return q
   }
 
@@ -137,12 +137,12 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         .range(fromRow, fromRow + PER_PAGE - 1)
 
   const [
-    pageRes, agentsRes, citiesRes, windowRes,
+    pageRes, agentsRes, statesRes, windowRes,
     totalRes, newRes, gmbRes, demoRes, closedRes, socialRes,
   ] = await Promise.all([
     listQuery,
     supabase.from('profiles').select('id, full_name, role, manager_id').in('role', ['agent', 'sales_agent', 'sales_manager', 'admin']).order('full_name'),
-    supabase.rpc('distinct_lead_cities'),
+    supabase.rpc('distinct_lead_states'),
     supabase.from('app_settings').select('key, value').in('key', ['call_window_start', 'call_window_end']),
     countBase(),
     countBase(q => q.eq('status', 'New')),
@@ -173,7 +173,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     closed: closedRes.count || 0,
     social: socialRes.count || 0,
   }
-  const cities = ((citiesRes.data as { city: string }[] | null) || []).map(r => r.city)
+  const states = ((statesRes.data as { state: string }[] | null) || []).map(r => r.state)
 
   let filterBanner: string | undefined
   if (agentId) {
@@ -188,11 +188,11 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       <LeadsPageClient
         leads={leads}
         stats={stats}
-        cities={cities}
+        states={states}
         totalCount={filteredCount}
         page={page}
         perPage={PER_PAGE}
-        filters={{ tab, q: sp.q || '', src: srcF, status: statusF, assignee, city: cityF }}
+        filters={{ tab, q: sp.q || '', src: srcF, status: statusF, assignee, state: stateF }}
         agents={(agentsRes.data || []) as unknown as Profile[]}
         profile={profile as Profile}
         userId={user.id}

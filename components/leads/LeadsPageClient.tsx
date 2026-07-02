@@ -45,8 +45,8 @@ function handleTemplateDownload(template: string) {
     ])
   } else if (template === 'Full Template (.xlsx)') {
     downloadXlsx('full-template.xlsx', [
-      ['company_name','name','phone','phone_2','email','email_2','website_url','social_url','whatsapp_number','address','city','country','source','gmb_review_rating','number_of_reviews','gmb_url','gmb_category','priority','notes'],
-      ['Example Business','Contact Name','+1 555-000-0000','+1 555-000-0002','email@example.com','second@example.com','example.com','https://instagram.com/example','+1 555-000-0001','123 Main St','Austin','US','GMB','4.5','120','https://maps.google.com/?cid=123','Restaurant','Normal','Sample note'],
+      ['company_name','name','phone','phone_2','email','email_2','website_url','social_url','whatsapp_number','address','city','state','zip_code','country','source','gmb_review_rating','number_of_reviews','gmb_url','gmb_category','priority','notes'],
+      ['Example Business','Contact Name','+1 555-000-0000','+1 555-000-0002','email@example.com','second@example.com','example.com','https://instagram.com/example','+1 555-000-0001','123 Main St','Austin','TX','78704','US','GMB','4.5','120','https://maps.google.com/?cid=123','Restaurant','Normal','Sample note'],
     ])
   }
 }
@@ -263,17 +263,19 @@ async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<
 }
 
 const CRM_FIELDS = [
-  'company_name', 'name', 'phone', 'email', 'alt_phone', 'alt_email', 'city', 'address',
-  'website_url', 'gmb_url', 'gmb_review_rating', 'number_of_reviews', 'gmb_category', '— Skip —',
+  'company_name', 'name', 'phone', 'email', 'alt_phone', 'alt_email', 'city', 'state', 'address',
+  'zip_code', 'country', 'website_url', 'social_url', 'whatsapp_number',
+  'gmb_url', 'gmb_review_rating', 'number_of_reviews', 'gmb_category',
+  'source', 'priority', 'notes', '— Skip —',
 ]
 
 interface Stats { total: number; newCt: number; gmb: number; demo: number; closed: number; social: number }
-interface Filters { tab: string; q: string; src: string; status: string; assignee: string; city: string }
+interface Filters { tab: string; q: string; src: string; status: string; assignee: string; state: string }
 
 interface Props {
   leads: Lead[]
   stats: Stats
-  cities: string[]
+  states: string[]
   totalCount: number
   page: number
   perPage: number
@@ -287,7 +289,7 @@ interface Props {
 }
 
 export function LeadsPageClient({
-  leads, stats, cities, totalCount, page, perPage, filters, agents, profile, userId, filterBanner,
+  leads, stats, states, totalCount, page, perPage, filters, agents, profile, userId, filterBanner,
   sortCallable, callWindow,
 }: Props) {
   const router = useRouter()
@@ -337,7 +339,7 @@ export function LeadsPageClient({
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage))
-  const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.city || (filters.tab && filters.tab !== 'all'))
+  const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.state || (filters.tab && filters.tab !== 'all'))
 
   // ── Tabs (counts come from server-side aggregates) ─────────────
   const tabs = [
@@ -454,12 +456,20 @@ export function LeadsPageClient({
           auto[h] = /\b(2|3|4|alt|alternate|second(ary)?|other|additional)\b/.test(hl) ? 'alt_email' : 'email'
         }
         else if (hl === 'city' || hl.includes('town') || hl.includes('suburb')) auto[h] = 'city'
+        else if (hl === 'state' || hl.includes('province') || hl === 'region') auto[h] = 'state'
+        else if (hl.includes('zip') || hl.includes('postal') || hl.includes('postcode')) auto[h] = 'zip_code'
+        else if (hl === 'country' || hl.includes('nation')) auto[h] = 'country'
         else if (hl.includes('address')) auto[h] = 'address'
-        else if (hl.includes('website') || hl.includes('web') || hl.includes('url') || hl.includes('site')) auto[h] = 'website_url'
+        else if (hl.includes('whatsapp')) auto[h] = 'whatsapp_number'
+        else if (hl.includes('facebook') || hl.includes('instagram') || hl.includes('linkedin') || hl.includes('twitter') || hl.includes('social')) auto[h] = 'social_url'
         else if (hl.includes('gmb') || hl.includes('google') || hl.includes('map')) auto[h] = 'gmb_url'
+        else if (hl.includes('website') || hl.includes('web') || hl.includes('url') || hl.includes('site')) auto[h] = 'website_url'
         else if (hl.includes('rating') || hl === 'stars' || hl === 'score') auto[h] = 'gmb_review_rating'
         else if (hl.includes('review') || hl.includes('reviews')) auto[h] = 'number_of_reviews'
         else if (hl.includes('category') || hl.includes('industry') || hl.includes('niche')) auto[h] = 'gmb_category'
+        else if (hl.includes('source') || hl.includes('lead from') || hl.includes('channel')) auto[h] = 'source'
+        else if (hl.includes('priority')) auto[h] = 'priority'
+        else if (hl.includes('note') || hl.includes('comment') || hl.includes('remark')) auto[h] = 'notes'
         else auto[h] = '— Skip —'
       })
       setFieldMap(auto)
@@ -587,7 +597,7 @@ export function LeadsPageClient({
           { key: 'src',      val: filters.src,      opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
           { key: 'status',   val: filters.status,   opts: STATUSES, placeholder: 'All Status' },
           { key: 'assignee', val: filters.assignee, opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
-          { key: 'city',     val: filters.city,     opts: cities as string[], placeholder: 'All Cities' },
+          { key: 'state',    val: filters.state,    opts: states as string[], placeholder: 'All States' },
         ].map((f, i) => (
           <select key={i} value={f.val} onChange={e => setParams({ [f.key]: e.target.value || null })}
             aria-label={f.placeholder}

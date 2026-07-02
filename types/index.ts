@@ -99,6 +99,7 @@ export interface Lead {
   address?: string
   zip_code?: string
   city?: string
+  state?: string
   country?: string
   website_url?: string
   website_status?: string

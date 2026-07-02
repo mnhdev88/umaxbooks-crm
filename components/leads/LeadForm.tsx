@@ -43,6 +43,7 @@ const schema = z.object({
   email:                 z.string().email('Invalid email').optional().or(z.literal('')),
   address:               z.string().optional(),
   city:                  z.string().optional(),
+  state:                 z.string().optional(),
   zip_code:              z.string().optional(),
   country:               z.string().optional(),
   website_url:           z.string().optional(),
@@ -118,6 +119,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
       email:                lead?.email || '',
       address:              lead?.address || '',
       city:                 lead?.city || '',
+      state:                lead?.state || '',
       zip_code:             lead?.zip_code || '',
       country:              lead?.country || 'USA',
       website_url:          lead?.website_url || '',
@@ -728,10 +730,14 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
           <label className={L}>Address</label>
           <input {...register('address')} className={F} placeholder="123 Main Street, Suite 100" />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <div>
             <label className={L}>City</label>
             <input {...register('city')} className={F} placeholder="New York" />
+          </div>
+          <div>
+            <label className={L}>State</label>
+            <input {...register('state')} className={F} placeholder="NY" />
           </div>
           <div>
             <label className={L}>ZIP / Postal Code</label>
