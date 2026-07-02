@@ -30,12 +30,25 @@ interface KanbanBoardProps {
   stages?: PipelineStatus[]
 }
 
+// 'smart' keeps each column's built-in ordering (follow-up-due-first, soonest
+// callback, etc.) — the other modes override every column with one flat rule.
+type SortMode = 'smart' | 'name_asc' | 'name_desc' | 'date_new' | 'date_old'
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: 'smart',     label: 'Smart Sort (default)' },
+  { value: 'name_asc',  label: 'Company Name (A–Z)' },
+  { value: 'name_desc', label: 'Company Name (Z–A)' },
+  { value: 'date_new',  label: 'Date Added (Newest)' },
+  { value: 'date_old',  label: 'Date Added (Oldest)' },
+]
+
 export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, stages }: KanbanBoardProps) {
   const [leads, setLeads]         = useState<Lead[]>(initialLeads)
   const [activeId, setActiveId]   = useState<string | null>(null)
   const [agents, setAgents]       = useState<Profile[]>([])
   const [search, setSearch]       = useState('')
   const [filterAgentId, setFilterAgentId] = useState('')
+  const [sortMode, setSortMode]   = useState<SortMode>('smart')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const supabase = createClient()
@@ -124,7 +137,15 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
 
   const columns = visibleStages.reduce<Record<PipelineStatus, Lead[]>>((acc, stage) => {
     const list = displayLeads.filter((l) => l.status === stage)
-    if (stage === 'Callback Booked') {
+    if (sortMode === 'name_asc') {
+      list.sort((a, b) => (a.company_name || '').localeCompare(b.company_name || ''))
+    } else if (sortMode === 'name_desc') {
+      list.sort((a, b) => (b.company_name || '').localeCompare(a.company_name || ''))
+    } else if (sortMode === 'date_new') {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    } else if (sortMode === 'date_old') {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    } else if (stage === 'Callback Booked') {
       list.sort((a, b) => {
         const da = getNextCallback(a)
         const db = getNextCallback(b)
@@ -243,7 +264,7 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
   }
 
   const totalFiltered = displayLeads.length
-  const hasFilter = !!search.trim() || !!filterAgentId
+  const hasFilter = !!search.trim() || !!filterAgentId || sortMode !== 'smart'
 
   return (
     <DndContext
@@ -287,12 +308,24 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
           </select>
         )}
 
+        {/* Sort — 'smart' keeps each column's built-in ordering; the rest flatten
+            every column to one rule (name or date), same effect PIPELINE_STAGES
+            already gets from the per-column logic below. */}
+        <select
+          value={sortMode}
+          onChange={e => setSortMode(e.target.value as SortMode)}
+          aria-label="Sort leads"
+          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[170px]"
+        >
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+
         {/* Clear filters + count */}
         {hasFilter && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">{totalFiltered} lead{totalFiltered !== 1 ? 's' : ''}</span>
             <button
-              onClick={() => { setSearch(''); setFilterAgentId('') }}
+              onClick={() => { setSearch(''); setFilterAgentId(''); setSortMode('smart') }}
               className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
             >
               Clear
