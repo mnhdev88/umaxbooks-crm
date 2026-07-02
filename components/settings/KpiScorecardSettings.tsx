@@ -63,9 +63,10 @@ export function KpiScorecardSettings() {
         <h2 className="text-slate-100 font-semibold text-lg">KPI Scorecard</h2>
       </div>
       <p className="text-slate-400 text-sm mb-5">
-        Targets and weightages behind Reports → KPI Scorecard. Per-day targets are
+        Org-wide defaults behind Reports → KPI Scorecard. Per-day targets are
         scaled by the number of days in the selected range. Active weightages should
-        total 100%.
+        total 100%. Individual members can be given custom targets from their
+        Team profile — those follow their own values instead of these defaults.
       </p>
 
       {!loaded ? (

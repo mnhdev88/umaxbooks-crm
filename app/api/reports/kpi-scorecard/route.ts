@@ -6,6 +6,9 @@ import { getReportDayConfig } from '@/lib/report-config'
 // Weighted KPI Scorecard. Reuses the report_kpi_scorecard RPC for raw achieved
 // numbers, then layers Target → Output % → Weighted score on top of the
 // admin-editable kpi_scorecard_config, mirroring the Novelio KPI spreadsheet.
+// Each user's config is kpi_scorecard_config with their rows from
+// kpi_scorecard_user_overrides (075) merged in, so two agents can be graded
+// against different targets/weights in the same report.
 //
 //   Output %      = achieved / effective_target × 100
 //   Weighted      = weightage × min(Output %, 100) / 100
@@ -69,20 +72,33 @@ export async function GET(req: NextRequest) {
         .in('role', ['agent', 'sales_agent', 'sales_manager']).order('full_name')
     : await supabase.from('profiles').select('id, full_name, role').eq('id', user.id)
 
+  // All config rows (not just active) — a per-user override can re-activate a
+  // globally inactive KPI and vice versa. The returned `config`/`weightSum`
+  // stay global-only, matching the Settings card.
   const { data: configRows } = await supabase
     .from('kpi_scorecard_config')
     .select('*')
-    .eq('active', true)
     .order('sort_order')
 
-  const config = (configRows ?? []) as ConfigRow[]
+  const allConfig = (configRows ?? []) as ConfigRow[]
+  const config = allConfig.filter(c => c.active)
   const weightSum = config.reduce((s, c) => s + Number(c.weightage), 0)
 
-  if (!users?.length || !config.length) {
+  if (!users?.length || !allConfig.length) {
     return NextResponse.json({ agents: [], config, weightSum, days, weightOk: Math.round(weightSum) === 100 })
   }
 
   const userIds = users.map(u => u.id)
+
+  const { data: overrideRows } = await supabase
+    .from('kpi_scorecard_user_overrides')
+    .select('user_id, kpi_key, target, weightage, active')
+    .in('user_id', userIds)
+  const overridesByUser = new Map<string, Map<string, { target: number; weightage: number; active: boolean }>>()
+  for (const o of overrideRows ?? []) {
+    if (!overridesByUser.has(o.user_id)) overridesByUser.set(o.user_id, new Map())
+    overridesByUser.get(o.user_id)!.set(o.kpi_key, { target: Number(o.target), weightage: Number(o.weightage), active: o.active })
+  }
   const { data: rawRows } = await supabase.rpc('report_kpi_scorecard', {
     user_ids: userIds,
     from_ts: start ?? null,
@@ -106,7 +122,16 @@ export async function GET(req: NextRequest) {
 
   const agents = users.map(u => {
     const raw = byId.get(u.id)
-    const rows = config.map(c => {
+    const userOv = overridesByUser.get(u.id)
+    const effConfig = allConfig
+      .map(c => {
+        const o = userOv?.get(c.kpi_key)
+        return o
+          ? { ...c, target: o.target, weightage: o.weightage, active: o.active, overridden: true }
+          : { ...c, overridden: false }
+      })
+      .filter(c => c.active)
+    const rows = effConfig.map(c => {
       const perDay = c.target_basis === 'per_day'
       const effTarget = perDay ? Number(c.target) * days : Number(c.target)
       const achieved = achievedFor(raw, c.kpi_key)
@@ -123,10 +148,17 @@ export async function GET(req: NextRequest) {
         weightage: Number(c.weightage),
         outputPct: Math.round(outputPct * 10) / 10,
         weighted: Math.round(weighted * 10) / 10,
+        overridden: c.overridden,
       }
     })
     const totalScore = Math.round(rows.reduce((s, r) => s + r.weighted, 0) * 10) / 10
-    return { id: u.id, full_name: u.full_name, role: u.role, totalScore, rows }
+    const userWeightSum = Math.round(effConfig.reduce((s, c) => s + Number(c.weightage), 0) * 10) / 10
+    return {
+      id: u.id, full_name: u.full_name, role: u.role, totalScore, rows,
+      hasOverrides: Boolean(userOv?.size),
+      weightSum: userWeightSum,
+      weightOk: Math.round(userWeightSum) === 100,
+    }
   }).sort((a, b) => b.totalScore - a.totalScore)
 
   return NextResponse.json({

@@ -7,6 +7,7 @@ import { STATUS_COLORS, timeAgo } from '@/lib/utils'
 import { resolveRange } from '@/lib/report-range'
 import { ReportsDateFilter } from '@/components/reports/ReportsDateFilter'
 import { AgentPerformanceDownload } from '@/components/reports/AgentPerformanceDownload'
+import { KpiTargetsCard } from '@/components/team/KpiTargetsCard'
 import {
   ArrowLeft, UserPlus, Users, Calendar, CheckCircle, Handshake, DollarSign, Activity,
 } from 'lucide-react'
@@ -164,6 +165,12 @@ export default async function AgentProfilePage({ params, searchParams }: PagePro
             ))}
           </div>
         </div>
+
+        {/* Per-user KPI scorecard targets (roles the scorecard reports on).
+            Edit rights are enforced by the API: admins, or the agent's manager. */}
+        {['agent', 'sales_agent', 'sales_manager'].includes(agent.role) && (
+          <KpiTargetsCard agentId={agent.id} />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Current workload */}

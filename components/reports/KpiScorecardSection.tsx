@@ -20,6 +20,9 @@ interface AgentScore {
   role: string
   totalScore: number
   rows: Row[]
+  hasOverrides?: boolean
+  weightSum?: number
+  weightOk?: boolean
 }
 interface Payload {
   agents: AgentScore[]
@@ -104,7 +107,7 @@ export function KpiScorecardSection({ isAdmin, currentUserId, from, to }: Props)
       {data && !data.weightOk && (
         <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          Weightages add up to {data.weightSum}% — they should total 100% for scores to be comparable. Adjust in Settings → KPI Scorecard.
+          Default weightages add up to {data.weightSum}% — they should total 100% for scores to be comparable. Adjust in Settings → KPI Scorecard.
         </div>
       )}
 
@@ -132,7 +135,12 @@ function AgentCard({ agent, rank }: { agent: AgentScore; rank: number }) {
           <span className="text-xs font-mono text-slate-500 w-5 text-right shrink-0">#{rank}</span>
           <div>
             <p className="text-sm font-semibold text-white truncate">{agent.full_name}</p>
-            <p className="text-xs text-slate-500 capitalize">{agent.role.replace('_', ' ')}</p>
+            <p className="text-xs text-slate-500 capitalize">
+              {agent.role.replace('_', ' ')}
+              {agent.hasOverrides && (
+                <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-orange-900/30 text-orange-400 normal-case">custom targets</span>
+              )}
+            </p>
           </div>
         </div>
         <div className="text-right shrink-0">
@@ -145,6 +153,13 @@ function AgentCard({ agent, rank }: { agent: AgentScore; rank: number }) {
       <div className="w-full bg-slate-700/50 rounded-full h-1.5 mb-3 overflow-hidden">
         <div className={`h-full ${b.bar} rounded-full transition-all duration-500`} style={{ width: `${Math.min(agent.totalScore, 100)}%` }} />
       </div>
+
+      {agent.weightOk === false && (
+        <p className="flex items-center gap-1.5 text-[11px] text-amber-400 mb-2">
+          <AlertTriangle className="w-3 h-3 shrink-0" />
+          This member&apos;s active weightages total {agent.weightSum}% — adjust them on their team profile.
+        </p>
+      )}
 
       {/* Funnel table — same columns as the Novelio KPI scorecard spreadsheet:
           Stage · KPI · Target · Achieved · Output (%) · Weightage (%) · Weighted score */}
