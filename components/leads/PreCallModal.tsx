@@ -26,6 +26,7 @@ export function PreCallModal({
   open,
   leadId,
   phone,
+  altPhones,
   name,
   callType,
   onConfirm,
@@ -34,6 +35,8 @@ export function PreCallModal({
   open: boolean
   leadId: string
   phone?: string | null
+  /** Additional numbers on file (leads.alt_phones) — shown as pick-a-number chips. */
+  altPhones?: { value: string; label?: string }[] | null
   name?: string | null
   callType: 'dialer' | 'ai'
   /** Receives the number the agent chose to dial (the editable field, or the lead's phone). */
@@ -48,10 +51,16 @@ export function PreCallModal({
   const [showHistory, setShowHistory] = useState(false)
   const supabase = createClient()
 
+  // Every number on file: primary first, then the alternates.
+  const numbers = [
+    ...(phone ? [{ value: phone, label: 'Primary' }] : []),
+    ...(altPhones || []).filter(p => p.value?.trim()),
+  ]
+
   // Reset the dial field to the lead's number, and collapse history, each time the modal opens.
   useEffect(() => {
     if (open) {
-      setDialNumber(phone || '')
+      setDialNumber(phone || altPhones?.[0]?.value || '')
       setShowHistory(false)
     }
   }, [open, phone])
@@ -150,6 +159,24 @@ export function PreCallModal({
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Number to dial
             </p>
+            {numbers.length > 1 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {numbers.map((n) => (
+                  <button
+                    key={n.value}
+                    type="button"
+                    onClick={() => setDialNumber(n.value)}
+                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      dialNumber.trim() === n.value.trim()
+                        ? 'border-orange-500/60 bg-orange-500/10 text-orange-300'
+                        : 'border-slate-700 bg-slate-900/40 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    {n.label ? `${n.label}: ` : ''}{n.value}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 value={dialNumber}
@@ -185,9 +212,9 @@ export function PreCallModal({
                 </button>
               ))}
             </div>
-            {phone && dialNumber.trim() !== phone.trim() && (
+            {numbers.length > 0 && dialNumber.trim() && !numbers.some((n) => n.value.trim() === dialNumber.trim()) && (
               <p className="mt-1.5 text-[10px] text-amber-400/80">
-                Dialing a number other than the one on file for this lead.
+                Dialing a number other than the ones on file for this lead.
               </p>
             )}
           </div>

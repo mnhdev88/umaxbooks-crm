@@ -8,7 +8,7 @@ import { AICallButton } from '@/components/leads/AICallButton'
 import { DialButton } from '@/components/dialer/DialButton'
 import { LocalTimeClock } from '@/components/leads/LocalTimeClock'
 import { getTimezoneFromZip } from '@/lib/zip-timezone'
-import { Profile, Lead } from '@/types'
+import { Profile, Lead, LeadAltContact } from '@/types'
 import { formatDate } from '@/lib/utils'
 import {
   Globe, Phone, Mail, MapPin, Star, Building2,
@@ -232,7 +232,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
             <div className="text-right text-xs text-slate-500 flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
-                <DialButton leadId={lead.id} phone={lead.phone} name={lead.name} />
+                <DialButton leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
                 <AICallButton leadId={lead.id} phone={lead.phone} name={lead.name} />
               </div>
               {lead.source && (
@@ -254,8 +254,14 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           <Section title="Contact Information">
             <InfoRow icon={Users}   label="Contact Name"   value={lead.name} />
             <InfoRow icon={Phone}   label="Phone"          value={lead.phone}  href={lead.phone ? `tel:${lead.phone}` : undefined} />
+            {((lead.alt_phones || []) as LeadAltContact[]).filter(p => p?.value).map((p, i) => (
+              <InfoRow key={`ap-${i}`} icon={Phone} label={`Phone (${p.label || 'Other'})`} value={p.value} href={`tel:${p.value}`} iconCls="text-slate-500" />
+            ))}
             <InfoRow icon={MessageCircle} label="WhatsApp" value={lead.whatsapp_number} href={lead.whatsapp_number ? `https://wa.me/${lead.whatsapp_number.replace(/\D/g,'')}` : undefined} iconCls="text-emerald-400" />
             <InfoRow icon={Mail}    label="Email"          value={lead.email}  href={lead.email ? `mailto:${lead.email}` : undefined} />
+            {((lead.alt_emails || []) as LeadAltContact[]).filter(e => e?.value).map((e, i) => (
+              <InfoRow key={`ae-${i}`} icon={Mail} label={`Email (${e.label || 'Other'})`} value={e.value} href={`mailto:${e.value}`} iconCls="text-slate-500" />
+            ))}
           </Section>
 
           {/* Location */}

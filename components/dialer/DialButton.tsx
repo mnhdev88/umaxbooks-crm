@@ -16,21 +16,25 @@ export function DialButton({
   leadId,
   phone,
   name,
+  altPhones,
 }: {
   leadId: string
   phone?: string | null
   name?: string | null
+  /** Additional numbers on file (leads.alt_phones) — offered as choices in the pre-call popup. */
+  altPhones?: { value: string; label?: string }[] | null
 }) {
   const { startCall, ready } = useDialer()
   const [open, setOpen] = useState(false)
-  const disabled = !phone || !ready
+  const hasNumber = Boolean(phone || altPhones?.length)
+  const disabled = !hasNumber || !ready
 
   return (
     <>
       <button
-        onClick={() => phone && setOpen(true)}
+        onClick={() => hasNumber && setOpen(true)}
         disabled={disabled}
-        title={phone ? 'Call this lead from your browser' : 'No phone number on file'}
+        title={hasNumber ? 'Call this lead from your browser' : 'No phone number on file'}
         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10
                    px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors
                    hover:bg-emerald-500/20 hover:text-emerald-200
@@ -44,6 +48,7 @@ export function DialButton({
         open={open}
         leadId={leadId}
         phone={phone}
+        altPhones={altPhones}
         name={name}
         callType="dialer"
         onConfirm={(dialNumber) =>

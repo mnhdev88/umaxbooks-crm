@@ -168,6 +168,7 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId, init
             businessType={(lead as any).business_type}
             city={lead.city}
             leadEmail={lead.email ?? ''}
+            leadAltEmails={lead.alt_emails}
             leadName={lead.name ?? ''}
             leadStatus={lead.status}
             leadNotes={lead.notes}

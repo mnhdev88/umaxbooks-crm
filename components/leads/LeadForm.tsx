@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { slugify, cn } from '@/lib/utils'
 import { assignableAgents } from '@/lib/leads/assignable'
-import { Lead, LeadSource, Profile, PIPELINE_STAGES } from '@/types'
+import { Lead, LeadAltContact, LeadSource, Profile, PIPELINE_STAGES } from '@/types'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
+import { AlertCircle, Loader2, CheckCircle2, Sparkles, ExternalLink, ShieldCheck, ShieldAlert, ShieldX, Plus, X } from 'lucide-react'
 
 const SOURCES = [
   { id: 'GMB',          label: 'GMB',          icon: '📍' },
@@ -31,6 +31,9 @@ const WEBSITE_STATUSES = [
 ]
 
 const PRIORITIES = ['Normal', 'High', 'Urgent', 'Low']
+
+// Label options for additional emails / phone numbers ("+ Add another …" rows).
+const ALT_LABELS = ['Work', 'Personal', 'Office', 'Other']
 
 const schema = z.object({
   name:                  z.string().min(1, 'Required'),
@@ -90,6 +93,10 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
   const [extractError, setExtractError]     = useState<string | null>(null)
   const extractTimerRef                     = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedGmbUrl                         = useRef(lead?.gmb_url || '')
+  // Additional emails / phones — leads.alt_emails / alt_phones jsonb arrays.
+  // The main email/phone inputs stay the primary; these are the extra rows.
+  const [altEmails, setAltEmails] = useState<LeadAltContact[]>(lead?.alt_emails || [])
+  const [altPhones, setAltPhones] = useState<LeadAltContact[]>(lead?.alt_phones || [])
   const [findingEmail, setFindingEmail]     = useState(false)
   const [emailFindMsg, setEmailFindMsg]     = useState<string | null>(null)
   const [validatingEmail, setValidatingEmail] = useState(false)
@@ -299,35 +306,83 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
     setError(null)
     setDupLead(null)
 
-    // Duplicate check — only on new leads
+    // Every phone/email on this lead — primary first, then the extra rows.
+    const cleanAlts = (items: LeadAltContact[]) =>
+      items.map(it => ({ label: it.label || 'Other', value: it.value.trim() })).filter(it => it.value)
+    const altEmailsClean = cleanAlts(altEmails)
+    const altPhonesClean = cleanAlts(altPhones)
+
+    // The zod schema only validates the primary email — check the extra rows here.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const badAlt = altEmailsClean.find(e => !EMAIL_RE.test(e.value))
+    if (badAlt) {
+      setError(`Invalid additional email: ${badAlt.value}`)
+      setLoading(false)
+      return
+    }
+
+    const allPhones = [data.phone?.trim(), ...altPhonesClean.map(p => p.value)].filter(Boolean) as string[]
+    const allEmails = [data.email?.trim(), ...altEmailsClean.map(e => e.value)].filter(Boolean) as string[]
+
+    // Duplicate check — only on new leads. Matches any of this lead's numbers or
+    // emails against existing leads' primary columns AND their alt_* arrays.
     if (!lead) {
       const orFilters: string[] = []
-      if (data.phone?.trim())        orFilters.push(`phone.eq.${data.phone.trim()}`)
-      if (data.email?.trim())        orFilters.push(`email.eq.${data.email.trim()}`)
+      // Double-quote in-list values so phones like "(555) 123-4567" don't break the filter.
+      const quote = (v: string) => `"${v.replace(/"/g, '')}"`
+      if (allPhones.length) orFilters.push(`phone.in.(${allPhones.map(quote).join(',')})`)
+      if (allEmails.length) orFilters.push(`email.in.(${allEmails.map(quote).join(',')})`)
       if (data.company_name?.trim()) orFilters.push(`company_name.ilike.${data.company_name.trim()}`)
 
+      let existing: { id: string; company_name: string; phone?: string | null; email?: string | null } | null = null
       if (orFilters.length > 0) {
-        const { data: existing } = await supabase
+        const { data: match } = await supabase
           .from('leads')
           .select('id, company_name, phone, email')
           .or(orFilters.join(','))
           .limit(1)
-          .single()
-
-        if (existing) {
-          const matchedField =
-            existing.phone === data.phone?.trim()   ? 'phone number' :
-            existing.email === data.email?.trim()   ? 'email address' :
-            'company name'
-          setDupLead({ id: existing.id, company_name: existing.company_name, field: matchedField })
-          setLoading(false)
-          return
+          .maybeSingle()
+        existing = match
+      }
+      // jsonb containment can't ride inside .or(), so probe the alt arrays per value.
+      if (!existing) {
+        for (const p of allPhones) {
+          const { data: match } = await supabase
+            .from('leads')
+            .select('id, company_name')
+            .contains('alt_phones', JSON.stringify([{ value: p }]))
+            .limit(1)
+            .maybeSingle()
+          if (match) { existing = { ...match, phone: p }; break }
         }
+      }
+      if (!existing) {
+        for (const e of allEmails) {
+          const { data: match } = await supabase
+            .from('leads')
+            .select('id, company_name')
+            .contains('alt_emails', JSON.stringify([{ value: e }]))
+            .limit(1)
+            .maybeSingle()
+          if (match) { existing = { ...match, email: e }; break }
+        }
+      }
+
+      if (existing) {
+        const matchedField =
+          existing.phone && allPhones.includes(existing.phone) ? 'phone number' :
+          existing.email && allEmails.includes(existing.email) ? 'email address' :
+          'company name'
+        setDupLead({ id: existing.id, company_name: existing.company_name, field: matchedField })
+        setLoading(false)
+        return
       }
     }
     const payload = {
       ...data,
       source,
+      alt_emails: altEmailsClean,
+      alt_phones: altPhonesClean,
       gmb_review_rating:  data.gmb_review_rating  ? parseFloat(data.gmb_review_rating)  : null,
       number_of_reviews:  data.number_of_reviews  ? parseInt(data.number_of_reviews)    : null,
       competitor_count:   data.competitor_count   ? parseInt(data.competitor_count)     : null,
@@ -372,6 +427,51 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
   const F = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 transition-colors'
   const L = 'text-xs font-medium text-slate-400 mb-1 block'
   const S = 'text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2 after:flex-1 after:h-px after:bg-slate-800 mt-5 mb-3'
+
+  // Extra email/phone rows below the primary field: [label ▾][value][×] + "Add another".
+  function renderAltRows(kind: 'email' | 'phone') {
+    const items    = kind === 'email' ? altEmails : altPhones
+    const setItems = kind === 'email' ? setAltEmails : setAltPhones
+    return (
+      <div className="mt-2 space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select
+              value={item.label || 'Other'}
+              onChange={e => setItems(items.map((it, j) => (j === i ? { ...it, label: e.target.value } : it)))}
+              aria-label={`Additional ${kind} label`}
+              className={cn(F, 'w-28 shrink-0 cursor-pointer')}
+            >
+              {ALT_LABELS.map(l => <option key={l}>{l}</option>)}
+            </select>
+            <input
+              type={kind === 'email' ? 'email' : 'tel'}
+              value={item.value}
+              onChange={e => setItems(items.map((it, j) => (j === i ? { ...it, value: e.target.value } : it)))}
+              placeholder={kind === 'email' ? 'second@company.com' : '+1 555 000 0001'}
+              aria-label={`Additional ${kind}`}
+              className={cn(F, 'flex-1 min-w-0')}
+            />
+            <button
+              type="button"
+              onClick={() => setItems(items.filter((_, j) => j !== i))}
+              aria-label={`Remove additional ${kind}`}
+              className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-colors shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setItems([...items, { value: '', label: 'Work' }])}
+          className="inline-flex items-center gap-1 text-xs font-medium text-orange-400 hover:text-orange-300 transition-colors"
+        >
+          <Plus size={12} /> Add another {kind === 'email' ? 'email' : 'phone'}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -519,6 +619,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
         <div>
           <label className={L}>Phone Number</label>
           <input {...register('phone')} type="tel" className={F} placeholder="+1 555 000 0000" />
+          {renderAltRows('phone')}
         </div>
         <div>
           <label className={L}>Email ID</label>
@@ -616,6 +717,7 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
             </p>
           )}
           {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>}
+          {renderAltRows('email')}
         </div>
       </div>
 

@@ -85,6 +85,12 @@ export interface Profile {
   created_at: string
 }
 
+/** One extra email/phone on a lead (leads.alt_emails / alt_phones jsonb arrays). */
+export interface LeadAltContact {
+  value: string
+  label?: string
+}
+
 export interface Lead {
   id: string
   name: string
@@ -107,6 +113,8 @@ export interface Lead {
   competitor_notes?: string
   phone?: string
   email?: string
+  alt_phones?: LeadAltContact[]
+  alt_emails?: LeadAltContact[]
   email_verdict?: 'Valid' | 'Risky' | 'Invalid' | string
   email_score?: number
   email_validated_at?: string

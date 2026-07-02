@@ -45,8 +45,8 @@ function handleTemplateDownload(template: string) {
     ])
   } else if (template === 'Full Template (.xlsx)') {
     downloadXlsx('full-template.xlsx', [
-      ['company_name','name','phone','email','website_url','social_url','whatsapp_number','address','city','country','source','gmb_review_rating','number_of_reviews','gmb_url','gmb_category','priority','notes'],
-      ['Example Business','Contact Name','+1 555-000-0000','email@example.com','example.com','https://instagram.com/example','+1 555-000-0001','123 Main St','Austin','US','GMB','4.5','120','https://maps.google.com/?cid=123','Restaurant','Normal','Sample note'],
+      ['company_name','name','phone','phone_2','email','email_2','website_url','social_url','whatsapp_number','address','city','country','source','gmb_review_rating','number_of_reviews','gmb_url','gmb_category','priority','notes'],
+      ['Example Business','Contact Name','+1 555-000-0000','+1 555-000-0002','email@example.com','second@example.com','example.com','https://instagram.com/example','+1 555-000-0001','123 Main St','Austin','US','GMB','4.5','120','https://maps.google.com/?cid=123','Restaurant','Normal','Sample note'],
     ])
   }
 }
@@ -263,7 +263,7 @@ async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<
 }
 
 const CRM_FIELDS = [
-  'company_name', 'name', 'phone', 'email', 'city', 'address',
+  'company_name', 'name', 'phone', 'email', 'alt_phone', 'alt_email', 'city', 'address',
   'website_url', 'gmb_url', 'gmb_review_rating', 'number_of_reviews', 'gmb_category', '— Skip —',
 ]
 
@@ -446,8 +446,13 @@ export function LeadsPageClient({
           hl === 'name' || hl === 'full name' || hl === 'fullname' ||
           hl.includes('contact') || hl.includes('owner') || hl.includes('person')
         ) auto[h] = 'name'
-        else if (hl.includes('phone') || hl.includes('mobile') || hl.includes('tel') || hl.includes('cell')) auto[h] = 'phone'
-        else if (hl.includes('email')) auto[h] = 'email'
+        else if (hl.includes('phone') || hl.includes('mobile') || hl.includes('tel') || hl.includes('cell')) {
+          // "phone 2", "alt phone", "secondary phone"… → extra number, not the primary
+          auto[h] = /\b(2|3|4|alt|alternate|second(ary)?|other|additional)\b/.test(hl) ? 'alt_phone' : 'phone'
+        }
+        else if (hl.includes('email')) {
+          auto[h] = /\b(2|3|4|alt|alternate|second(ary)?|other|additional)\b/.test(hl) ? 'alt_email' : 'email'
+        }
         else if (hl === 'city' || hl.includes('town') || hl.includes('suburb')) auto[h] = 'city'
         else if (hl.includes('address')) auto[h] = 'address'
         else if (hl.includes('website') || hl.includes('web') || hl.includes('url') || hl.includes('site')) auto[h] = 'website_url'
@@ -476,9 +481,17 @@ export function LeadsPageClient({
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i]
       const record: Record<string, any> = { source: 'GMB', status: 'New', priority: 'Normal', created_by: userId }
+      // Several columns can map to alt_phone / alt_email — collect them all.
+      const altPhones: string[] = []
+      const altEmails: string[] = []
       Object.entries(fieldMap).forEach(([csvCol, crmField]) => {
-        if (crmField !== '— Skip —' && row[csvCol]) record[crmField] = row[csvCol]
+        if (crmField === '— Skip —' || !row[csvCol]) return
+        if (crmField === 'alt_phone')      altPhones.push(row[csvCol])
+        else if (crmField === 'alt_email') altEmails.push(row[csvCol])
+        else record[crmField] = row[csvCol]
       })
+      if (altPhones.length) record.alt_phones = altPhones.map(v => ({ value: v, label: 'Other' }))
+      if (altEmails.length) record.alt_emails = altEmails.map(v => ({ value: v, label: 'Other' }))
       if (!record.company_name) { err++; log.push(`Row ${i + 2}: Missing company name — skipped`); continue }
       if (!record.name) record.name = record.company_name
       record.slug = slugify(record.company_name) + '-' + Date.now() + i

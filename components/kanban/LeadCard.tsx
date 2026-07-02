@@ -265,6 +265,7 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
         <ComposeModal
           leadId={lead.id}
           leadEmail={lead.email!}
+          altEmails={lead.alt_emails}
           leadName={lead.name}
           businessName={lead.company_name}
           userId={userId}

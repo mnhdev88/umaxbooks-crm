@@ -30,6 +30,8 @@ interface AuditTabProps {
   businessType?: string
   city?: string
   leadEmail?: string
+  /** Additional emails on file (leads.alt_emails) — forwarded to the compose modal's To picker. */
+  leadAltEmails?: { value: string; label?: string }[] | null
   leadName?: string
   leadStatus?: string
   leadNotes?: string
@@ -181,7 +183,7 @@ function Tag({ children, color = 'slate' }: { children: React.ReactNode; color?:
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, businessType, city, leadEmail, leadName, leadStatus, leadNotes }: AuditTabProps) {
+export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, businessName, businessType, city, leadEmail, leadAltEmails, leadName, leadStatus, leadNotes }: AuditTabProps) {
   const supabase = createClient()
 
   // Current audit (latest record for this lead)
@@ -955,6 +957,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
         <ComposeModal
           leadId={leadId}
           leadEmail={leadEmail}
+          altEmails={leadAltEmails}
           leadName={leadName}
           businessName={businessName}
           businessType={businessType}

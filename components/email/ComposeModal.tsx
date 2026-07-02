@@ -24,6 +24,8 @@ interface DraftData {
 interface Props {
   leadId: string
   leadEmail?: string
+  /** Additional emails on file (leads.alt_emails) — offered as "To" choices. */
+  altEmails?: { value: string; label?: string }[] | null
   leadName?: string
   businessName?: string
   businessType?: string
@@ -40,7 +42,7 @@ interface Props {
 }
 
 export function ComposeModal({
-  leadId, leadEmail = '', leadName = '', businessName = '', businessType = '', city = '',
+  leadId, leadEmail = '', altEmails, leadName = '', businessName = '', businessType = '', city = '',
   auditPdfUrl, auditPdfName, storageFolder, userId, onClose, onSent,
   initialSubject, initialBody, initialDraft,
 }: Props) {
@@ -322,6 +324,12 @@ export function ComposeModal({
 
   const currentProvider = providers.find(p => p.id === providerId)
 
+  // Every email on file for this lead — primary first, then the alternates.
+  const leadEmails = [
+    ...(leadEmail ? [{ value: leadEmail, label: 'Primary' }] : []),
+    ...(altEmails || []).filter(e => e.value?.trim()),
+  ]
+
   return (
     <>
       {/* Backdrop */}
@@ -386,6 +394,29 @@ export function ComposeModal({
                 </button>
               </div>
             </div>
+
+            {/* Pick between the lead's emails when more than one is on file */}
+            {leadEmails.length > 1 && (
+              <div className="flex items-center gap-3">
+                <span className="w-16 shrink-0" />
+                <div className="flex-1 flex flex-wrap gap-1.5">
+                  {leadEmails.map(e => (
+                    <button
+                      key={e.value}
+                      type="button"
+                      onClick={() => setTo(e.value)}
+                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        to.trim() === e.value
+                          ? 'border-orange-500/60 bg-orange-500/10 text-orange-300'
+                          : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                      }`}
+                    >
+                      {e.label ? `${e.label}: ` : ''}{e.value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* CC / BCC */}
             {showCcBcc && (
