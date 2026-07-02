@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     callSid?: string
     leadId?: string
     interested?: 'yes' | 'no' | 'maybe' | null
+    voicemail?: boolean
     doNotCall?: boolean
     notes?: string
   }
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
   }
 
   const interested = body.interested ?? null
+  const voicemail = !!body.voicemail
   const doNotCall = !!body.doNotCall
   const notes = body.notes?.trim() || null
 
@@ -43,26 +45,29 @@ export async function POST(req: NextRequest) {
     const svc = createServiceClient()
 
     if (body.callSid) {
+      const callRow: Record<string, unknown> = {
+        call_id: body.callSid,
+        lead_id: body.leadId ?? null,
+        agent_user_id: user.id,
+        provider: 'twilio',
+        direction: 'outbound',
+        interested,
+        do_not_call: doNotCall,
+        notes,
+      }
+      // Only stamp answered_by when the agent marks voicemail, so it overrides the status
+      // webhook's default of 'human'. Omitting it otherwise preserves the webhook value
+      // (upsert only touches provided columns).
+      if (voicemail) callRow.answered_by = 'voicemail'
+
       await svc
         .from('voice_calls')
-        .upsert(
-          {
-            call_id: body.callSid,
-            lead_id: body.leadId ?? null,
-            agent_user_id: user.id,
-            provider: 'twilio',
-            direction: 'outbound',
-            interested,
-            do_not_call: doNotCall,
-            notes,
-          },
-          { onConflict: 'call_id', ignoreDuplicates: false }
-        )
+        .upsert(callRow, { onConflict: 'call_id', ignoreDuplicates: false })
     }
 
     if (body.leadId) {
       const leadUpdate: Record<string, unknown> = {
-        last_call_outcome: interested ?? 'completed',
+        last_call_outcome: voicemail ? 'voicemail' : interested ?? 'completed',
         last_call_at: new Date().toISOString(),
       }
       if (doNotCall) leadUpdate.do_not_call = true
