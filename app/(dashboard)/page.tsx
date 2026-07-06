@@ -109,7 +109,7 @@ export default function PipelinePage() {
           </Link>
         ) : undefined}
       />
-      {profile && (profile.role === 'sales_agent' || profile.role === 'admin') && (
+      {profile && (profile.role === 'sales_agent' || profile.role === 'sales_manager' || profile.role === 'admin') && (
         <FollowUpsWidget userId={profile.id} />
       )}
       <div className="flex-1 min-h-0">
