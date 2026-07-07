@@ -199,6 +199,9 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
 
   const seenIds = new Set<string>()
   const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]
+    // Disqualified leads can leak in via the agent-notes / resubmitted paths
+    // (service client bypasses RLS and pulls any status) — never build these.
+    .filter((l: any) => l.status !== 'Disqualified')
     .filter((l: any) => {
       if (seenIds.has(l.id)) return false
       seenIds.add(l.id)
