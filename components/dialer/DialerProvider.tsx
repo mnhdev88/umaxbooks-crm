@@ -69,8 +69,16 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
 
   // Lazily create + register the Device, refreshing the token on expiry.
   const ensureDevice = useCallback(async (): Promise<Device> => {
-    if (deviceRef.current) return deviceRef.current
+    // Always mint a fresh token first. The DialerProvider is mounted for the life of the
+    // page, so on a long-lived tab the cached Device may be holding an expired token — the
+    // background `tokenWillExpire` refresh can be throttled (backgrounded tab) or fail
+    // silently (lapsed session). Handing the Device a fresh token on every call attempt
+    // guarantees we never dial with a stale JWT → Twilio error 20104 (AccessTokenExpired).
     const token = await fetchToken()
+    if (deviceRef.current) {
+      deviceRef.current.updateToken(token)
+      return deviceRef.current
+    }
     const device = new Device(token, {
       codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
     })
