@@ -23,10 +23,10 @@ export default async function DemoClosePage() {
       audits(id, audit_short_pdf_url, audit_long_pdf_url, agent_notes, created_at),
       demos(id, temp_url, demo_version, created_at),
       appointments(id, appointment_datetime, zoom_link, outcome_notes, created_at),
-      demo_approvals(id, status, auditor_id, auditor:profiles!demo_approvals_auditor_id_fkey(full_name), auditor_notes, reviewed_at),
+      project_approvals(id, status, approved_by, approver:profiles!project_approvals_approved_by_fkey(full_name), revision_notes, approved_at, created_at),
       deal_closings(id, outcome, payment_type, token_amount, payment_method, services, start_date, end_date, client_phone, client_email, revision_notes, closing_call_notes, lost_reason, re_nurture_date, prep_checklist, closed_at)
     `)
-    .in('status', ['Demo Scheduled', 'Demo Done', 'Closed Won', 'Lost'])
+    .in('status', ['Demo Scheduled', 'Demo Done', 'Revision', 'Closed Won', 'Lost'])
     .order('updated_at', { ascending: false })
 
   // Sort sub-arrays — latest first
@@ -35,6 +35,7 @@ export default async function DemoClosePage() {
     audits: (lead.audits || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     demos: (lead.demos || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     appointments: (lead.appointments || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    project_approvals: (lead.project_approvals || []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
   }))
 
   // Build lookup maps keyed by lead_id for before/after data

@@ -41,7 +41,7 @@ export function ZoomPrepTab({ lead, userId, closing, comparison, metrics, onChec
   }
 
   const checkedCount = PREP_ITEMS.filter(p => checklist[p.key]).length
-  const approval = lead?.demo_approvals?.[0]
+  const approval = lead?.project_approvals?.[0]
   const appointment = lead?.appointments?.[0]
   const demoUrl = lead?.demos?.[0]?.temp_url
 
@@ -62,16 +62,26 @@ export function ZoomPrepTab({ lead, userId, closing, comparison, metrics, onChec
 
       <div className="space-y-5">
 
-        {/* Approved banner */}
+        {/* Approval banner */}
         {approval?.status === 'approved' ? (
           <div className="flex items-start gap-3 bg-green-900/15 border border-green-700/30 rounded-xl px-4 py-3.5">
             <CheckCircle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-green-300 mb-0.5">
-                Demo approved{approval.auditor?.full_name ? ` by ${approval.auditor.full_name}` : ''}
+                Demo approved{approval.approver?.full_name ? ` by ${approval.approver.full_name}` : ''}
               </p>
               <p className="text-xs text-slate-400 leading-relaxed">
                 The demo site has been reviewed and signed off. You're cleared to present this to the client. Use presentation mode below for a clean, client-facing walkthrough.
+              </p>
+            </div>
+          </div>
+        ) : approval?.status === 'declined' ? (
+          <div className="flex items-start gap-3 bg-red-900/15 border border-red-700/30 rounded-xl px-4 py-3.5">
+            <CheckCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-300 mb-0.5">Demo declined — revision required</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {approval.revision_notes || 'The demo was sent back for revision. Do not present this to the client until it is resubmitted and re-approved.'}
               </p>
             </div>
           </div>
@@ -80,7 +90,7 @@ export function ZoomPrepTab({ lead, userId, closing, comparison, metrics, onChec
             <CheckCircle size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-amber-300 mb-0.5">Demo pending approval</p>
-              <p className="text-xs text-slate-400">The demo has not yet been approved. Check with the auditor before presenting to the client.</p>
+              <p className="text-xs text-slate-400">The demo has not yet been approved. Check with the admin before presenting to the client.</p>
             </div>
           </div>
         )}

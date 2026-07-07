@@ -27,7 +27,7 @@ const STATUS_CLS: Record<string, string> = {
 
 function closingBadge(lead: any): { label: string; cls: string } {
   const closing = lead.deal_closings?.[0]
-  const approval = lead.demo_approvals?.[0]
+  const approval = lead.project_approvals?.[0]
   const hasAppointment = !!lead.appointments?.[0]?.appointment_datetime
 
   if (closing?.outcome === 'won')  return { label: 'Closed Won',      cls: 'bg-green-900/30 text-green-300' }
@@ -100,7 +100,7 @@ export function DemoCloseClient({ initialLeads, profile, userId, initialClosings
   }
 
   const approvedCount = initialLeads.filter(l => {
-    const a = (l as any).demo_approvals?.[0]
+    const a = (l as any).project_approvals?.[0]
     return a?.status === 'approved' && !(l as any).deal_closings?.[0]?.outcome
   }).length
 
