@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Lead, Profile } from '@/types'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, ensureHttps } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { LeadForm } from './LeadForm'
 import {
@@ -734,7 +734,7 @@ export function LeadsPageClient({
                   </td>
                   <td className="px-3 py-3 max-w-[160px]">
                     {lead.website_url
-                      ? <a href={lead.website_url} target="_blank" rel="noreferrer" title={lead.website_url}
+                      ? <a href={ensureHttps(lead.website_url)} target="_blank" rel="noreferrer" title={lead.website_url}
                           className="text-xs text-blue-400 hover:text-blue-300 hover:underline block truncate">
                           {lead.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                         </a>

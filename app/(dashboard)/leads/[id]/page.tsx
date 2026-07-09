@@ -9,7 +9,7 @@ import { DialButton } from '@/components/dialer/DialButton'
 import { LocalTimeClock } from '@/components/leads/LocalTimeClock'
 import { getTimezoneFromZip } from '@/lib/zip-timezone'
 import { Profile, Lead, LeadAltContact } from '@/types'
-import { formatDate } from '@/lib/utils'
+import { formatDate, ensureHttps } from '@/lib/utils'
 import {
   Globe, Phone, Mail, MapPin, Star, Building2,
   MessageCircle, Share2, Calendar, Users, Flag,
@@ -209,12 +209,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                 )}
                 {lead.website_url && (
                   <span className="flex items-center gap-1">
-                    <a href={lead.website_url} target="_blank" rel="noreferrer"
+                    <a href={ensureHttps(lead.website_url)} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300">
                       <Globe size={12} /> {lead.website_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                       <ExternalLink size={10} />
                     </a>
-                    <CopyButton text={lead.website_url} />
+                    <CopyButton text={ensureHttps(lead.website_url)} />
                   </span>
                 )}
                 {lead.gmb_url && (
@@ -278,7 +278,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
           {/* Online Presence */}
           <Section title="Online Presence">
-            <InfoRow icon={Globe}   label="Website"        value={lead.website_url}  href={lead.website_url || undefined} />
+            <InfoRow icon={Globe}   label="Website"        value={lead.website_url}  href={lead.website_url ? ensureHttps(lead.website_url) : undefined} />
             {lead.website_status && (
               <div className="flex items-center gap-2 text-xs min-w-0">
                 <Globe size={11} className="text-slate-500 flex-shrink-0" />
@@ -290,7 +290,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                 }`}>{lead.website_status}</span>
               </div>
             )}
-            <InfoRow icon={Share2}  label="Social Profile"  value={lead.social_url}  href={lead.social_url || undefined} iconCls="text-blue-400" />
+            <InfoRow icon={Share2}  label="Social Profile"  value={lead.social_url}  href={lead.social_url ? ensureHttps(lead.social_url) : undefined} iconCls="text-blue-400" />
             <InfoRow icon={MapPin}  label="GMB Profile URL"  value={lead.gmb_url || null} href={lead.gmb_url || undefined} iconCls="text-green-400" />
           </Section>
 
