@@ -166,7 +166,10 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${profile.id}` }, fetchChatUnread)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [profile.id, pathname])
+    // NB: intentionally NOT keyed on pathname — the read-state UPDATE subscription
+    // above already refreshes the badge, so re-subscribing on every navigation
+    // just churned Realtime channels (and WAL decode load) for no benefit.
+  }, [profile.id])
 
   async function fetchPendingCount() {
     const { count } = await supabase
