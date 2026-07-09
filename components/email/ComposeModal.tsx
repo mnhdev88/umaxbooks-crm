@@ -2,9 +2,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  X, Send, Save, Eye, Paperclip, Bold, Italic, Underline,
-  List, Link2, Code, Clock, ChevronDown, Loader2, Trash2,
+  X, Send, Save, Eye, Paperclip, Bold, Italic, Underline, Strikethrough,
+  List, ListOrdered, Link2, Unlink, Code, Clock, ChevronDown, Loader2, Trash2,
   FileText, Upload, FolderOpen, CheckCircle, AlertCircle,
+  AlignLeft, AlignCenter, AlignRight, Quote, RemoveFormatting, Baseline, Highlighter,
 } from 'lucide-react'
 
 interface EmailProvider { id: string; name: string; provider: string; from_email: string; from_name: string; username: string | null }
@@ -185,6 +186,22 @@ export function ComposeModal({
     if (editorRef.current) setHtmlBody(editorRef.current.innerHTML)
   }
 
+  // Remember the caret/selection so toolbar controls that steal focus
+  // (native <select>, colour pop-overs, prompt dialogs) can restore it.
+  const savedRange = useRef<Range | null>(null)
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection()
+    if (sel && sel.rangeCount && editorRef.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange()
+    }
+  }, [])
+  function restoreSelection() {
+    const sel = window.getSelection()
+    if (!sel) return
+    sel.removeAllRanges()
+    if (savedRange.current) sel.addRange(savedRange.current)
+  }
+
   function switchToHtml() {
     if (editorRef.current) setHtmlBody(editorRef.current.innerHTML)
     setHtmlMode(true)
@@ -195,16 +212,20 @@ export function ComposeModal({
     setHtmlBodyVersion(v => v + 1)
   }
 
-  // Toolbar commands
+  // Toolbar commands — restore the last editor selection before running so the
+  // command applies to the highlighted text even if a control stole focus.
   function cmd(command: string, value?: string) {
     editorRef.current?.focus()
+    restoreSelection()
     document.execCommand(command, false, value)
     onEditorInput()
+    saveSelection()
   }
 
   function insertLink() {
     const url = prompt('Enter URL:')
-    if (url) cmd('createLink', url)
+    if (!url) return
+    cmd('createLink', /^https?:\/\/|^mailto:/i.test(url) ? url : `https://${url}`)
   }
 
   // Template apply
@@ -476,12 +497,44 @@ export function ComposeModal({
               <div className="flex items-center gap-1 px-3 py-2 bg-white/5 border-b border-white/10 flex-wrap">
                 {!htmlMode && (
                   <>
+                    {/* Paragraph format + font size */}
+                    <ToolSelect
+                      title="Text style"
+                      onPick={v => cmd('formatBlock', v)}
+                      options={FORMAT_BLOCKS}
+                      placeholder="Style"
+                    />
+                    <ToolSelect
+                      title="Font size"
+                      onPick={v => cmd('fontSize', v)}
+                      options={FONT_SIZES}
+                      placeholder="Size"
+                    />
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+
                     <ToolBtn onClick={() => cmd('bold')} title="Bold"><Bold className="w-3.5 h-3.5" /></ToolBtn>
                     <ToolBtn onClick={() => cmd('italic')} title="Italic"><Italic className="w-3.5 h-3.5" /></ToolBtn>
                     <ToolBtn onClick={() => cmd('underline')} title="Underline"><Underline className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('strikeThrough')} title="Strikethrough"><Strikethrough className="w-3.5 h-3.5" /></ToolBtn>
+
+                    {/* Colours */}
+                    <ColorMenu title="Text colour" icon={<Baseline className="w-3.5 h-3.5" />} colors={TEXT_COLORS} onPick={c => cmd('foreColor', c)} />
+                    <ColorMenu title="Highlight" icon={<Highlighter className="w-3.5 h-3.5" />} colors={HIGHLIGHT_COLORS} onPick={c => cmd('hiliteColor', c)} />
                     <div className="w-px h-4 bg-white/20 mx-1" />
+
                     <ToolBtn onClick={() => cmd('insertUnorderedList')} title="Bullet list"><List className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('insertOrderedList')} title="Numbered list"><ListOrdered className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('formatBlock', 'blockquote')} title="Quote"><Quote className="w-3.5 h-3.5" /></ToolBtn>
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+
+                    <ToolBtn onClick={() => cmd('justifyLeft')} title="Align left"><AlignLeft className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('justifyCenter')} title="Align center"><AlignCenter className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('justifyRight')} title="Align right"><AlignRight className="w-3.5 h-3.5" /></ToolBtn>
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+
                     <ToolBtn onClick={insertLink} title="Insert link"><Link2 className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('unlink')} title="Remove link"><Unlink className="w-3.5 h-3.5" /></ToolBtn>
+                    <ToolBtn onClick={() => cmd('removeFormat')} title="Clear formatting"><RemoveFormatting className="w-3.5 h-3.5" /></ToolBtn>
                     <div className="w-px h-4 bg-white/20 mx-1" />
                   </>
                 )}
@@ -508,7 +561,10 @@ export function ComposeModal({
                   contentEditable
                   suppressContentEditableWarning
                   onInput={onEditorInput}
-                  className="min-h-[260px] px-4 py-3 text-slate-200 text-sm focus:outline-none"
+                  onKeyUp={saveSelection}
+                  onMouseUp={saveSelection}
+                  onBlur={saveSelection}
+                  className="rte min-h-[260px] px-4 py-3 text-slate-200 text-sm focus:outline-none"
                   style={{ lineHeight: '1.7' }}
                   data-placeholder="Start typing or pick a template above…"
                 />
@@ -682,6 +738,29 @@ export function ComposeModal({
   )
 }
 
+// contentEditable execCommand values
+const FORMAT_BLOCKS = [
+  { label: 'Normal',     value: 'p'  },
+  { label: 'Heading',    value: 'h2' },
+  { label: 'Subheading', value: 'h3' },
+]
+const FONT_SIZES = [
+  { label: 'Small',  value: '2' },
+  { label: 'Normal', value: '3' },
+  { label: 'Large',  value: '5' },
+  { label: 'Huge',   value: '6' },
+]
+// Email-friendly swatches (dark text for light backgrounds + brand accents)
+const TEXT_COLORS = [
+  '#0f172a', '#334155', '#64748b', '#ffffff',
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#0ea5e9', '#3b82f6', '#8b5cf6', '#ec4899',
+]
+const HIGHLIGHT_COLORS = [
+  'transparent', '#fef08a', '#fed7aa', '#bbf7d0',
+  '#bfdbfe', '#e9d5ff', '#fecaca', '#e2e8f0',
+]
+
 function ToolBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button
@@ -691,5 +770,66 @@ function ToolBtn({ onClick, title, children }: { onClick: () => void; title: str
     >
       {children}
     </button>
+  )
+}
+
+// Action-style dropdown: picking an option runs a command then resets to the label.
+function ToolSelect({ title, placeholder, options, onPick }: {
+  title: string
+  placeholder: string
+  options: { label: string; value: string }[]
+  onPick: (value: string) => void
+}) {
+  return (
+    <select
+      title={title}
+      value=""
+      onChange={e => { if (e.target.value) onPick(e.target.value) }}
+      className="bg-white/5 border border-white/10 rounded px-1.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-orange-500/50 cursor-pointer hover:text-white"
+    >
+      <option value="">{placeholder}</option>
+      {options.map(o => <option key={o.value} value={o.value} className="bg-[#160E32]">{o.label}</option>)}
+    </select>
+  )
+}
+
+// Colour swatch pop-over. Uses onMouseDown/preventDefault so the editor selection
+// (already saved on blur) is not disturbed before the command runs.
+function ColorMenu({ title, icon, colors, onPick }: {
+  title: string
+  icon: React.ReactNode
+  colors: string[]
+  onPick: (color: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => setOpen(o => !o)}
+        title={title}
+        className="text-slate-400 hover:text-white p-1.5 rounded hover:bg-white/10 transition-colors"
+      >
+        {icon}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onMouseDown={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-20 mt-1 p-2 bg-[#160E32] border border-white/10 rounded-lg shadow-2xl grid grid-cols-4 gap-1.5">
+            {colors.map(c => (
+              <button
+                key={c}
+                onMouseDown={e => { e.preventDefault(); onPick(c); setOpen(false) }}
+                title={c === 'transparent' ? 'None' : c}
+                className="w-5 h-5 rounded border border-white/20 hover:scale-110 transition-transform"
+                style={c === 'transparent'
+                  ? { backgroundImage: 'linear-gradient(45deg,#64748b 25%,transparent 25%,transparent 75%,#64748b 75%),linear-gradient(45deg,#64748b 25%,transparent 25%,transparent 75%,#64748b 75%)', backgroundSize: '8px 8px', backgroundPosition: '0 0,4px 4px' }
+                  : { background: c }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
