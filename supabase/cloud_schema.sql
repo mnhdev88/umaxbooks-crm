@@ -94,7 +94,7 @@ CREATE TABLE leads (
                          CHECK (status IN ('New','Contacted','Audit Ready','Demo Scheduled',
                                            'Demo Done','Closed Won','Revision','Live','Completed','Lost')),
   priority             TEXT DEFAULT 'Normal'
-                         CHECK (priority IN ('Normal','High','Urgent','Low')),
+                         CHECK (priority IN ('Normal','Medium','High','Urgent','Low')),
   assigned_agent_id    UUID REFERENCES profiles(id),
   notes                TEXT,
   agent_private_notes  TEXT,

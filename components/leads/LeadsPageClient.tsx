@@ -87,6 +87,7 @@ const STATUSES = [
 const PRIORITY_CLS: Record<string, string> = {
   'Urgent': 'text-red-400',
   'High':   'text-amber-400',
+  'Medium': 'text-yellow-400',
   'Normal': 'text-slate-500',
   'Low':    'text-slate-600',
 }

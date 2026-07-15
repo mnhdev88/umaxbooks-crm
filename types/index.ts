@@ -16,7 +16,7 @@ export const LEAD_SOURCES: LeadSource[] = [
   'Referral', 'Cold Call', 'Website Form', 'Subscriber', 'Other',
 ]
 
-export type LeadPriority = 'Normal' | 'High' | 'Urgent' | 'Low'
+export type LeadPriority = 'Normal' | 'Medium' | 'High' | 'Urgent' | 'Low'
 
 export type PipelineStatus =
   | 'New'

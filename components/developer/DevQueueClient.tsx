@@ -33,6 +33,7 @@ const STATUS_CLS: Record<string, string> = {
 const PRIORITY_CLS: Record<string, string> = {
   'Urgent': 'bg-red-900/40 text-red-300',
   'High':   'bg-orange-900/40 text-orange-300',
+  'Medium': 'bg-yellow-900/30 text-yellow-300',
   'Normal': 'bg-slate-700 text-slate-400',
   'Low':    'bg-slate-800 text-slate-500',
 }

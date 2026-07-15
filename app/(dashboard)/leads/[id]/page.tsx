@@ -129,6 +129,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const PRIORITY_CLS: Record<string, string> = {
     'Urgent': 'text-red-400',
     'High':   'text-amber-400',
+    'Medium': 'text-yellow-400',
     'Normal': 'text-slate-400',
     'Low':    'text-slate-500',
   }

@@ -30,7 +30,7 @@ const WEBSITE_STATUSES = [
   'Under construction',
 ]
 
-const PRIORITIES = ['Normal', 'High', 'Urgent', 'Low']
+const PRIORITIES = ['Normal', 'Medium', 'High', 'Urgent', 'Low']
 
 // Label options for additional emails / phone numbers ("+ Add another …" rows).
 const ALT_LABELS = ['Work', 'Personal', 'Office', 'Other']
