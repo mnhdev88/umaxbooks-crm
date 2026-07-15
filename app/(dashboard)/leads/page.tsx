@@ -118,12 +118,6 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     return q
   }
 
-  const countBase = (extra?: (q: any) => any) => {
-    let q = applyBase(supabase.from('leads').select('*', { count: 'exact', head: true }))
-    if (extra) q = extra(q)
-    return q
-  }
-
   const fromRow = (page - 1) * PER_PAGE
   // The list query runs off the leads_call_queue view when sorting by call
   // readiness (adds call_rank + a flat agent-name column), else off leads.
@@ -137,19 +131,19 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         .range(fromRow, fromRow + PER_PAGE - 1)
 
   const [
-    pageRes, agentsRes, statesRes, windowRes,
-    totalRes, newRes, gmbRes, demoRes, closedRes, socialRes,
+    pageRes, agentsRes, statesRes, windowRes, countsRes,
   ] = await Promise.all([
     listQuery,
     supabase.from('profiles').select('id, full_name, role, manager_id').in('role', ['agent', 'sales_agent', 'sales_manager', 'admin']).order('full_name'),
     supabase.rpc('distinct_lead_states'),
     supabase.from('app_settings').select('key, value').in('key', ['call_window_start', 'call_window_end']),
-    countBase(),
-    countBase(q => q.eq('status', 'New')),
-    countBase(q => q.eq('source', 'GMB')),
-    countBase(q => q.eq('status', 'Demo Scheduled')),
-    countBase(q => q.eq('status', 'Closed Won')),
-    countBase(q => q.in('source', ['Facebook', 'LinkedIn'])),
+    // One conditional-aggregate scan instead of six count(*) round-trips; the
+    // function mirrors applyBase() and runs SECURITY INVOKER, so RLS still applies.
+    supabase.rpc('leads_tab_counts', {
+      p_agent: agentId || null,
+      p_from: drillFromISO,
+      p_to: drillToISO,
+    }).single(),
   ])
 
   // The view returns a flat assigned_agent_name; reshape it into the {full_name}
@@ -165,13 +159,17 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     end:   winMap['call_window_end']   || '20:00',
   }
   const filteredCount = pageRes.count || 0
+  const counts = countsRes.data as {
+    total: number; new_ct: number; gmb: number
+    demo: number; closed: number; social: number
+  } | null
   const stats = {
-    total:  totalRes.count || 0,
-    newCt:  newRes.count || 0,
-    gmb:    gmbRes.count || 0,
-    demo:   demoRes.count || 0,
-    closed: closedRes.count || 0,
-    social: socialRes.count || 0,
+    total:  counts?.total  ?? 0,
+    newCt:  counts?.new_ct ?? 0,
+    gmb:    counts?.gmb    ?? 0,
+    demo:   counts?.demo   ?? 0,
+    closed: counts?.closed ?? 0,
+    social: counts?.social ?? 0,
   }
   const states = ((statesRes.data as { state: string }[] | null) || []).map(r => r.state)
 
