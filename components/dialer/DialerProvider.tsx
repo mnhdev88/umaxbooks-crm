@@ -223,6 +223,14 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     [cleanupCall]
   )
 
+  // Skip the wrap-up chips but still offer the full Log Call form (empty notes are
+  // fine) — the agent can Cancel it if there's truly nothing to log.
+  const skipWrapup = useCallback(() => {
+    const leadId = leadIdRef.current
+    cleanupCall()
+    if (leadId) setLogCall({ leadId, notes: '' })
+  }, [cleanupCall])
+
   const toggleMute = useCallback(() => {
     const call = callRef.current
     if (!call) return
@@ -262,7 +270,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           name={callee?.name || callee?.phone}
           saving={saving}
           onSave={submitDisposition}
-          onSkip={cleanupCall}
+          onSkip={skipWrapup}
         />
       ) : state !== 'idle' ? (
         <CallWidget
