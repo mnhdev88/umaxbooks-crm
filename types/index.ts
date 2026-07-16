@@ -374,7 +374,7 @@ export interface Notification {
   user?: { full_name: string; role: string } | null
 }
 
-// ── Chat (staff DMs) ────────────────────────────────────────────────────────
+// ── Chat (staff DMs + team channels) ────────────────────────────────────────
 export interface ChatMessage {
   id: string
   conversation_id: string
@@ -385,17 +385,38 @@ export interface ChatMessage {
   attachment_name?: string | null
   attachment_type?: string | null
   attachment_size?: number | null
+  // Ids of people @mentioned (084). Sent explicitly by the composer rather than
+  // parsed from the body, since names contain spaces.
+  mentions?: string[]
+  // Thread reply → the top-level message it hangs off (085). Threads are one
+  // level deep, so a message with a parent can never itself have replies.
+  parent_message_id?: string | null
+  // Denormalised count of replies; only meaningful on top-level messages.
+  reply_count?: number
 }
 
-// A conversation as shown in the list, with the other participant resolved
-// (for 1:1 DMs) and a computed unread flag.
+// One person's emoji on one message (083). In a team channel this replaces the
+// ✓✓ receipts, which only mean something in a 1:1.
+export interface ChatReaction {
+  message_id: string
+  user_id: string
+  emoji: string
+}
+
+// A conversation as shown in the list. For a 1:1 DM `other` is the person you're
+// talking to; for a team channel (082) it is null and `title` + `members` carry
+// the identity instead.
 export interface ChatConversation {
   id: string
   is_group: boolean
   title: string | null
+  // Set only on team channels: the manager the roster is derived from.
+  team_manager_id?: string | null
   last_message_at: string
   created_at: string
   other: ChatContact | null
+  // Everyone in the thread, including me. Populated for groups.
+  members?: ChatContact[]
   last_message?: string | null
   unread: boolean
 }

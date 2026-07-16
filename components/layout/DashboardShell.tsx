@@ -118,7 +118,7 @@ export function DashboardShell({ userId, children }: { userId: string; children:
           <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 flex flex-col">
             <DialerProvider>{children}</DialerProvider>
           </main>
-          <ChatWidget userId={userId} />
+          <ChatWidget userId={userId} myName={profile.full_name ?? 'You'} myRole={profile.role} />
         </div>
       </SidebarContext.Provider>
      </OnlineContext.Provider>

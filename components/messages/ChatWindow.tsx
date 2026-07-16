@@ -1,61 +1,94 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ChatContact, ChatMessage } from '@/types'
 import { cn, timeAgo } from '@/lib/utils'
 import { describeSupabaseError } from './errorMessage'
-import { Attachment, uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
+import { MESSAGE_COLUMNS } from './conversation'
+import { uploadChatFile, MAX_ATTACHMENT_BYTES, downloadAttachment, deleteChatMessage } from './attachments'
 import { EmojiPicker } from './EmojiPicker'
-import { receiptFor, ReceiptTicks } from './receipts'
+import { MessageRow } from './MessageRow'
+import { MentionTextarea, MentionTextareaHandle, extractMentions } from './MentionTextarea'
+import { useReactions } from './Reactions'
+import { useTyping, typingLabel } from './typing'
 import { toast } from 'sonner'
-import { Send, X, Minus, Paperclip, Loader2, Download, Trash2 } from 'lucide-react'
+import { Send, X, Minus, Paperclip, Loader2, Hash } from 'lucide-react'
 
-const MESSAGE_COLUMNS = 'id, conversation_id, sender_id, body, created_at, attachment_path, attachment_name, attachment_type, attachment_size'
-
-// Time for today's messages; date + time for older ones.
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  const now = new Date()
-  const sameDay = d.toDateString() === now.toDateString()
-  if (sameDay) return time
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`
-}
+// A floating chat window. Handles both a 1:1 DM and a team channel (082).
+//
+// ── What this window deliberately does NOT do ──────────────────────────────
+// Threads. A reply pane inside a 320px popup would be unusable, so a message
+// with replies shows a pill that opens the full Messages page at that thread
+// (/messages?c=…&t=…). Quick back-and-forth happens here; thread work happens
+// there.
 
 interface Props {
   userId: string
+  myName: string
   conversationId: string
-  contact: ChatContact
+  // Null for a team channel — a group has no single "other person".
+  contact: ChatContact | null
+  title?: string | null
+  isGroup?: boolean
   online: boolean
   onClose: () => void
   className?: string
   style?: React.CSSProperties
 }
 
-export function ChatWindow({ userId, conversationId, contact, online, onClose, className, style }: Props) {
+export function ChatWindow({
+  userId, myName, conversationId, contact, title, isGroup = false, online, onClose, className, style,
+}: Props) {
   const supabase = createClient()
+  const router = useRouter()
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [members, setMembers] = useState<ChatContact[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [minimized, setMinimized] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [lastSeen, setLastSeen] = useState<string | null>(contact.last_seen_at ?? null)
+  const [lastSeen, setLastSeen] = useState<string | null>(contact?.last_seen_at ?? null)
   const [otherRead, setOtherRead] = useState<string | null>(null)
   const [otherDelivered, setOtherDelivered] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<MentionTextareaHandle>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Refresh "last seen" the moment they're offline, so it isn't a stale snapshot.
+  const { byMessage: reactionsByMessage } = useReactions(conversationId)
+  const { typists, notifyTyping, clearTyping } = useTyping(conversationId, userId, myName)
+  const mentionable = members.filter((m) => m.id !== userId)
+
+  const headerName = isGroup ? (title ?? 'Team') : (contact?.full_name ?? 'Unknown')
+
+  // Members are fetched here rather than passed in: the window is restored from
+  // localStorage across tabs and reloads, so a persisted roster would go stale
+  // exactly when 082 re-syncs the team.
   useEffect(() => {
+    let active = true
+    supabase
+      .from('conversation_participants')
+      .select('user_id, profile:profiles(id, full_name, role, avatar_url, last_seen_at)')
+      .eq('conversation_id', conversationId)
+      .then(({ data }) => {
+        if (!active) return
+        setMembers((data ?? []).map((r) => r.profile).filter(Boolean) as unknown as ChatContact[])
+      })
+    return () => { active = false }
+  }, [supabase, conversationId])
+
+  // Refresh "last seen" the moment they're offline, so it isn't a stale snapshot.
+  // DMs only — a channel has no single counterpart to be "last seen".
+  useEffect(() => {
+    if (isGroup || !contact) return
     if (online) return
     let active = true
     supabase.from('profiles').select('last_seen_at').eq('id', contact.id).single()
       .then(({ data }) => { if (active && data) setLastSeen(data.last_seen_at) })
     return () => { active = false }
-  }, [online, contact.id, supabase])
+  }, [online, contact, isGroup, supabase])
 
   async function markRead() {
     await supabase
@@ -72,6 +105,8 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
       .from('messages')
       .select(MESSAGE_COLUMNS)
       .eq('conversation_id', conversationId)
+      // Top-level only: replies belong to their thread on the full page.
+      .is('parent_message_id', null)
       .order('created_at', { ascending: true })
       .limit(200)
       .then(({ data }) => {
@@ -81,18 +116,21 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         markRead()
       })
 
-    // The other participant's receipt timestamps (for my message ticks).
-    supabase
-      .from('conversation_participants')
-      .select('last_read_at, delivered_at')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!active || !data) return
-        setOtherRead(data.last_read_at)
-        setOtherDelivered(data.delivered_at)
-      })
+    // Receipt timestamps for my ticks — DMs only. In a group this filter matches
+    // every other member, and maybeSingle() would throw on the extra rows.
+    if (!isGroup) {
+      supabase
+        .from('conversation_participants')
+        .select('last_read_at, delivered_at')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', userId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!active || !data) return
+          setOtherRead(data.last_read_at)
+          setOtherDelivered(data.delivered_at)
+        })
+    }
 
     const channel = supabase
       .channel(`chat-window-${conversationId}`)
@@ -101,8 +139,17 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
         const msg = payload.new as ChatMessage
+        if (msg.parent_message_id) return   // thread replies aren't shown here
         setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
         if (msg.sender_id !== userId) markRead()
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        // Keeps the "N replies" pill live when someone replies in a thread.
+        const msg = payload.new as ChatMessage
+        setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, reply_count: msg.reply_count } : m))
       })
       .on('postgres_changes', {
         event: 'DELETE', schema: 'public', table: 'messages',
@@ -149,32 +196,21 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     return true
   }
 
-  function insertEmoji(emoji: string) {
-    const el = inputRef.current
-    if (!el) { setInput((v) => v + emoji); return }
-    const start = el.selectionStart ?? input.length
-    const end = el.selectionEnd ?? input.length
-    setInput(input.slice(0, start) + emoji + input.slice(end))
-    setTimeout(() => {
-      el.focus()
-      const pos = start + emoji.length
-      el.setSelectionRange(pos, pos)
-    }, 0)
-  }
-
   async function send() {
     const body = input.trim()
     if (!body || sending) return
     setSending(true)
     setInput('')
-    const ok = await insertMessage({ body })
+    clearTyping()
+    const ok = await insertMessage({ body, mentions: extractMentions(body, mentionable) })
     setSending(false)
     if (!ok) setInput(body)
     inputRef.current?.focus()
   }
 
   async function removeMessage(m: ChatMessage) {
-    if (!window.confirm('Delete this attachment for everyone?')) return
+    const what = m.attachment_path ? 'attachment' : 'message'
+    if (!window.confirm(`Delete this ${what} for everyone?`)) return
     setMessages((prev) => prev.filter((x) => x.id !== m.id)) // optimistic
     try {
       await deleteChatMessage(supabase, m)
@@ -211,7 +247,11 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
         // Pasted images often arrive nameless — give them one.
         const named = f.name ? f : new File([f], `pasted-${Date.now()}-${i}.png`, { type: f.type || 'image/png' })
         const attachment = await uploadChatFile(supabase, conversationId, named)
-        await insertMessage({ body: i === 0 ? (caption || null) : null, ...attachment })
+        await insertMessage({
+          body: i === 0 ? (caption || null) : null,
+          mentions: i === 0 ? extractMentions(caption, mentionable) : [],
+          ...attachment,
+        })
       }
       if (caption) setInput('')
     } catch (err) {
@@ -236,10 +276,12 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     if (files.length) { e.preventDefault(); uploadAndSend(files) }
   }
 
+  const typing = typingLabel(typists)
+
   return (
     <div
       className={cn(
-        'flex flex-col bg-[#0E0B24] border border-slate-700 rounded-t-xl shadow-2xl overflow-hidden pointer-events-auto',
+        'pointer-events-auto flex flex-col overflow-hidden rounded-t-xl border border-slate-700 bg-[#0E0B24] shadow-2xl',
         'w-[88vw] sm:w-80',
         className
       )}
@@ -247,32 +289,39 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
     >
       {/* Header */}
       <div
-        className="flex items-center gap-2 px-3 py-2 bg-[#160E32] cursor-pointer shrink-0"
+        className="flex shrink-0 cursor-pointer items-center gap-2 bg-[#160E32] px-3 py-2"
         onClick={() => setMinimized((m) => !m)}
       >
         <div className="relative shrink-0">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white text-xs font-bold">
-            {(contact.full_name ?? '?').charAt(0).toUpperCase()}
+          <div className={cn(
+            'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white',
+            isGroup ? 'bg-gradient-to-br from-slate-600 to-slate-800' : 'bg-gradient-to-br from-orange-500 to-orange-700'
+          )}>
+            {isGroup ? <Hash size={14} /> : (contact?.full_name ?? '?').charAt(0).toUpperCase()}
           </div>
-          {online && <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-green-500 ring-2 ring-[#160E32]" />}
+          {!isGroup && online && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-2 ring-[#160E32]" />}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-slate-100 truncate leading-tight">{contact.full_name}</p>
-          <p className={cn('text-[10px] leading-tight', online ? 'text-green-400' : 'text-slate-500')}>
-            {online ? 'Active now' : lastSeen ? `Last seen ${timeAgo(lastSeen)}` : 'Offline'}
-          </p>
+          <p className="truncate text-xs font-semibold leading-tight text-slate-100">{headerName}</p>
+          {isGroup ? (
+            <p className="text-[10px] leading-tight text-slate-500">{members.length} members</p>
+          ) : (
+            <p className={cn('text-[10px] leading-tight', online ? 'text-green-400' : 'text-slate-500')}>
+              {online ? 'Active now' : lastSeen ? `Last seen ${timeAgo(lastSeen)}` : 'Offline'}
+            </p>
+          )}
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); setMinimized((m) => !m) }}
           aria-label="Minimize"
-          className="p-1 text-slate-400 hover:text-white rounded"
+          className="rounded p-1 text-slate-400 hover:text-white"
         >
           <Minus size={15} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onClose() }}
           aria-label="Close chat"
-          className="p-1 text-slate-400 hover:text-white rounded"
+          className="rounded p-1 text-slate-400 hover:text-white"
         >
           <X size={15} />
         </button>
@@ -280,94 +329,74 @@ export function ChatWindow({ userId, conversationId, contact, online, onClose, c
 
       {!minimized && (
         <>
-          <div className="h-80 overflow-y-auto px-3 py-3 space-y-2 bg-[#07061A]">
+          <div className="h-80 space-y-2 overflow-y-auto bg-[#07061A] px-3 py-3">
             {loading ? (
-              <p className="text-center text-[11px] text-slate-500 py-6">Loading…</p>
+              <p className="py-6 text-center text-[11px] text-slate-500">Loading…</p>
             ) : messages.length === 0 ? (
-              <p className="text-center text-[11px] text-slate-500 py-6">No messages yet. Say hello 👋</p>
+              <p className="py-6 text-center text-[11px] text-slate-500">
+                {isGroup ? 'No messages yet 👋' : 'No messages yet. Say hello 👋'}
+              </p>
             ) : (
-              messages.map((m) => {
-                const mine = m.sender_id === userId
-                return (
-                  <div key={m.id} className={cn('group flex flex-col gap-1', mine ? 'items-end' : 'items-start')}>
-                    {m.attachment_path && (
-                      <div className="max-w-[80%]">
-                        <Attachment
-                          path={m.attachment_path}
-                          name={m.attachment_name}
-                          type={m.attachment_type}
-                          size={m.attachment_size}
-                          mine={mine}
-                        />
-                      </div>
-                    )}
-                    {m.body && (
-                      <div className={cn(
-                        'max-w-[80%] rounded-2xl px-3 py-1.5 text-[13px] break-words',
-                        mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 rounded-bl-sm'
-                      )}>
-                        <p className="whitespace-pre-wrap">{m.body}</p>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1.5 px-1">
-                      <span className="text-[10px] text-slate-500">{formatTime(m.created_at)}</span>
-                      {mine && <ReceiptTicks status={receiptFor(m.created_at, otherRead, otherDelivered)} />}
-                      {m.attachment_path && (
-                        <button
-                          onClick={() => download(m)}
-                          aria-label="Download file"
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-200 transition-opacity"
-                        >
-                          <Download size={12} />
-                        </button>
-                      )}
-                      {mine && m.attachment_path && (
-                        <button
-                          onClick={() => removeMessage(m)}
-                          aria-label="Delete attachment"
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-opacity"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
+              messages.map((m, i) => (
+                <MessageRow
+                  key={m.id}
+                  message={m}
+                  userId={userId}
+                  members={members}
+                  isGroup={isGroup}
+                  reactions={reactionsByMessage.get(m.id) ?? []}
+                  showSender={i === 0 || messages[i - 1].sender_id !== m.sender_id}
+                  showReceipts={!isGroup}
+                  otherRead={otherRead}
+                  otherDelivered={otherDelivered}
+                  // Threads need room — hand off to the full page.
+                  onOpenThread={(msg) => router.push(`/messages?c=${conversationId}&t=${msg.id}`)}
+                  onDownload={download}
+                  onDelete={removeMessage}
+                />
+              ))
             )}
             <div ref={bottomRef} />
           </div>
 
-          <div className="p-2 border-t border-slate-800 shrink-0 flex items-end gap-1.5">
+          {typing && (
+            <p className="bg-[#07061A] px-3 pb-1 text-[10px] italic text-slate-500" aria-live="polite">{typing}</p>
+          )}
+
+          <div className="flex shrink-0 items-end gap-1.5 border-t border-slate-800 p-2">
             <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
             <EmojiPicker
-              onPick={insertEmoji}
+              onPick={(e) => inputRef.current?.insertAtCursor(e)}
               size={16}
-              buttonClassName="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+              buttonClassName="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
             />
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               aria-label="Attach file"
-              className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors shrink-0"
+              className="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-40"
             >
               {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
             </button>
-            <textarea
+            <MentionTextarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              onChange={setInput}
+              onSubmit={send}
+              onTyping={notifyTyping}
               onPaste={handlePaste}
-              rows={1}
+              members={mentionable}
               placeholder={uploading ? 'Uploading…' : 'Aa'}
-              className="flex-1 resize-none max-h-24 bg-slate-900 border border-slate-700 rounded-full px-3.5 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+              className={cn(
+                'max-h-24 w-full resize-none rounded-full border border-slate-700 bg-slate-900 px-3.5 py-1.5 text-[13px]',
+                'text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50'
+              )}
             />
             <button
               onClick={send}
               disabled={!input.trim() || sending}
               aria-label="Send"
-              className="p-2 rounded-full bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+              className="shrink-0 rounded-full bg-orange-500 p-2 text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send size={15} />
             </button>
