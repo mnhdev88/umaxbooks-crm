@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { Input, TextArea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
+import { LogCallModal } from '@/components/leads/LogCallModal'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { US_TIMEZONES, getTimezoneFromZip, localToUTC, formatDualTime } from '@/lib/timezone'
 import { toast } from 'sonner'
-import { Phone, Calendar, Video, FileText, ClipboardList, Globe, MapPin, Info, Bell, Clock, CheckCircle2 } from 'lucide-react'
+import { Phone, Calendar, Video, FileText, ClipboardList, Globe, MapPin, Info, Clock, CheckCircle2 } from 'lucide-react'
 
 interface AppointmentTabProps {
   leadId: string
@@ -54,17 +55,9 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
   const [followUps, setFollowUps] = useState<any[]>([])
   const [showCallModal, setShowCallModal] = useState(false)
   const [showDemoModal, setShowDemoModal] = useState(false)
-  const [loadingCall, setLoadingCall] = useState(false)
   const [loadingDemo, setLoadingDemo] = useState(false)
   const [manualTz, setManualTz] = useState(US_TIMEZONES[0].tz)
 
-  const [callForm, setCallForm] = useState({
-    call_date: new Date().toLocaleDateString('en-CA'),
-    outcome_notes: '',
-    follow_up_date: '',
-    follow_up_time: '',
-    follow_up_notes: '',
-  })
   const [demoForm, setDemoForm] = useState({
     appointment_date: '',
     appointment_time: '',
@@ -96,13 +89,6 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
   }, [appointmentDatetime, selectedTz, tzInfo.abbr])
 
-  const followUpPreview = useMemo(() => {
-    if (!callForm.follow_up_date || !callForm.follow_up_time || !selectedTz) return null
-    const utcISO = localToUTC(`${callForm.follow_up_date}T${callForm.follow_up_time}`, selectedTz)
-    if (!utcISO) return null
-    return formatDualTime(utcISO, selectedTz, tzInfo.abbr)
-  }, [callForm.follow_up_date, callForm.follow_up_time, selectedTz, tzInfo.abbr])
-
   useEffect(() => { fetchAppointments(); fetchFollowUps() }, [leadId])
 
   async function fetchAppointments() {
@@ -121,68 +107,6 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
       .eq('lead_id', leadId)
       .order('scheduled_at', { ascending: true })
     if (data) setFollowUps(data)
-  }
-
-  async function handleSaveCall() {
-    if (!callForm.call_date) return
-    setLoadingCall(true)
-
-    await supabase.from('appointments').insert({
-      lead_id: leadId,
-      created_by: userId,
-      call_date: callForm.call_date,
-      outcome_notes: callForm.outcome_notes || null,
-    })
-
-    // Auto-complete any pending follow-ups for this lead
-    await supabase
-      .from('follow_ups')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('lead_id', leadId)
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-
-    // Schedule new follow-up if requested
-    if (callForm.follow_up_date) {
-      const timeLocal = callForm.follow_up_time || '09:00'
-      const scheduledAt =
-        localToUTC(`${callForm.follow_up_date}T${timeLocal}`, selectedTz) ||
-        new Date(`${callForm.follow_up_date}T${timeLocal}`).toISOString()
-
-      await supabase.from('follow_ups').insert({
-        lead_id: leadId,
-        user_id: userId,
-        scheduled_at: scheduledAt,
-        notes: callForm.follow_up_notes || callForm.outcome_notes || null,
-        status: 'pending',
-      })
-    }
-
-    const newStatus = callForm.follow_up_date ? 'Callback Booked' : 'Contacted'
-    const statusRes = await fetch('/api/leads/update-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lead_id: leadId, status: newStatus }),
-    })
-    if (!statusRes.ok) {
-      const err = await statusRes.json().catch(() => ({}))
-      toast.error(`Failed to update lead status: ${err.error || statusRes.statusText}`)
-    }
-
-    await supabase.from('activity_logs').insert({
-      lead_id: leadId,
-      user_id: userId,
-      action: 'Call Logged',
-      details: callForm.outcome_notes
-        ? `Call on ${callForm.call_date} — ${callForm.outcome_notes.slice(0, 80)}`
-        : `Call logged on ${callForm.call_date}`,
-    })
-
-    setCallForm({ call_date: new Date().toLocaleDateString('en-CA'), outcome_notes: '', follow_up_date: '', follow_up_time: '', follow_up_notes: '' })
-    setShowCallModal(false)
-    setLoadingCall(false)
-    fetchAppointments()
-    fetchFollowUps()
   }
 
   async function handleSaveDemo() {
@@ -366,83 +290,15 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
         </div>
       )}
 
-      {/* ── Log Call Modal ─────────────────────────────────────────── */}
-      <Modal open={showCallModal} onClose={() => setShowCallModal(false)} title="Log Call">
-        <div className="space-y-4">
-          <Input
-            label="Call Date"
-            type="date"
-            value={callForm.call_date}
-            min={new Date().toLocaleDateString('en-CA')}
-            onChange={(e) => setCallForm(f => ({ ...f, call_date: e.target.value }))}
-          />
-          <TextArea
-            label="Outcome / Notes"
-            value={callForm.outcome_notes}
-            rows={4}
-            onChange={(e) => setCallForm(f => ({ ...f, outcome_notes: e.target.value }))}
-            placeholder="What happened on this call?"
-          />
-          {/* Optional follow-up callback */}
-          <div className="border border-slate-700 rounded-xl p-4 space-y-3 bg-slate-800/40">
-            <div className="flex items-center gap-2">
-              <Bell size={13} className="text-orange-400" />
-              <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Schedule Follow-up Callback</p>
-              <span className="text-xs text-slate-600">(optional)</span>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                value={callForm.follow_up_date}
-                min={new Date().toLocaleDateString('en-CA')}
-                onChange={(e) => setCallForm(f => ({ ...f, follow_up_date: e.target.value }))}
-                className="flex-1"
-              />
-              <Select
-                options={timeSlots}
-                placeholder="-- Time --"
-                value={callForm.follow_up_time}
-                onChange={(e) => setCallForm(f => ({ ...f, follow_up_time: e.target.value }))}
-              />
-            </div>
-            {callForm.follow_up_date && (
-              <Input
-                placeholder="Reminder note (e.g. client wants to discuss pricing)"
-                value={callForm.follow_up_notes}
-                onChange={(e) => setCallForm(f => ({ ...f, follow_up_notes: e.target.value }))}
-              />
-            )}
-            {followUpPreview && (
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 space-y-1">
-                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Time Preview</p>
-                <div className="flex items-center gap-2 text-xs text-slate-300">
-                  <Globe size={12} className="text-orange-400 flex-shrink-0" />
-                  {followUpPreview.us}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-blue-300">
-                  <MapPin size={12} className="text-blue-400 flex-shrink-0" />
-                  {followUpPreview.ist}
-                  {followUpPreview.nextDayIST && (
-                    <span className="text-[10px] font-semibold text-amber-400 bg-amber-900/30 px-1.5 py-0.5 rounded">+1 day</span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs text-slate-500">Saving will move the lead status to{' '}
-            <span className="text-orange-400 font-medium">
-              {callForm.follow_up_date ? 'Callback Booked' : 'Contacted'}
-            </span>.
-          </p>
-          <div className="flex justify-end gap-3 pt-1">
-            <Button variant="ghost" onClick={() => setShowCallModal(false)}>Cancel</Button>
-            <Button onClick={handleSaveCall} loading={loadingCall} disabled={!callForm.call_date}>
-              <Phone size={13} /> Log Call
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* ── Log Call Modal (shared with the dialer wrap-up) ────────── */}
+      <LogCallModal
+        open={showCallModal}
+        onClose={() => setShowCallModal(false)}
+        leadId={leadId}
+        userId={userId}
+        zipCode={zipCode}
+        onSaved={() => { fetchAppointments(); fetchFollowUps() }}
+      />
 
       {/* ── Book Demo Modal ────────────────────────────────────────── */}
       <Modal open={showDemoModal} onClose={() => setShowDemoModal(false)} title="Book Demo Appointment">

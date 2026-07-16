@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     leadId?: string
     interested?: 'yes' | 'no' | 'maybe' | null
     voicemail?: boolean
+    hangup?: boolean
     doNotCall?: boolean
     notes?: string
   }
@@ -36,8 +37,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Need callSid or leadId' }, { status: 400 })
   }
 
-  const interested = body.interested ?? null
   const voicemail = !!body.voicemail
+  const hangup = !!body.hangup
+  // Hangup/voicemail means no conversation happened, so no interest could be gauged.
+  const interested = voicemail || hangup ? null : body.interested ?? null
   const doNotCall = !!body.doNotCall
   const notes = body.notes?.trim() || null
 
@@ -59,6 +62,15 @@ export async function POST(req: NextRequest) {
       // webhook's default of 'human'. Omitting it otherwise preserves the webhook value
       // (upsert only touches provided columns).
       if (voicemail) callRow.answered_by = 'voicemail'
+      // Agent-marked hangup: the lead never picked up or cut the call immediately. Twilio
+      // reports such calls as 'completed' (the line WAS answered), which would count as
+      // connected in the dialer report — override status so it lands in the no-answer
+      // bucket instead.
+      if (hangup) {
+        callRow.answered_by = 'hangup'
+        callRow.status = 'no-answer'
+        callRow.completed = false
+      }
 
       await svc
         .from('voice_calls')
@@ -67,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     if (body.leadId) {
       const leadUpdate: Record<string, unknown> = {
-        last_call_outcome: voicemail ? 'voicemail' : interested ?? 'completed',
+        last_call_outcome: voicemail ? 'voicemail' : hangup ? 'no-answer' : interested ?? 'completed',
         last_call_at: new Date().toISOString(),
       }
       if (doNotCall) leadUpdate.do_not_call = true

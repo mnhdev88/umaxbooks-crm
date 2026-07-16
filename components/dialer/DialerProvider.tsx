@@ -20,8 +20,9 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, Loader2, Ban, Check, Grid3x3, Voicemail } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail } from 'lucide-react'
 import { toast } from 'sonner'
+import { LogCallModal } from '@/components/leads/LogCallModal'
 
 export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup'
 
@@ -66,6 +67,9 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const [callee, setCallee] = useState<{ name?: string; phone: string } | null>(null)
   const [seconds, setSeconds] = useState(0)
   const [saving, setSaving] = useState(false)
+  // When set, the shared Log Call modal opens after the wrap-up (same form as the
+  // lead's Calls & Apps tab) so the agent can log the call + schedule a callback.
+  const [logCall, setLogCall] = useState<{ leadId: string; notes: string } | null>(null)
 
   // Lazily create + register the Device, refreshing the token on expiry.
   const ensureDevice = useCallback(async (): Promise<Device> => {
@@ -184,7 +188,8 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   }, [endCall])
 
   const submitDisposition = useCallback(
-    async (d: { interested: 'yes' | 'no' | 'maybe' | null; voicemail: boolean; doNotCall: boolean; notes: string }) => {
+    async (d: { interested: 'yes' | 'no' | 'maybe' | null; voicemail: boolean; hangup: boolean; doNotCall: boolean; notes: string }) => {
+      const leadId = leadIdRef.current
       setSaving(true)
       try {
         const res = await fetch('/api/voice/twilio/disposition', {
@@ -195,6 +200,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
             leadId: leadIdRef.current,
             interested: d.interested,
             voicemail: d.voicemail,
+            hangup: d.hangup,
             doNotCall: d.doNotCall,
             notes: d.notes,
           }),
@@ -206,6 +212,12 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setSaving(false)
         cleanupCall()
+        // A conversation happened → follow up with the full Log Call form, prefilled
+        // with the wrap-up notes. Skipped for voicemail / hangup, where there's
+        // nothing more to log.
+        if (leadId && !d.voicemail && !d.hangup) {
+          setLogCall({ leadId, notes: d.notes })
+        }
       }
     },
     [cleanupCall]
@@ -263,6 +275,14 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           onDigit={sendDigit}
         />
       ) : null}
+      {logCall && (
+        <LogCallModal
+          open
+          onClose={() => setLogCall(null)}
+          leadId={logCall.leadId}
+          initialNotes={logCall.notes}
+        />
+      )}
     </DialerContext.Provider>
   )
 }
@@ -409,11 +429,12 @@ function DispositionForm({
 }: {
   name?: string
   saving: boolean
-  onSave: (d: { interested: Interest | null; voicemail: boolean; doNotCall: boolean; notes: string }) => void
+  onSave: (d: { interested: Interest | null; voicemail: boolean; hangup: boolean; doNotCall: boolean; notes: string }) => void
   onSkip: () => void
 }) {
   const [interested, setInterested] = useState<Interest | null>(null)
   const [voicemail, setVoicemail] = useState(false)
+  const [hangup, setHangup] = useState(false)
   const [doNotCall, setDoNotCall] = useState(false)
   const [notes, setNotes] = useState('')
 
@@ -433,7 +454,7 @@ function DispositionForm({
             onClick={() =>
               setInterested((v) => {
                 const next = v === o.key ? null : o.key
-                if (next) setVoicemail(false) // reached a human → not a voicemail
+                if (next) { setVoicemail(false); setHangup(false) } // reached a human → not a voicemail/hangup
                 return next
               })
             }
@@ -448,7 +469,7 @@ function DispositionForm({
           onClick={() =>
             setVoicemail((v) => {
               const next = !v
-              if (next) setInterested(null) // went to voicemail → no interest gauged
+              if (next) { setInterested(null); setHangup(false) } // went to voicemail → no interest gauged
               return next
             })
           }
@@ -457,6 +478,20 @@ function DispositionForm({
           }`}
         >
           <Voicemail size={12} /> Voicemail
+        </button>
+        <button
+          onClick={() =>
+            setHangup((v) => {
+              const next = !v
+              if (next) { setInterested(null); setVoicemail(false) } // no pickup / cut the call → nothing else applies
+              return next
+            })
+          }
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+            hangup ? 'border-purple-500/40 bg-purple-500/10 text-purple-300' : 'border-slate-700 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <PhoneMissed size={12} /> Hung up
         </button>
       </div>
 
@@ -486,7 +521,7 @@ function DispositionForm({
           Skip
         </button>
         <button
-          onClick={() => onSave({ interested, voicemail, doNotCall, notes: notes.trim() })}
+          onClick={() => onSave({ interested, voicemail, hangup, doNotCall, notes: notes.trim() })}
           disabled={saving}
           className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white
                      transition-colors hover:bg-orange-400 disabled:opacity-50"
