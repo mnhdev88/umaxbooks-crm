@@ -281,7 +281,8 @@ export interface SupportRequest {
 
 export interface ActivityLog {
   id: string
-  lead_id: string
+  /** Null on rows that describe a batch rather than one lead (e.g. a CSV import summary). */
+  lead_id: string | null
   user_id: string
   user?: Profile
   action: string

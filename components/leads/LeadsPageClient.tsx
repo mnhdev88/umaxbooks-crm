@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { CallWindowBadge } from './CallWindowBadge'
 import { assignableAgents } from '@/lib/leads/assignable'
 
@@ -30,6 +31,51 @@ function downloadXlsx(filename: string, rows: string[][]) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Leads')
   XLSX.writeFile(wb, filename)
+}
+
+// ── Import activity ───────────────────────────────────────────────────────────
+interface ImportedLeadRow { lead_id: string; user_id: string; action: string; details: string }
+
+/**
+ * Record who uploaded an imported batch, in two layers: a row per lead so its
+ * Activity tab shows where it came from, plus one summary row (no lead_id) so the
+ * team feed reads "Imported 248 leads from gmb-list.csv" rather than 248 lines.
+ *
+ * The action is 'Lead Imported', NOT 'Lead Created': the report aggregates and KPI
+ * scorecard count that string, so reusing it would let one CSV upload outscore a
+ * month of hand prospecting. Returns an error message rather than throwing — the
+ * leads are already committed by this point, so failing to log must not fail the
+ * import.
+ */
+async function logImportActivity(
+  supabase: SupabaseClient,
+  perLead: ImportedLeadRow[],
+  summary: { userId: string; fileName: string; ok: number; dup: number; err: number },
+): Promise<string | null> {
+  const { userId, fileName, ok, dup, err } = summary
+  const skipped = [
+    dup ? `${dup} duplicate${dup === 1 ? '' : 's'}` : null,
+    err ? `${err} error${err === 1 ? '' : 's'}` : null,
+  ].filter(Boolean).join(', ')
+
+  // Chunked, so a 1,000-row import costs a few round-trips instead of doubling the
+  // one-insert-per-row the lead loop already pays.
+  for (let i = 0; i < perLead.length; i += 500) {
+    const { error } = await supabase.from('activity_logs').insert(perLead.slice(i, i + 500))
+    if (error) return error.message
+  }
+
+  // Kept out of the batches above: PostgREST writes a batch as one statement, so
+  // bundling this would let a summary failure (a DB still missing migration 089,
+  // which drops lead_id's NOT NULL) discard every per-lead row with it.
+  const { error } = await supabase.from('activity_logs').insert({
+    lead_id: null,
+    user_id: userId,
+    action: 'Leads Imported',
+    details: `Imported ${ok} lead${ok === 1 ? '' : 's'} from ${fileName}`
+      + (skipped ? ` — ${skipped} skipped` : ''),
+  })
+  return error ? error.message : null
 }
 
 function handleTemplateDownload(template: string) {
@@ -486,6 +532,8 @@ export function LeadsPageClient({
     const supabase = createClient()
     let ok = 0, dup = 0, err = 0
     const log: string[] = []
+    const imported: ImportedLeadRow[] = []
+    const fileName = csvFile?.name || 'an uploaded file'
 
     const { slugify } = await import('@/lib/utils')
 
@@ -505,6 +553,9 @@ export function LeadsPageClient({
       if (altEmails.length) record.alt_emails = altEmails.map(v => ({ value: v, label: 'Other' }))
       if (!record.company_name) { err++; log.push(`Row ${i + 2}: Missing company name — skipped`); continue }
       if (!record.name) record.name = record.company_name
+      // Mint the id here so the activity row can point at the lead without paying an
+      // insert-returning round-trip for every row.
+      record.id = crypto.randomUUID()
       record.slug = slugify(record.company_name) + '-' + Date.now() + i
       record.gmb_review_rating = record.gmb_review_rating ? parseFloat(record.gmb_review_rating) : null
       record.number_of_reviews = record.number_of_reviews ? parseInt(record.number_of_reviews) : null
@@ -515,7 +566,21 @@ export function LeadsPageClient({
         const isDup = error.code === '23505' || /duplicate|unique/i.test(error.message)
         if (isDup) { dup++; log.push(`Row ${i + 2}: Duplicate — ${record.company_name} (skipped)`) }
         else { err++; log.push(`Row ${i + 2}: Error — ${error.message}`) }
-      } else { ok++; log.push(`Row ${i + 2}: Imported — ${record.company_name}`) }
+      } else {
+        ok++
+        log.push(`Row ${i + 2}: Imported — ${record.company_name}`)
+        imported.push({
+          lead_id: record.id,
+          user_id: userId,
+          action: 'Lead Imported',
+          details: `Imported from ${fileName} (row ${i + 2})`,
+        })
+      }
+    }
+
+    if (ok || dup || err) {
+      const logError = await logImportActivity(supabase, imported, { userId, fileName, ok, dup, err })
+      if (logError) log.push(`Note: leads imported, but the activity log failed — ${logError}`)
     }
 
     setImportResult({ ok, dup, err, log })

@@ -12,6 +12,7 @@ interface ActivityTabProps {
 
 const ACTION_COLORS: Record<string, string> = {
   'Lead Created': 'bg-green-500',
+  'Lead Imported': 'bg-green-400',
   'Lead Updated': 'bg-blue-500',
   'Status Changed': 'bg-orange-500',
   'Audit Uploaded': 'bg-purple-500',

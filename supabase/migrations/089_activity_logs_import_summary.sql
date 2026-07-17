@@ -1,0 +1,22 @@
+-- Allow an activity_logs row that isn't tied to one specific lead.
+--
+-- Context: bulk CSV import (LeadsPageClient.runImport) now logs who uploaded what.
+-- It writes two layers:
+--   * one 'Lead Imported' row per lead  -> provenance on that lead's Activity tab
+--   * one 'Leads Imported' summary row  -> so /team-activity shows the upload as a
+--                                          single event ("Imported 248 leads from
+--                                          gmb-list.csv") instead of spending its
+--                                          entire 100-row feed on one agent's import
+-- The summary row describes a file, not a lead, so it has nothing to put in lead_id.
+--
+-- Safe for existing readers:
+--   * the per-lead Activity tab filters .eq('lead_id', id), so summary rows can
+--     never surface there
+--   * the SELECT policy (070) still scopes these rows via its admin / user_id /
+--     manages_agent clauses; only its lead-visibility clause (EXISTS over leads)
+--     stops matching, which is correct -- there is no lead to check visibility on
+--   * report aggregates (055) and the KPI scorecard (073) filter on
+--     action = 'Lead Created', which neither new action string collides with, so
+--     imported leads deliberately do not inflate the "leads added" KPI
+
+ALTER TABLE activity_logs ALTER COLUMN lead_id DROP NOT NULL;

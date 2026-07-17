@@ -68,6 +68,10 @@ export default async function TeamActivityPage({ searchParams }: PageProps) {
       .from('activity_logs')
       .select('id, action, details, created_at, user_id, leads(id, company_name)')
       .in('user_id', agentIds)
+      // A CSV import writes one 'Lead Imported' row per lead for the lead's own
+      // Activity tab; showing them here would spend the whole 100-row feed on a
+      // single upload. Its 'Leads Imported' summary row represents it instead.
+      .neq('action', 'Lead Imported')
       .order('created_at', { ascending: false })
       .limit(100)
     if (fromISO) q = q.gte('created_at', fromISO)
