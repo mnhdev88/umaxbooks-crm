@@ -147,11 +147,12 @@ export async function sendLeadEmail(params: SendLeadEmailParams): Promise<SendLe
   }
 
   let sgMessageId: string | null = null
+  let resendMessageId: string | null = null
 
   try {
     if (provider.provider === 'resend') {
       const resend = new Resend(provider.api_key)
-      const { error } = await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from,
         to: [to_email],
         cc: ccEmails.length ? ccEmails : undefined,
@@ -164,6 +165,8 @@ export async function sendLeadEmail(params: SendLeadEmailParams): Promise<SendLe
         })),
       })
       if (error) throw new Error(error.message)
+      // Keep the Resend id so the event webhook can match delivery/bounce/click back
+      resendMessageId = data?.id ?? null
     } else if (provider.provider === 'sendgrid') {
       // SendGrid Web API via fetch — gives delivery/bounce webhooks unlike SMTP
       const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -222,6 +225,7 @@ export async function sendLeadEmail(params: SendLeadEmailParams): Promise<SendLe
       error: null,
       tracking_token: trackingToken,
       sendgrid_message_id: sgMessageId,
+      resend_message_id: resendMessageId,
     }
     if (existingSendId) {
       await service.from('email_sends').update(sentRow).eq('id', existingSendId)
