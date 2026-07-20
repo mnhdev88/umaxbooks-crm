@@ -53,6 +53,7 @@ export async function GET() {
     .from('voice_calls')
     .select('from_number')
     .eq('provider', 'twilio')
+    .eq('direction', 'outbound') // mirrors the picker's cap query (see caller-numbers.ts)
     .gte('created_at', fromISO)
     .lt('created_at', toISO)
     .not('from_number', 'is', null)

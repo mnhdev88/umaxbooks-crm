@@ -20,11 +20,11 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, PhoneIncoming, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail } from 'lucide-react'
 import { toast } from 'sonner'
 import { LogCallModal } from '@/components/leads/LogCallModal'
 
-export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup'
+export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup' | 'incoming'
 
 export interface StartCallArgs {
   phone: string
@@ -38,6 +38,13 @@ interface DialerContextValue {
   sendDigit: (digit: string) => void
   state: CallState
   ready: boolean
+}
+
+/** Who's calling in, resolved server-side by /api/voice/twilio/incoming. */
+interface IncomingInfo {
+  leadId: string | null
+  name: string | null
+  phone: string
 }
 
 const DialerContext = createContext<DialerContextValue | null>(null)
@@ -62,6 +69,12 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const callRef = useRef<Call | null>(null)
   const leadIdRef = useRef<string | null>(null)
   const callSidRef = useRef<string | null>(null)
+  // The ringing inbound call, held until the agent accepts or rejects it.
+  const incomingRef = useRef<Call | null>(null)
+  // Indirection so the Device's 'incoming' listener — attached once, at Device
+  // creation — always runs the latest handler instead of a stale closure.
+  const onIncomingRef = useRef<(call: Call) => void>(() => {})
+  const [incoming, setIncoming] = useState<IncomingInfo | null>(null)
   const [state, setState] = useState<CallState>('idle')
   const [muted, setMuted] = useState(false)
   const [callee, setCallee] = useState<{ name?: string; phone: string } | null>(null)
@@ -96,6 +109,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       console.error('[dialer] device error', e)
       toast.error(e?.message || 'Dialer error')
     })
+    device.on('incoming', (call: Call) => onIncomingRef.current(call))
     deviceRef.current = device
     return device
   }, [])
@@ -105,8 +119,10 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     callRef.current = null
     leadIdRef.current = null
     callSidRef.current = null
+    incomingRef.current = null
     setMuted(false)
     setCallee(null)
+    setIncoming(null)
     setState('idle')
     setSeconds(0)
   }, [])
@@ -174,6 +190,89 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     },
     [state, ensureDevice, cleanupCall, endCall]
   )
+
+  // ── Inbound: a lead is calling one of our pool numbers back ────────────────
+  // The server (/api/voice/twilio/incoming) has already resolved which lead this is
+  // and rung the agent who last called them; we just present it. In a hunt group
+  // several browsers ring at once, so 'cancel' (another agent got there first, or
+  // the caller gave up) has to reset us cleanly.
+  useEffect(() => {
+    onIncomingRef.current = (call: Call) => {
+      // Mid-call: decline immediately so the hunt group moves on instead of ringing
+      // out on someone who can't pick up.
+      if (callRef.current || state !== 'idle') {
+        call.reject()
+        return
+      }
+
+      const p = call.customParameters
+      const info: IncomingInfo = {
+        leadId: p?.get('leadId') || null,
+        name: p?.get('leadName') || null,
+        phone: (call.parameters as Record<string, string> | undefined)?.From || '',
+      }
+
+      incomingRef.current = call
+      setIncoming(info)
+      setState('incoming')
+
+      const dropped = () => {
+        // Only reset if this is still the call we're showing — a late event from a
+        // superseded call must not tear down a live one.
+        if (incomingRef.current === call) cleanupCall()
+      }
+      call.on('cancel', dropped)
+      call.on('reject', dropped)
+      call.on('disconnect', () => {
+        if (callRef.current === call) endCall()
+        else dropped()
+      })
+      call.on('error', (e: { message?: string }) => {
+        console.error('[dialer] incoming call error', e)
+        dropped()
+      })
+    }
+  }, [state, cleanupCall, endCall])
+
+  // Register the Device on mount so inbound calls can reach this browser at all.
+  // Registering only opens the signalling websocket — the microphone isn't touched
+  // until a call is actually accepted, so this doesn't prompt for permissions.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const device = await ensureDevice()
+        if (!cancelled) await device.register()
+      } catch (e) {
+        // Not fatal: outbound still works, this browser just won't receive calls.
+        console.error('[dialer] could not register for incoming calls', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [ensureDevice])
+
+  const acceptIncoming = useCallback(() => {
+    const call = incomingRef.current
+    if (!call) return
+    callRef.current = call
+    incomingRef.current = null
+    leadIdRef.current = incoming?.leadId || null
+    setCallee({ name: incoming?.name || undefined, phone: incoming?.phone || '' })
+    setIncoming(null)
+    call.on('accept', () => {
+      const sid = (call.parameters as Record<string, string> | undefined)?.CallSid
+      if (sid) callSidRef.current = sid
+      setState('active')
+    })
+    call.accept()
+  }, [incoming])
+
+  const rejectIncoming = useCallback(() => {
+    const call = incomingRef.current
+    // Rejecting frees the hunt group to keep ringing the rest of the team.
+    call?.reject()
+    cleanupCall()
+  }, [cleanupCall])
 
   const hangup = useCallback(() => {
     // Disconnecting fires the call's 'disconnect' handler (endCall), which routes to the
@@ -262,7 +361,13 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   return (
     <DialerContext.Provider value={{ startCall, hangup, sendDigit, state, ready }}>
       {children}
-      {state === 'wrapup' ? (
+      {state === 'incoming' ? (
+        <IncomingCallWidget
+          info={incoming}
+          onAccept={acceptIncoming}
+          onReject={rejectIncoming}
+        />
+      ) : state === 'wrapup' ? (
         <DispositionForm
           name={callee?.name || callee?.phone}
           onSave={submitDisposition}
@@ -413,6 +518,65 @@ function CallWidget({
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * Ringing inbound call. Deliberately loud (pulsing ring, full-width buttons) — it
+ * appears while the agent is doing something else and only has ~15 seconds before
+ * the call rolls on to the rest of the team.
+ */
+function IncomingCallWidget({
+  info,
+  onAccept,
+  onReject,
+}: {
+  info: IncomingInfo | null
+  onAccept: () => void
+  onReject: () => void
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-label="Incoming call"
+      className="fixed bottom-5 right-5 z-[100] w-72 rounded-2xl border border-emerald-500/40 bg-[#0E0B24] p-4 shadow-2xl shadow-black/40"
+    >
+      <div className="flex items-center gap-3">
+        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
+          <PhoneIncoming size={18} className="relative" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-100">
+            {info?.name || info?.phone || 'Unknown caller'}
+          </p>
+          <p className="truncate text-xs text-emerald-300">
+            {info?.name ? info.phone : 'Incoming call'}
+          </p>
+        </div>
+      </div>
+
+      {!info?.leadId && (
+        <p className="mt-2 text-xs text-slate-500">Not matched to a lead in the CRM.</p>
+      )}
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={onReject}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 py-2.5
+                     text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+        >
+          <PhoneOff size={15} /> Decline
+        </button>
+        <button
+          onClick={onAccept}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2.5
+                     text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+        >
+          <Phone size={15} /> Answer
+        </button>
+      </div>
     </div>
   )
 }

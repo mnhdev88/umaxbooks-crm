@@ -1,0 +1,360 @@
+import { NextRequest, NextResponse } from 'next/server'
+import twilio from 'twilio'
+import { createServiceClient } from '@/lib/supabase/service'
+import { verifyTwilioRequest, clientIdentityForUser } from '@/lib/voice/twilio'
+
+/**
+ * POST /api/voice/twilio/incoming — a lead is calling one of our pool numbers back.
+ *
+ * Public (no session) — covered by the /api/voice whitelist in proxy.ts. Point every
+ * caller_numbers row's Voice webhook at this URL in the Twilio console.
+ *
+ * Routing runs as a chain of TwiML documents, each one the ?stage= of the previous
+ * <Dial action>. Twilio calls back with DialCallStatus telling us whether that leg
+ * was answered, so each stage either finishes the call or escalates:
+ *
+ *   stage=owner (entry) — resolve the lead, log the call, ring the agent who last
+ *                         called this number (they hold the context).
+ *   stage=hunt          — owner didn't pick up: ring every other sales agent and
+ *                         manager simultaneously.
+ *   stage=voicemail     — nobody picked up: record a message and notify the owner.
+ *
+ * Recording + transcription reuse the existing /status webhook, so an inbound call
+ * lands in voice_calls exactly like an outbound one.
+ */
+
+const OWNER_TIMEOUT = 15 // seconds to ring the owning agent alone
+const HUNT_TIMEOUT = 20 // seconds to ring everyone else
+const VOICEMAIL_MAX = 120 // seconds of message we'll accept
+
+/** Roles that should be rung on a callback. Admins are excluded — 7 of them, mostly non-calling. */
+const HUNT_ROLES = ['sales_agent', 'sales_manager']
+
+export async function POST(req: NextRequest) {
+  // Shared-secret check, mirroring /status. Signature verification below is the real
+  // guard, but verifyTwilioRequest deliberately passes when TWILIO_AUTH_TOKEN is
+  // unset (a dev convenience), so this stays the backstop. The Voice webhook URL
+  // configured on each number must therefore carry ?secret=…
+  const expected = process.env.TWILIO_WEBHOOK_SECRET
+  const provided = req.nextUrl.searchParams.get('secret')
+  if (expected && provided !== expected) {
+    console.warn('[voice/twilio/incoming] rejected: missing or wrong ?secret= on the webhook URL')
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
+  const form = await req.formData()
+  const params: Record<string, string> = {}
+  for (const [k, v] of form.entries()) params[k] = typeof v === 'string' ? v : ''
+
+  const signature = req.headers.get('x-twilio-signature')
+  // Twilio signs the exact URL it called, query string included.
+  const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}${req.nextUrl.pathname}${req.nextUrl.search}`
+  if (!verifyTwilioRequest(signature, verifyUrl, params)) {
+    return new NextResponse('Forbidden', { status: 403 })
+  }
+
+  const stage = req.nextUrl.searchParams.get('stage') || 'owner'
+  const from = (params.From || '').trim() // the lead
+  const to = (params.To || '').trim() // our pool number
+  const callSid = params.CallSid || ''
+
+  const VoiceResponse = twilio.twiml.VoiceResponse
+  const twiml = new VoiceResponse()
+  const supabase = createServiceClient()
+
+  // ── Stage 1: entry. Identify the caller and ring whoever owns them. ────────
+  if (stage === 'owner') {
+    const { leadId, leadName, ownerUserId } = await identifyCaller(supabase, from)
+
+    // Log the inbound call up front so an abandoned call (hung up while ringing)
+    // is still recorded — the status webhook only fires for legs that were dialed.
+    const { error: logError } = await supabase.from('voice_calls').upsert(
+      {
+        provider: 'twilio',
+        call_id: callSid,
+        lead_id: leadId,
+        direction: 'inbound',
+        from_number: from,
+        to_number: to,
+        agent_user_id: ownerUserId,
+        inbound_outcome: 'abandoned', // overwritten as soon as a leg is answered
+      },
+      { onConflict: 'call_id', ignoreDuplicates: false }
+    )
+    // Logged, not thrown: the caller is on the line and routing matters more than
+    // the record. If this failed, markOutcome's later UPDATE will no-op — hence the
+    // explicit error line to make that traceable.
+    if (logError) console.error('[voice/twilio/incoming] could not log inbound call', callSid, logError)
+
+    console.log('[voice/twilio/incoming]', { callSid, from, to, leadId, ownerUserId })
+
+    if (ownerUserId) {
+      const dial = twiml.dial({
+        timeout: OWNER_TIMEOUT,
+        answerOnBridge: true,
+        record: 'record-from-answer-dual',
+        recordingStatusCallback: cb('status', { kind: 'recording', leadId, direction: 'inbound' }),
+        recordingStatusCallbackEvent: ['completed'],
+        action: next('hunt', { leadId, owner: ownerUserId }),
+        method: 'POST',
+      })
+      addClient(dial, clientIdentityForUser(ownerUserId), leadId, leadName)
+      return xml(twiml)
+    }
+
+    // Nobody owns this caller (unknown number, or the owner has left) — go wide.
+    return huntTwiml(twiml, supabase, { leadId, leadName, excludeUserId: null })
+  }
+
+  // ── Stage 2: the owner didn't answer. Ring everyone else. ──────────────────
+  if (stage === 'hunt') {
+    const leadId = req.nextUrl.searchParams.get('leadId') || null
+    const owner = req.nextUrl.searchParams.get('owner') || null
+
+    if (params.DialCallStatus === 'completed') {
+      // The owner took it. Nothing left to do; the empty response ends the call.
+      await markOutcome(supabase, callSid, 'answered-owner', owner)
+      return xml(twiml)
+    }
+
+    const leadName = await leadNameFor(supabase, leadId)
+    return huntTwiml(twiml, supabase, { leadId, leadName, excludeUserId: owner })
+  }
+
+  // ── Stage 3: nobody answered. Take a message. ─────────────────────────────
+  if (stage === 'voicemail') {
+    const leadId = req.nextUrl.searchParams.get('leadId') || null
+    const owner = req.nextUrl.searchParams.get('owner') || null
+
+    if (params.DialCallStatus === 'completed') {
+      await markOutcome(supabase, callSid, 'answered-hunt', null)
+      return xml(twiml)
+    }
+
+    twiml.say(
+      { voice: 'Polly.Joanna' },
+      'Sorry, no one is available to take your call right now. Please leave a message after the tone and we will call you straight back.'
+    )
+    twiml.record({
+      maxLength: VOICEMAIL_MAX,
+      playBeep: true,
+      trim: 'trim-silence',
+      recordingStatusCallback: cb('status', { kind: 'recording', leadId }),
+      recordingStatusCallbackEvent: ['completed'],
+      action: next('voicemail-done', { leadId, owner }),
+      method: 'POST',
+    })
+    // Reached only if the caller hangs up without recording.
+    twiml.hangup()
+    return xml(twiml)
+  }
+
+  // ── Stage 4: message left. Mark it and notify the owner. ──────────────────
+  if (stage === 'voicemail-done') {
+    const leadId = req.nextUrl.searchParams.get('leadId') || null
+    const owner = req.nextUrl.searchParams.get('owner') || null
+
+    await markOutcome(supabase, callSid, 'voicemail', owner)
+    await notifyMissed(supabase, { leadId, owner, from, voicemail: true })
+
+    twiml.say({ voice: 'Polly.Joanna' }, 'Thanks. We will be in touch shortly. Goodbye.')
+    twiml.hangup()
+    return xml(twiml)
+  }
+
+  return xml(twiml)
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Absolute URL back into this route at the given stage, carrying context forward. */
+function next(stage: string, ctx: Record<string, string | null>): string {
+  const u = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/voice/twilio/incoming`)
+  const secret = process.env.TWILIO_WEBHOOK_SECRET || ''
+  if (secret) u.searchParams.set('secret', secret)
+  u.searchParams.set('stage', stage)
+  for (const [k, v] of Object.entries(ctx)) if (v) u.searchParams.set(k, v)
+  return u.toString()
+}
+
+/** Absolute URL to a sibling voice webhook (we reuse /status for recordings). */
+function cb(route: string, ctx: Record<string, string | null>): string {
+  const u = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/voice/twilio/${route}`)
+  const secret = process.env.TWILIO_WEBHOOK_SECRET || ''
+  if (secret) u.searchParams.set('secret', secret)
+  for (const [k, v] of Object.entries(ctx)) if (v) u.searchParams.set(k, v)
+  return u.toString()
+}
+
+/**
+ * Add a <Client> to a <Dial>, passing lead context as custom parameters so the
+ * browser can show who's calling before the agent answers.
+ */
+function addClient(
+  dial: ReturnType<twilio.twiml.VoiceResponse['dial']>,
+  identity: string,
+  leadId: string | null,
+  leadName: string | null
+) {
+  const client = dial.client()
+  client.identity(identity)
+  if (leadId) client.parameter({ name: 'leadId', value: leadId })
+  if (leadName) client.parameter({ name: 'leadName', value: leadName })
+}
+
+/**
+ * Resolve an inbound caller to a lead and the agent who should get the call: the
+ * one who most recently dialed this number, falling back to the lead's assigned
+ * agent. Matching the actual caller beats the assignment — whoever just spoke to
+ * them has the context, even if the lead is assigned elsewhere.
+ */
+async function identifyCaller(
+  supabase: ReturnType<typeof createServiceClient>,
+  from: string
+): Promise<{ leadId: string | null; leadName: string | null; ownerUserId: string | null }> {
+  if (!from) return { leadId: null, leadName: null, ownerUserId: null }
+
+  const { data: leadId } = await supabase.rpc('lead_id_for_phone', { p_phone: from })
+  if (!leadId) return { leadId: null, leadName: null, ownerUserId: null }
+
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('name, assigned_agent_id')
+    .eq('id', leadId)
+    .single()
+
+  // Most recent outbound call TO this lead that we know the agent for.
+  const { data: lastCall } = await supabase
+    .from('voice_calls')
+    .select('agent_user_id')
+    .eq('lead_id', leadId)
+    .eq('direction', 'outbound')
+    .not('agent_user_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    leadId: leadId as string,
+    leadName: lead?.name ?? null,
+    ownerUserId: lastCall?.agent_user_id ?? lead?.assigned_agent_id ?? null,
+  }
+}
+
+async function leadNameFor(
+  supabase: ReturnType<typeof createServiceClient>,
+  leadId: string | null
+): Promise<string | null> {
+  if (!leadId) return null
+  const { data } = await supabase.from('leads').select('name').eq('id', leadId).single()
+  return data?.name ?? null
+}
+
+/**
+ * Ring every sales agent/manager at once (minus whoever already had their turn).
+ * If there's nobody to ring we fall straight through to voicemail rather than
+ * returning an empty document, which would drop the call silently.
+ */
+async function huntTwiml(
+  twiml: twilio.twiml.VoiceResponse,
+  supabase: ReturnType<typeof createServiceClient>,
+  opts: { leadId: string | null; leadName: string | null; excludeUserId: string | null }
+): Promise<NextResponse> {
+  const { data: staff } = await supabase.from('profiles').select('id').in('role', HUNT_ROLES)
+
+  const ids = (staff || [])
+    .map((s: { id: string }) => s.id)
+    .filter((id) => id !== opts.excludeUserId)
+
+  if (ids.length === 0) {
+    twiml.redirect(next('voicemail', { leadId: opts.leadId, owner: opts.excludeUserId }))
+    return xml(twiml)
+  }
+
+  const dial = twiml.dial({
+    timeout: HUNT_TIMEOUT,
+    answerOnBridge: true,
+    record: 'record-from-answer-dual',
+    recordingStatusCallback: cb('status', { kind: 'recording', leadId: opts.leadId }),
+    recordingStatusCallbackEvent: ['completed'],
+    action: next('voicemail', { leadId: opts.leadId, owner: opts.excludeUserId }),
+    method: 'POST',
+  })
+  // Multiple <Client> nouns in one <Dial> ring simultaneously; first to answer wins.
+  for (const id of ids) addClient(dial, clientIdentityForUser(id), opts.leadId, opts.leadName)
+
+  return xml(twiml)
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  'answered-owner': 'Answered by the agent who last called them.',
+  'answered-hunt': 'Answered by the team.',
+  voicemail: 'Nobody answered — the caller left a voicemail.',
+  abandoned: 'Nobody answered — the caller hung up before voicemail.',
+}
+
+/**
+ * Record how the inbound call ended, and drop it on the lead's timeline so a
+ * callback is as visible as an outbound attempt. Best-effort throughout — a
+ * storage failure must never break the call that's still in progress.
+ */
+async function markOutcome(
+  supabase: ReturnType<typeof createServiceClient>,
+  callSid: string,
+  outcome: string,
+  agentUserId: string | null
+) {
+  if (!callSid) return
+
+  const patch: Record<string, unknown> = { inbound_outcome: outcome }
+  if (agentUserId) patch.agent_user_id = agentUserId
+
+  const { data, error } = await supabase
+    .from('voice_calls')
+    .update(patch)
+    .eq('call_id', callSid)
+    .select('lead_id, agent_user_id')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[voice/twilio/incoming] markOutcome failed', callSid, error)
+    return
+  }
+  if (!data?.lead_id) return
+
+  await supabase.from('leads').update({ last_call_at: new Date().toISOString() }).eq('id', data.lead_id)
+
+  await supabase.from('activity_logs').insert({
+    lead_id: data.lead_id,
+    user_id: agentUserId ?? data.agent_user_id ?? null,
+    action: 'Inbound Call',
+    details: `Lead called back. ${OUTCOME_LABEL[outcome] ?? outcome}`,
+  })
+}
+
+/**
+ * Tell the owning agent they missed a callback. Notifications feed the bell and,
+ * via the pg_net trigger from 058, a web push.
+ */
+async function notifyMissed(
+  supabase: ReturnType<typeof createServiceClient>,
+  opts: { leadId: string | null; owner: string | null; from: string; voicemail: boolean }
+) {
+  if (!opts.owner) return
+  const name = await leadNameFor(supabase, opts.leadId)
+  const who = name || opts.from || 'An unknown number'
+  const { error } = await supabase.from('notifications').insert({
+    user_id: opts.owner,
+    lead_id: opts.leadId,
+    title: opts.voicemail ? 'Voicemail from a lead' : 'Missed callback',
+    message: opts.voicemail
+      ? `${who} called back and left a voicemail.`
+      : `${who} called back but nobody answered.`,
+    type: 'warning',
+  })
+  if (error) console.error('[voice/twilio/incoming] notify failed', error)
+}
+
+function xml(twiml: { toString(): string }): NextResponse {
+  return new NextResponse(twiml.toString(), { headers: { 'Content-Type': 'text/xml' } })
+}

@@ -115,6 +115,11 @@ export async function buildDialerReport(
       .from('voice_calls')
       .select('created_at, agent_user_id, direction, status, duration_sec, answered_by, interested, appointment_booked, do_not_call, leads(name, company_name)')
       .eq('provider', 'twilio')
+      // Outbound only. Inbound callbacks (092) also carry an agent_user_id, and
+      // counting them here would credit agents against their daily call target for
+      // calls they received rather than made. Every pre-092 row is outbound, so
+      // this changes no historical figure.
+      .eq('direction', 'outbound')
       .order('created_at', { ascending: true })
       .range(offset, offset + PAGE - 1)
     if (fromISO) q = q.gte('created_at', fromISO)

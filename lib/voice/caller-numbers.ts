@@ -80,6 +80,9 @@ export async function selectCallerNumber(
       .from('voice_calls')
       .select('from_number')
       .eq('provider', 'twilio')
+      // Inbound rows carry the lead's number in from_number, not ours — excluded so
+      // a callback can never eat into a pool number's outbound cap.
+      .eq('direction', 'outbound')
       .gte('created_at', fromISO)
       .lt('created_at', toISO)
       .not('from_number', 'is', null)

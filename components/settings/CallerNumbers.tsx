@@ -23,6 +23,7 @@ interface Health {
   conversations: number
   short_calls: number
   avg_sec: number | null
+  callbacks: number
 }
 
 const EMPTY = { phone_number: '', label: '', daily_cap: 50, registered: false }
@@ -162,6 +163,7 @@ export function CallerNumbers() {
                 <th className="pb-2 font-medium" title="Calls over the last 30 days">30d calls</th>
                 <th className="pb-2 font-medium" title="Answered calls lasting 2+ minutes — the best proxy for a real conversation">Convos</th>
                 <th className="pb-2 font-medium" title="Answered but under 30s — hang-ups and voicemail. A rising share means the number is being labelled.">Short</th>
+                <th className="pb-2 font-medium" title="Inbound calls received on this number over 30 days. Leads calling back is the strongest sign a number is trusted.">Callbacks</th>
                 <th className="pb-2 font-medium">Registered</th>
                 <th className="pb-2 font-medium">Active</th>
                 <th className="pb-2"></th>
@@ -194,6 +196,9 @@ export function CallerNumbers() {
                     </td>
                     <td className={`py-3 pr-4 ${h && h.calls > 0 && h.short_calls / h.calls > 0.35 ? 'text-amber-400' : 'text-slate-300'}`}>
                       {h ? pct(h.short_calls, h.calls) : '—'}
+                    </td>
+                    <td className={`py-3 pr-4 ${h && h.callbacks > 0 ? 'text-green-400' : 'text-slate-300'}`}>
+                      {h?.callbacks ?? '—'}
                     </td>
                     <td className="py-3 pr-4">
                       <button

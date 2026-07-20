@@ -42,6 +42,10 @@ export async function POST(req: NextRequest) {
   // Which pool number placed this call (set by the /voice TwiML route). Drives the
   // per-number daily cap and the health table in Settings → Caller Numbers.
   const fromNumber = req.nextUrl.searchParams.get('from') || null
+  // Inbound calls route their recording callbacks here too (see /incoming). Without
+  // this the row below would stamp direction='outbound' over an inbound call and
+  // count it against a caller number's daily cap.
+  const direction = req.nextUrl.searchParams.get('direction') === 'inbound' ? 'inbound' : 'outbound'
 
   const callSid = params.CallSid || params.ParentCallSid || ''
   if (!callSid) return twiml()
@@ -51,10 +55,13 @@ export async function POST(req: NextRequest) {
     provider: 'twilio',
     call_id: callSid,
     lead_id: leadId,
-    agent_user_id: agentUserId,
-    direction: 'outbound',
+    direction,
   }
   if (fromNumber) row.from_number = fromNumber
+  // Only stamp the agent when this callback actually carries one. Inbound recording
+  // callbacks don't, and blindly writing null would erase the agent /incoming
+  // resolved for the call.
+  if (agentUserId) row.agent_user_id = agentUserId
 
   if (kind === 'recording') {
     if (params.RecordingUrl) row.recording_url = params.RecordingUrl
