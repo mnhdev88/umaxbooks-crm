@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         timeout: OWNER_TIMEOUT,
         answerOnBridge: true,
         record: 'record-from-answer-dual',
-        recordingStatusCallback: cb('status', { kind: 'recording', leadId, direction: 'inbound' }),
+        recordingStatusCallback: cb('status', { kind: 'recording', leadId }),
         recordingStatusCallbackEvent: ['completed'],
         action: next('hunt', { leadId, owner: ownerUserId }),
         method: 'POST',
@@ -177,11 +177,20 @@ function next(stage: string, ctx: Record<string, string | null>): string {
   return u.toString()
 }
 
-/** Absolute URL to a sibling voice webhook (we reuse /status for recordings). */
+/**
+ * Absolute URL to a sibling voice webhook (we reuse /status for recordings).
+ *
+ * direction=inbound is stamped here, not by callers: every callback originating from
+ * this route belongs to an inbound call, and /status defaults to 'outbound' when the
+ * param is absent. Setting it per-call-site meant one missed spot silently flipped a
+ * finished inbound call to outbound, which then counted against a caller number's
+ * daily cap and showed up in the dialer report as an agent's outbound call.
+ */
 function cb(route: string, ctx: Record<string, string | null>): string {
   const u = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/voice/twilio/${route}`)
   const secret = process.env.TWILIO_WEBHOOK_SECRET || ''
   if (secret) u.searchParams.set('secret', secret)
+  u.searchParams.set('direction', 'inbound')
   for (const [k, v] of Object.entries(ctx)) if (v) u.searchParams.set(k, v)
   return u.toString()
 }
