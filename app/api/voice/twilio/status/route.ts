@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
   const leadId = req.nextUrl.searchParams.get('leadId') || null
   const agentIdentity = req.nextUrl.searchParams.get('agent') || ''
   const agentUserId = userIdFromIdentity(agentIdentity)
+  // Which pool number placed this call (set by the /voice TwiML route). Drives the
+  // per-number daily cap and the health table in Settings → Caller Numbers.
+  const fromNumber = req.nextUrl.searchParams.get('from') || null
 
   const callSid = params.CallSid || params.ParentCallSid || ''
   if (!callSid) return twiml()
@@ -51,6 +54,7 @@ export async function POST(req: NextRequest) {
     agent_user_id: agentUserId,
     direction: 'outbound',
   }
+  if (fromNumber) row.from_number = fromNumber
 
   if (kind === 'recording') {
     if (params.RecordingUrl) row.recording_url = params.RecordingUrl

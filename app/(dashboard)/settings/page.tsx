@@ -7,6 +7,7 @@ import { EmailProviders } from '@/components/settings/EmailProviders'
 import { EmailTemplates } from '@/components/settings/EmailTemplates'
 import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
 import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
+import { CallerNumbers } from '@/components/settings/CallerNumbers'
 import { ReportingDaySetting } from '@/components/settings/ReportingDaySetting'
 import { KpiScorecardSettings } from '@/components/settings/KpiScorecardSettings'
 import { ManualKpiEntries } from '@/components/settings/ManualKpiEntries'
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
         <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
         <CallTargetSetting />
         <CallWindowSetting />
+        <CallerNumbers />
         <ReportingDaySetting />
         <KpiScorecardSettings />
         <ManualKpiEntries

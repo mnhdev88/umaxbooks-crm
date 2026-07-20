@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { toE164US, verifyTwilioRequest } from '@/lib/voice/twilio'
+import { createServiceClient } from '@/lib/supabase/service'
+import { selectCallerNumber } from '@/lib/voice/caller-numbers'
 
 /**
  * POST /api/voice/twilio/voice — TwiML webhook for the browser softphone.
@@ -38,11 +40,17 @@ export async function POST(req: NextRequest) {
     return xml(twiml)
   }
 
-  const callerId = process.env.TWILIO_CALLER_ID
+  const dialTo = toE164US(to)
+
+  // Pick the caller ID from the pool (spreads volume so no single number gets spam-
+  // flagged, and prefers one matching the lead's area code). Falls back to
+  // TWILIO_CALLER_ID when the pool is empty. See lib/voice/caller-numbers.ts.
+  const { from: callerId, reason } = await selectCallerNumber(createServiceClient(), dialTo)
   if (!callerId) {
     twiml.say('The dialer is not configured. Please contact an administrator.')
     return xml(twiml)
   }
+  console.log('[voice/twilio/voice] caller id', { callerId, reason, to: dialTo, leadId })
 
   const secret = process.env.TWILIO_WEBHOOK_SECRET || ''
   const cb = (kind: string) => {
@@ -50,6 +58,9 @@ export async function POST(req: NextRequest) {
     if (secret) u.searchParams.set('secret', secret)
     if (leadId) u.searchParams.set('leadId', leadId)
     if (agent) u.searchParams.set('agent', agent)
+    // Threaded through so /status can record which number placed the call — the cap
+    // query and per-number health both read voice_calls.from_number.
+    u.searchParams.set('from', callerId)
     u.searchParams.set('kind', kind)
     return u.toString()
   }
@@ -65,7 +76,7 @@ export async function POST(req: NextRequest) {
     action: cb('dial'),
     method: 'POST',
   })
-  dial.number(toE164US(to))
+  dial.number(dialTo)
 
   return xml(twiml)
 }
