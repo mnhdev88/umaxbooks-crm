@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, CalendarDays,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, CalendarDays, Images,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -41,6 +41,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
@@ -57,6 +58,7 @@ const developerSections: NavSection[] = [
     { href: '/leads',                           label: 'All Leads',  icon: Users },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/developer-queue?filter=to-build', label: 'To Build',   icon: Hammer },
+    { href: '/demos',                           label: 'Demos',      icon: Images },
     { href: '/messages',                        label: 'Messages',   icon: MessageSquare },
     { href: '/notifications',                   label: 'Notifications', icon: Bell },
   ]},
@@ -72,6 +74,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
@@ -91,6 +94,7 @@ const adminSections: NavSection[] = [
     { href: '/audits',          label: 'Audits & Follow-up', icon: Activity },
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
+    { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
