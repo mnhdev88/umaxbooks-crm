@@ -7,7 +7,7 @@ import { formatDateTime, timeAgo } from '@/lib/utils'
 import {
   Phone, PhoneOff, Voicemail, Calendar, PhoneCall, Globe, DollarSign,
   UserCheck, MessageSquare, FileText, ChevronDown, ChevronRight, Ban,
-  Building2, ExternalLink, User,
+  Building2, ExternalLink, User, PhoneIncoming,
 } from 'lucide-react'
 import { RecordingPlayer } from './RecordingPlayer'
 
@@ -96,14 +96,36 @@ function fmtDuration(call: VoiceCall): string | null {
   return null
 }
 
+/** How an inbound call ended (migration 092). Green where we actually spoke to them. */
+const INBOUND_STYLE: Record<string, { label: string; cls: string }> = {
+  'answered-owner': { label: 'Answered',        cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
+  'answered-hunt':  { label: 'Answered by team', cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
+  voicemail:        { label: 'Left voicemail',   cls: 'bg-sky-900/30 text-sky-400 border-sky-800/40' },
+  abandoned:        { label: 'Missed',           cls: 'bg-red-900/30 text-red-400 border-red-800/40' },
+}
+
+function InboundBadge({ outcome }: { outcome: string | null }) {
+  if (!outcome) return null
+  const s = INBOUND_STYLE[outcome] || { label: outcome, cls: 'bg-slate-800 text-slate-400 border-slate-700' }
+  return (
+    <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-md border ${s.cls}`}>
+      {s.label}
+    </span>
+  )
+}
+
 /**
- * One call in a list — provider-aware. Renders both human Twilio dialer calls
- * ("Dialer Call — by Agent", dial status, duration) and Bland AI calls ("AI Voice Call",
- * extracted facts, transcript). Pass showLead for the global view's lead header.
+ * One call in a list — provider- and direction-aware. Renders human Twilio dialer calls
+ * ("Dialer Call — by Agent", dial status, duration), inbound callbacks ("Incoming Call",
+ * how it was resolved) and Bland AI calls ("AI Voice Call", extracted facts, transcript).
+ * Pass showLead for the global view's lead header.
  */
 export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; showLead?: boolean }) {
   const [showTranscript, setShowTranscript] = useState(false)
-  const isDialer = call.provider === 'twilio'
+  // Inbound is checked first: those rows are provider='twilio' too, so testing the
+  // provider alone would render a callback as an outbound "Dialer Call".
+  const isInbound = call.direction === 'inbound'
+  const isDialer = call.provider === 'twilio' && !isInbound
   const interest = call.interested ? INTEREST_STYLE[call.interested] : null
   const duration = fmtDuration(call)
   const lead = call.lead
@@ -139,7 +161,13 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
       {/* Header: type + status + interest */}
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          {isDialer ? (
+          {isInbound ? (
+            <>
+              <PhoneIncoming size={14} className="text-sky-400" />
+              <span className="text-sm font-semibold text-slate-200">Incoming Call</span>
+              <InboundBadge outcome={call.inbound_outcome} />
+            </>
+          ) : isDialer ? (
             <>
               <Phone size={14} className="text-emerald-400" />
               <span className="text-sm font-semibold text-slate-200">Dialer Call</span>
@@ -171,9 +199,22 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
         </div>
       </div>
 
-      {/* Who placed it (dialer) */}
+      {/* Who placed it (dialer) / who took it (inbound) */}
       {isDialer && call.agent?.full_name && (
         <Fact icon={User} label="Called by:" iconCls="text-emerald-400" value={call.agent.full_name} />
+      )}
+      {isInbound && (
+        <>
+          {call.from_number && (
+            <Fact icon={PhoneIncoming} label="From:" iconCls="text-sky-400" value={call.from_number} />
+          )}
+          {call.to_number && (
+            <Fact icon={Phone} label="Rang:" iconCls="text-slate-500" value={call.to_number} />
+          )}
+          {call.agent?.full_name && (
+            <Fact icon={User} label="Handled by:" iconCls="text-sky-400" value={call.agent.full_name} />
+          )}
+        </>
       )}
 
       {/* Bland's own summary */}

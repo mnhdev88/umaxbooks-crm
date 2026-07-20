@@ -316,6 +316,10 @@ export interface VoiceCall {
   // Provider-aware fields (Twilio human dialer; default 'bland' for AI calls — see migration 050)
   provider: string | null            // 'bland' | 'twilio'
   direction: string | null           // 'outbound' | 'inbound'
+  // Caller-number pool + inbound routing (migrations 091/092)
+  from_number: string | null         // outbound: the pool number we dialed from; inbound: the caller
+  to_number: string | null           // outbound: the lead; inbound: the pool number they rang
+  inbound_outcome: string | null     // inbound only: 'answered-owner' | 'answered-hunt' | 'voicemail' | 'abandoned'
   status: string | null              // Twilio DialCallStatus: completed/busy/no-answer/failed/canceled
   duration_sec: number | null        // exact call seconds (Twilio dialer)
   agent_user_id: string | null       // staff member who placed a dialer call

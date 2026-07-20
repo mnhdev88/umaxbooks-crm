@@ -19,11 +19,12 @@ const OUTCOMES: { key: OutcomeKey; label: string }[] = [
   { key: 'dnc',          label: 'Do not call' },
 ]
 
-type ProviderKey = 'all' | 'twilio' | 'bland'
+type ProviderKey = 'all' | 'twilio' | 'bland' | 'inbound'
 const PROVIDERS: { key: ProviderKey; label: string }[] = [
-  { key: 'all',    label: 'All calls' },
-  { key: 'twilio', label: 'Dialer' },
-  { key: 'bland',  label: 'AI' },
+  { key: 'all',     label: 'All calls' },
+  { key: 'twilio',  label: 'Dialer' },
+  { key: 'inbound', label: 'Incoming' },
+  { key: 'bland',   label: 'AI' },
 ]
 
 function matchesOutcome(call: VoiceCall, f: OutcomeKey): boolean {
@@ -39,7 +40,11 @@ function matchesOutcome(call: VoiceCall, f: OutcomeKey): boolean {
 
 function matchesProvider(call: VoiceCall, p: ProviderKey): boolean {
   if (p === 'all') return true
-  if (p === 'twilio') return call.provider === 'twilio'
+  const isInbound = call.direction === 'inbound'
+  if (p === 'inbound') return isInbound
+  // Inbound rows are provider='twilio' as well, so Dialer has to exclude them —
+  // otherwise a callback would show under both tabs.
+  if (p === 'twilio') return call.provider === 'twilio' && !isInbound
   return call.provider !== 'twilio' // 'bland' (or legacy null)
 }
 
@@ -52,19 +57,32 @@ function StatChip({ label, value, cls }: { label: string; value: number; cls: st
   )
 }
 
-export function AICallsClient({ initialCalls }: { initialCalls: VoiceCallWithLead[] }) {
+/** Whole-table counts, computed server-side — see the comment in the page component. */
+export interface CallStats {
+  total: number
+  dialer: number
+  inbound: number
+  ai: number
+  interested: number
+  dnc: number
+}
+
+export function AICallsClient({
+  initialCalls,
+  stats,
+}: {
+  initialCalls: VoiceCallWithLead[]
+  stats: CallStats
+}) {
   const [outcome, setOutcome] = useState<OutcomeKey>('all')
   const [provider, setProvider] = useState<ProviderKey>('all')
   const [agentId, setAgentId] = useState<string>('all')
   const [query, setQuery] = useState('')
 
-  const stats = useMemo(() => ({
-    total:      initialCalls.length,
-    dialer:     initialCalls.filter(c => c.provider === 'twilio').length,
-    ai:         initialCalls.filter(c => c.provider !== 'twilio').length,
-    interested: initialCalls.filter(c => c.interested === 'yes' || c.interested === 'maybe').length,
-    dnc:        initialCalls.filter(c => c.do_not_call).length,
-  }), [initialCalls])
+  // The tiles describe every call; the list below holds only the most recent page of
+  // them, and the filters run over that page. Say so when the two differ, rather than
+  // letting "AI 249" sit above an empty list with no explanation.
+  const truncated = stats.total > initialCalls.length
 
   // Distinct agents that placed dialer calls, for the agent filter.
   const agents = useMemo(() => {
@@ -96,10 +114,18 @@ export function AICallsClient({ initialCalls }: { initialCalls: VoiceCallWithLea
       <div className="flex flex-wrap gap-3">
         <StatChip label="Total calls" value={stats.total}      cls="text-slate-100" />
         <StatChip label="Dialer"      value={stats.dialer}     cls="text-emerald-400" />
+        <StatChip label="Incoming"    value={stats.inbound}    cls="text-sky-400" />
         <StatChip label="AI"          value={stats.ai}         cls="text-indigo-400" />
         <StatChip label="Interested"  value={stats.interested} cls="text-emerald-400" />
         <StatChip label="Do not call" value={stats.dnc}        cls="text-red-400" />
       </div>
+
+      {truncated && (
+        <p className="text-xs text-slate-500 -mt-2">
+          Totals above cover all {stats.total.toLocaleString()} calls. The list below shows
+          the {initialCalls.length.toLocaleString()} most recent, and the filters apply to those.
+        </p>
+      )}
 
       {/* Provider toggle */}
       <div className="flex flex-wrap gap-1.5">

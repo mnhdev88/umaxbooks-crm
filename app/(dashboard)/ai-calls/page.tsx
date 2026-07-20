@@ -43,6 +43,43 @@ export default async function AICallsPage() {
   if (callsErr) console.error('[ai-calls] voice_calls query failed:', callsErr)
   const rows = (calls || []) as VoiceCallWithLead[]
 
+  // Summary counts come from the DATABASE, not from `rows`. Counting the fetched array
+  // silently reported the .limit(500) above instead of reality — with ~1,900 calls the
+  // tiles read "500 total / 0 AI", because every AI call is older than the 500th row.
+  // head:true + count:'exact' transfers no rows, so this stays cheap and can't be
+  // capped. Each count repeats the sales-agent scoping so an agent's tiles match their
+  // list. Failures degrade to null and the tile falls back to counting `rows`.
+  const baseCount = () => {
+    const q = supabase
+      .from('voice_calls')
+      .select(isSalesAgent ? 'id, leads!inner(assigned_agent_id)' : 'id', {
+        count: 'exact',
+        head: true,
+      })
+    return isSalesAgent ? q.eq('leads.assigned_agent_id', user.id) : q
+  }
+
+  const [total, dialer, inbound, ai, interested, dnc] = await Promise.all([
+    baseCount(),
+    // Dialer excludes inbound: callbacks are provider='twilio' too, and counting them
+    // here would double-count them against the Incoming tile.
+    baseCount().eq('provider', 'twilio').neq('direction', 'inbound'),
+    baseCount().eq('direction', 'inbound'),
+    baseCount().neq('provider', 'twilio'),
+    baseCount().in('interested', ['yes', 'maybe']),
+    baseCount().eq('do_not_call', true),
+  ])
+
+  const isInbound = (c: VoiceCallWithLead) => c.direction === 'inbound'
+  const stats = {
+    total:      total.count      ?? rows.length,
+    dialer:     dialer.count     ?? rows.filter(c => c.provider === 'twilio' && !isInbound(c)).length,
+    inbound:    inbound.count    ?? rows.filter(isInbound).length,
+    ai:         ai.count         ?? rows.filter(c => c.provider !== 'twilio').length,
+    interested: interested.count ?? rows.filter(c => c.interested === 'yes' || c.interested === 'maybe').length,
+    dnc:        dnc.count        ?? rows.filter(c => c.do_not_call).length,
+  }
+
   // Attach the agent name for human dialer calls. The voice_calls.agent_user_id FK targets
   // auth.users, so we map through profiles ourselves rather than via a PostgREST embed.
   const agentIds = [...new Set(rows.map(c => c.agent_user_id).filter(Boolean))] as string[]
@@ -60,7 +97,7 @@ export default async function AICallsPage() {
   return (
     <>
       <Header title="Calls" profile={profile as Profile} />
-      <AICallsClient initialCalls={rows} />
+      <AICallsClient initialCalls={rows} stats={stats} />
     </>
   )
 }
