@@ -66,7 +66,6 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const [muted, setMuted] = useState(false)
   const [callee, setCallee] = useState<{ name?: string; phone: string } | null>(null)
   const [seconds, setSeconds] = useState(0)
-  const [saving, setSaving] = useState(false)
   // When set, the shared Log Call modal opens after the wrap-up (same form as the
   // lead's Calls & Apps tab) so the agent can log the call + schedule a callback.
   const [logCall, setLogCall] = useState<{ leadId: string; notes: string } | null>(null)
@@ -188,37 +187,35 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   }, [endCall])
 
   const submitDisposition = useCallback(
-    async (d: { interested: 'yes' | 'no' | 'maybe' | null; voicemail: boolean; hangup: boolean; doNotCall: boolean; notes: string }) => {
+    (d: { interested: 'yes' | 'no' | 'maybe' | null; voicemail: boolean; hangup: boolean; doNotCall: boolean; notes: string }) => {
       const leadId = leadIdRef.current
-      setSaving(true)
-      try {
-        const res = await fetch('/api/voice/twilio/disposition', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            callSid: callSidRef.current,
-            leadId: leadIdRef.current,
-            interested: d.interested,
-            voicemail: d.voicemail,
-            hangup: d.hangup,
-            doNotCall: d.doNotCall,
-            notes: d.notes,
-          }),
+      const callSid = callSidRef.current
+
+      // Close the wrap-up and open the full Log Call form straight away. Every Save
+      // leads to it — whatever the chips say, notes or not — and opening before the
+      // POST means a slow or failing request can't delay (or swallow) the modal.
+      cleanupCall()
+      if (leadId) setLogCall({ leadId, notes: d.notes })
+
+      // The outcome save continues in the background; it only toasts.
+      fetch('/api/voice/twilio/disposition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callSid,
+          leadId,
+          interested: d.interested,
+          voicemail: d.voicemail,
+          hangup: d.hangup,
+          doNotCall: d.doNotCall,
+          notes: d.notes,
+        }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`Save failed (${res.status})`)
+          toast.success('Call outcome saved.')
         })
-        if (!res.ok) throw new Error(`Save failed (${res.status})`)
-        toast.success('Call outcome saved.')
-      } catch (e) {
-        toast.error((e as Error).message || 'Could not save the outcome.')
-      } finally {
-        setSaving(false)
-        cleanupCall()
-        // A conversation happened → follow up with the full Log Call form, prefilled
-        // with the wrap-up notes. Skipped for voicemail / hangup, where there's
-        // nothing more to log.
-        if (leadId && !d.voicemail && !d.hangup) {
-          setLogCall({ leadId, notes: d.notes })
-        }
-      }
+        .catch((e: Error) => toast.error(e.message || 'Could not save the outcome.'))
     },
     [cleanupCall]
   )
@@ -268,7 +265,6 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       {state === 'wrapup' ? (
         <DispositionForm
           name={callee?.name || callee?.phone}
-          saving={saving}
           onSave={submitDisposition}
           onSkip={skipWrapup}
         />
@@ -431,12 +427,10 @@ const OUTCOMES: { key: Interest; label: string; cls: string }[] = [
 /** Post-call wrap-up: agent logs the outcome + notes for the lead they just called. */
 function DispositionForm({
   name,
-  saving,
   onSave,
   onSkip,
 }: {
   name?: string
-  saving: boolean
   onSave: (d: { interested: Interest | null; voicemail: boolean; hangup: boolean; doNotCall: boolean; notes: string }) => void
   onSkip: () => void
 }) {
@@ -523,18 +517,16 @@ function DispositionForm({
       <div className="mt-3 flex items-center justify-end gap-2">
         <button
           onClick={onSkip}
-          disabled={saving}
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-40"
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
         >
           Skip
         </button>
         <button
           onClick={() => onSave({ interested, voicemail, hangup, doNotCall, notes: notes.trim() })}
-          disabled={saving}
           className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white
-                     transition-colors hover:bg-orange-400 disabled:opacity-50"
+                     transition-colors hover:bg-orange-400"
         >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+          <Check size={13} />
           Save
         </button>
       </div>
