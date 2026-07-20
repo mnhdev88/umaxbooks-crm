@@ -6,7 +6,7 @@ import { cn, formatDate, ensureHttps } from '@/lib/utils'
 import { CopyButton } from '@/components/ui/CopyButton'
 import {
   Search, ExternalLink, Monitor, Clock, CheckCircle2, XCircle,
-  Code2, ArrowUpRight, MonitorPlay,
+  Code2, ArrowUpRight, MonitorPlay, Users, ChevronDown,
 } from 'lucide-react'
 
 export interface DemoRow {
@@ -16,6 +16,7 @@ export interface DemoRow {
   contactName: string | null
   city: string | null
   leadStatus: string | null
+  agentId: string | null
   agentName: string | null
   developerName: string | null
   tempUrl: string
@@ -34,31 +35,59 @@ const APPROVAL_BADGE = {
 
 type FilterKey = 'all' | 'approved' | 'pending' | 'declined'
 
+// Sentinel select value for demos whose lead has no assigned agent.
+const UNASSIGNED = '__unassigned__'
+
 export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
+  const [agent, setAgent] = useState<string>('all')
 
-  const isSalesRole = role === 'sales_agent' || role === 'sales_manager'
+  // Only a plain sales_agent is restricted to approved demos with no filters.
+  // Managers and admins get the full view (all statuses + status chips + the
+  // per-agent dropdown so a manager can check any agent on their team).
+  const isRestricted   = role === 'sales_agent'
+  const showAgentFilter = role === 'sales_manager' || role === 'admin'
+  const showStatusChips = !isRestricted
 
-  // Sales agents/managers only see demos an admin has cleared (approved) or that
-  // carry no approval record at all — same rule as the per-lead Demo tab.
   const permitted = useMemo(
-    () => (isSalesRole
+    () => (isRestricted
       ? rows.filter(r => r.approvalStatus === null || r.approvalStatus === 'approved')
       : rows),
-    [rows, isSalesRole],
+    [rows, isRestricted],
   )
 
+  // Agents present in the demos this viewer can see — RLS already limits a
+  // manager to their own team, so this dropdown is self-scoping.
+  const agentOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    let hasUnassigned = false
+    for (const r of permitted) {
+      if (r.agentId) { if (!byId.has(r.agentId)) byId.set(r.agentId, r.agentName || 'Unknown') }
+      else hasUnassigned = true
+    }
+    const list = Array.from(byId, ([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    return { list, hasUnassigned }
+  }, [permitted])
+
+  // Rows narrowed to the selected agent (drives both the status counts and grid).
+  const agentScoped = useMemo(() => {
+    if (agent === 'all') return permitted
+    if (agent === UNASSIGNED) return permitted.filter(r => r.agentId === null)
+    return permitted.filter(r => r.agentId === agent)
+  }, [permitted, agent])
+
   const counts = useMemo(() => ({
-    all:      permitted.length,
-    approved: permitted.filter(r => r.approvalStatus === 'approved').length,
-    pending:  permitted.filter(r => r.approvalStatus === 'pending').length,
-    declined: permitted.filter(r => r.approvalStatus === 'declined').length,
-  }), [permitted])
+    all:      agentScoped.length,
+    approved: agentScoped.filter(r => r.approvalStatus === 'approved').length,
+    pending:  agentScoped.filter(r => r.approvalStatus === 'pending').length,
+    declined: agentScoped.filter(r => r.approvalStatus === 'declined').length,
+  }), [agentScoped])
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return permitted.filter(r => {
+    return agentScoped.filter(r => {
       if (filter !== 'all' && r.approvalStatus !== filter) return false
       if (!q) return true
       return (
@@ -66,18 +95,20 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
         (r.contactName || '').toLowerCase().includes(q) ||
         (r.demoVersion || '').toLowerCase().includes(q) ||
         (r.developerName || '').toLowerCase().includes(q) ||
+        (r.agentName || '').toLowerCase().includes(q) ||
         r.tempUrl.toLowerCase().includes(q)
       )
     })
-  }, [permitted, search, filter])
+  }, [agentScoped, search, filter])
 
-  // Filter chips — hidden for sales roles (they only ever see approved demos).
   const FILTERS: { key: FilterKey; label: string; count: number }[] = [
     { key: 'all',      label: 'All',      count: counts.all },
     { key: 'approved', label: 'Approved', count: counts.approved },
     { key: 'pending',  label: 'Pending',  count: counts.pending },
     { key: 'declined', label: 'Declined', count: counts.declined },
   ]
+
+  const isFiltered = !!search || filter !== 'all' || agent !== 'all'
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -88,11 +119,30 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by company, version, developer or URL…"
+            placeholder="Search by company, version, agent, developer or URL…"
             className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500"
           />
         </div>
-        {!isSalesRole && (
+
+        {showAgentFilter && (agentOptions.list.length > 0 || agentOptions.hasUnassigned) && (
+          <div className="relative">
+            <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <select
+              value={agent}
+              onChange={e => setAgent(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500 appearance-none cursor-pointer min-w-[170px]"
+            >
+              <option value="all">All agents</option>
+              {agentOptions.list.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+              {agentOptions.hasUnassigned && <option value={UNASSIGNED}>Unassigned</option>}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          </div>
+        )}
+
+        {showStatusChips && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {FILTERS.map(f => (
               <button
@@ -117,7 +167,7 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
         <div className="text-center py-20 text-slate-500">
           <MonitorPlay size={30} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm">
-            {search || filter !== 'all' ? 'No demos match your filters.' : 'No demos yet.'}
+            {isFiltered ? 'No demos match your filters.' : 'No demos yet.'}
           </p>
         </div>
       ) : (
@@ -152,6 +202,11 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
                     <Monitor size={12} className="text-orange-400" />
                     {demo.demoVersion || 'Demo'}
                   </span>
+                  {showAgentFilter && (
+                    <span className="flex items-center gap-1">
+                      <Users size={12} className="text-slate-500" /> {demo.agentName || 'Unassigned'}
+                    </span>
+                  )}
                   {demo.developerName && (
                     <span className="flex items-center gap-1">
                       <Code2 size={12} className="text-slate-500" /> {demo.developerName}

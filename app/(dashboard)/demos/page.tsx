@@ -24,7 +24,7 @@ export default async function DemosPage() {
       id, temp_url, demo_version, upload_date, created_at, lead_id,
       developer:profiles(full_name),
       lead:leads!inner(id, company_name, name, city, status,
-        assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name))
+        assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name))
     `)
     .not('temp_url', 'is', null)
     .order('created_at', { ascending: false })
@@ -54,6 +54,7 @@ export default async function DemosPage() {
       contactName: d.lead?.name ?? null,
       city: d.lead?.city ?? null,
       leadStatus: d.lead?.status ?? null,
+      agentId: d.lead?.assigned_agent?.id ?? null,
       agentName: d.lead?.assigned_agent?.full_name ?? null,
       developerName: d.developer?.full_name ?? null,
       tempUrl: d.temp_url as string,
