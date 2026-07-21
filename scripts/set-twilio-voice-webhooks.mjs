@@ -1,13 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * Point every Twilio voice number at the CRM's inbound-call webhook.
+ * Point each Twilio voice number at the right CRM webhook for its inbound_mode.
  *
- * Without this, a lead who calls one of our numbers back reaches nothing. Doing it
- * by hand in the console is six paste operations with a secret in each URL — one
- * typo and that number silently 401s, which you'd only notice as missed callbacks.
+ * Without this, a lead who calls one of our numbers back reaches whatever the Twilio
+ * console last had on it — in practice the stock demo TwiML, which thanks them for
+ * trying Twilio's documentation. Doing it by hand is one paste per number with a
+ * secret in each URL; one typo and that number silently 401s, which you'd only
+ * notice as missed callbacks.
  *
- * Requires migration 092_inbound_calls.sql and a deploy of the /incoming route.
+ * Each number's destination comes from caller_numbers.inbound_mode (migration 093):
+ *   full    → /api/voice/twilio/incoming — ring the owning agent, then the hunt
+ *             group, then voicemail (092). For the established lines.
+ *   deflect → /api/voice/twilio/deflect  — speak a redirect to the main line and
+ *             hang up. For outbound-only cold-call numbers, which shouldn't ring
+ *             the whole team.
+ * A number that isn't in caller_numbers at all is treated as 'full'.
+ *
+ * Requires migrations 092 + 093 and a deploy of both routes.
  *
  * Usage:
  *   node scripts/set-twilio-voice-webhooks.mjs              # DRY RUN — shows what would change
@@ -16,7 +26,7 @@
  *
  * Env (read from .env.local automatically):
  *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, NEXT_PUBLIC_APP_URL, TWILIO_WEBHOOK_SECRET
- *   NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (only for --pool)
+ *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
 import twilio from 'twilio'
@@ -63,33 +73,43 @@ if (!TWILIO_WEBHOOK_SECRET) {
   process.exit(1)
 }
 
-const voiceUrl =
-  `${NEXT_PUBLIC_APP_URL.replace(/\/$/, '')}/api/voice/twilio/incoming` +
-  `?secret=${encodeURIComponent(TWILIO_WEBHOOK_SECRET)}`
+const BASE = NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+const SECRET_QS = `?secret=${encodeURIComponent(TWILIO_WEBHOOK_SECRET)}`
+
+/**
+ * Voice URL per inbound_mode (migration 093). A number is either a real inbound line
+ * or an outbound-only number that deflects — pointing the whole pool at /incoming
+ * would ring every agent seven different ways.
+ */
+const URL_FOR_MODE = {
+  full: `${BASE}/api/voice/twilio/incoming${SECRET_QS}`,
+  deflect: `${BASE}/api/voice/twilio/deflect${SECRET_QS}`,
+}
 
 /** Hide the secret in anything we print — this output tends to end up in tickets. */
 const redact = (s) => (s || '').replace(encodeURIComponent(TWILIO_WEBHOOK_SECRET), '<secret>')
 
 const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-// ── Optionally narrow to the numbers actually in the dialer pool ───────────
-let poolNumbers = null
-if (POOL_ONLY) {
-  if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('--pool needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.')
-    process.exit(1)
-  }
-  const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-  const { data, error } = await supabase.from('caller_numbers').select('phone_number')
-  if (error) {
-    console.error('Could not read caller_numbers:', error.message)
-    process.exit(1)
-  }
-  poolNumbers = new Set((data || []).map((r) => r.phone_number))
-  if (poolNumbers.size === 0) {
-    console.error('caller_numbers is empty — nothing to do. Add numbers in Settings first.')
-    process.exit(1)
-  }
+// ── Read the pool, which is what decides each number's inbound behaviour ───
+// Always required now: the Voice URL depends on inbound_mode (093), so we can't
+// choose one without reading the row.
+if (!NEXT_PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to read inbound_mode.')
+  process.exit(1)
+}
+const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+const { data: poolRows, error: poolError } = await supabase
+  .from('caller_numbers')
+  .select('phone_number, inbound_mode')
+if (poolError) {
+  console.error('Could not read caller_numbers:', poolError.message)
+  process.exit(1)
+}
+const modeByNumber = new Map((poolRows || []).map((r) => [r.phone_number, r.inbound_mode || 'deflect']))
+if (POOL_ONLY && modeByNumber.size === 0) {
+  console.error('caller_numbers is empty — nothing to do. Add numbers in Settings first.')
+  process.exit(1)
 }
 
 // ── Apply ─────────────────────────────────────────────────────────────────
@@ -100,7 +120,9 @@ if (numbers.length === 0) {
   process.exit(1)
 }
 
-console.log(`${RUN ? 'APPLYING' : 'DRY RUN'} — target voice URL:\n  ${redact(voiceUrl)}\n`)
+console.log(`${RUN ? 'APPLYING' : 'DRY RUN'} — target voice URLs:`)
+for (const [mode, u] of Object.entries(URL_FOR_MODE)) console.log(`  ${mode.padEnd(8)} ${redact(u)}`)
+console.log()
 
 let changed = 0
 let skipped = 0
@@ -109,8 +131,18 @@ let failed = 0
 for (const n of numbers) {
   const label = `${n.phoneNumber}${n.friendlyName && n.friendlyName !== n.phoneNumber ? ` (${n.friendlyName})` : ''}`
 
-  if (poolNumbers && !poolNumbers.has(n.phoneNumber)) {
+  if (POOL_ONLY && !modeByNumber.has(n.phoneNumber)) {
     console.log(`  skip   ${label} — not in caller_numbers`)
+    skipped++
+    continue
+  }
+
+  // A number outside the pool is a line someone bought by hand, not a dialer number —
+  // give it the full inbound treatment, which is what this script always did.
+  const mode = modeByNumber.get(n.phoneNumber) || 'full'
+  const voiceUrl = URL_FOR_MODE[mode]
+  if (!voiceUrl) {
+    console.log(`  WARN   ${label} — unknown inbound_mode '${mode}'; skipping`)
     skipped++
     continue
   }
@@ -123,12 +155,12 @@ for (const n of numbers) {
     continue
   }
   if (n.voiceUrl === voiceUrl && (n.voiceMethod || '').toUpperCase() === 'POST') {
-    console.log(`  ok     ${label} — already correct`)
+    console.log(`  ok     ${label} — already correct [${mode}]`)
     skipped++
     continue
   }
 
-  console.log(`  set    ${label}`)
+  console.log(`  set    ${label} → ${mode}`)
   if (n.voiceUrl) console.log(`         was: ${redact(n.voiceUrl)} [${n.voiceMethod}]`)
 
   if (!RUN) {
