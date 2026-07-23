@@ -73,12 +73,18 @@ export default async function EmailStatusPage() {
     sends = [...byId.values()].sort((a, b) =>
       String(b.sent_at || b.created_at || '').localeCompare(String(a.sent_at || a.created_at || '')))
   } else {
+    // Fetch newest-first by created_at (always set, so the 1000-row cap keeps the most
+    // recent rows), then sort by effective activity time. Ordering by sent_at directly
+    // floats failed/never-sent rows (sent_at = null → NULLS FIRST in Postgres) to the
+    // top; coalescing to created_at drops them into their real chronological position,
+    // matching the sales-role branch above.
     const res = await supabase
       .from('email_sends')
       .select(SELECT_COLS)
       .neq('status', 'scheduled')
-      .order('sent_at', { ascending: false })
-    sends = res.data || []
+      .order('created_at', { ascending: false })
+    sends = ((res.data as any[]) || []).sort((a, b) =>
+      String(b.sent_at || b.created_at || '').localeCompare(String(a.sent_at || a.created_at || '')))
     sendsErr = res.error
   }
 
