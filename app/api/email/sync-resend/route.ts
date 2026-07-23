@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
   let synced = 0
   let failed = 0
   let authError = false
+  let authMessage = 'Resend rejected the API key (401/403). Check the key on your Resend provider in Settings → Email Providers.'
 
   for (const send of staleSends as any[]) {
     const apiKey = send.provider_id ? keyByProvider.get(send.provider_id) : undefined
@@ -83,7 +84,16 @@ export async function POST(req: NextRequest) {
       )
 
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) { authError = true; break }
+        if (res.status === 401 || res.status === 403) {
+          authError = true
+          // Resend returns name:'restricted_api_key' when the key can only send email.
+          // Reading statuses needs a Full access key, so tell the admin exactly that.
+          const body = await res.json().catch(() => null)
+          if (body?.name === 'restricted_api_key') {
+            authMessage = 'Your Resend API key is "Sending access" only, so it can\'t read delivery status. Create a Full access key in Resend → API Keys and update it in Settings → Email Providers. (Or set up the Resend webhook for automatic updates — that needs no key change.)'
+          }
+          break
+        }
         failed++
         continue
       }
@@ -113,10 +123,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (authError) {
-    return NextResponse.json(
-      { error: 'Resend rejected the API key (401/403). Check the key on your Resend provider in Settings → Email Providers.' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: authMessage }, { status: 400 })
   }
 
   return NextResponse.json({
