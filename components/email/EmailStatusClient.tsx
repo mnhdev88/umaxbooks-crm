@@ -134,20 +134,15 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
   const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
   const [syncing, setSyncing]           = useState(false)
   const [syncMsg, setSyncMsg]           = useState<string | null>(null)
-  const [showAddOnModal, setShowAddOnModal] = useState(false)
 
-  const syncFromSendGrid = useCallback(async () => {
+  const syncFromResend = useCallback(async () => {
     setSyncing(true)
     setSyncMsg(null)
     try {
-      const res  = await fetch('/api/email/sync-sendgrid', { method: 'POST' })
+      const res  = await fetch('/api/email/sync-resend', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        if (data.addOnRequired) {
-          setShowAddOnModal(true)
-        } else {
-          setSyncMsg(data.error || 'Sync failed')
-        }
+        setSyncMsg(data.error || 'Sync failed')
       } else {
         setSyncMsg(data.message)
         if (data.synced > 0) router.refresh()
@@ -295,13 +290,13 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
             <RefreshCw size={14} />
           </button>
           <button
-            onClick={syncFromSendGrid}
+            onClick={syncFromResend}
             disabled={syncing}
-            title="Pull latest delivery status from SendGrid for all pending emails"
+            title="Pull latest delivery status from Resend for all pending emails"
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-800/40 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             <CloudDownload size={13} className={syncing ? 'animate-pulse' : ''} />
-            {syncing ? 'Syncing…' : 'Sync from SendGrid'}
+            {syncing ? 'Syncing…' : 'Sync from Resend'}
           </button>
           {syncMsg && (
             <span className="text-xs text-slate-400 max-w-[260px] truncate" title={syncMsg}>
