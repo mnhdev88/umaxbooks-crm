@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
 import { Monitor, ExternalLink, Folder, Clock, Send, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { ensureHttps } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface DevDemoTabProps {
   leadId: string
@@ -63,7 +64,11 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
     const url = ensureHttps(newUrl.trim())
     const nextVersion = newVersion.trim() || `v${demos.length + 1}`
 
-    await supabase.from('demos').insert({
+    // The demos row is what the Demo tab renders from; the approval only attaches
+    // to it by matching URL. If the demo insert fails but we still create the
+    // approval, an admin can approve an "invisible" demo that never shows in the
+    // sales agent's Demo tab. So abort if the demo row didn't save.
+    const { error: demoError } = await supabase.from('demos').insert({
       lead_id: leadId,
       developer_id: userId,
       temp_url: url,
@@ -71,12 +76,25 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       upload_date: new Date().toISOString().split('T')[0],
     })
 
-    await supabase.from('project_approvals').insert({
+    if (demoError) {
+      toast.error(`Could not save the demo: ${demoError.message}. Please try again.`)
+      setSaving(false)
+      return
+    }
+
+    const { error: approvalError } = await supabase.from('project_approvals').insert({
       lead_id: leadId,
       developer_id: userId,
       demo_url: url,
       status: 'pending',
     })
+
+    if (approvalError) {
+      toast.error(`Demo saved, but submitting for approval failed: ${approvalError.message}. Please resubmit.`)
+      setSaving(false)
+      fetchDemos()
+      return
+    }
 
     await supabase
       .from('leads')
