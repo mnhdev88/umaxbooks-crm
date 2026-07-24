@@ -16,6 +16,7 @@
  * Optional env:
  *   TWILIO_AUTH_TOKEN       – used to verify X-Twilio-Signature on webhooks
  *   TWILIO_WEBHOOK_SECRET   – shared secret on the status-callback URL
+ *   TWILIO_SMS_FROM         – dedicated SMS-enabled number (E.164) for outbound texts
  *
  * Docs: https://www.twilio.com/docs/voice/sdks/javascript
  */
@@ -113,6 +114,49 @@ function required(name: string): string {
 /** REST client authenticated with the account auth token (server-side only). */
 function restClient() {
   return twilio(required('TWILIO_ACCOUNT_SID'), required('TWILIO_AUTH_TOKEN'))
+}
+
+// ── SMS (two-way texting with leads) ──────────────────────────────────────────
+
+export interface SendSmsResult {
+  /** Twilio Message SID (SMxx…) — the key delivery-status callbacks arrive keyed to. */
+  sid: string
+  /** Twilio's initial status: usually 'queued' or 'accepted'. */
+  status: string
+}
+
+/**
+ * The number outbound texts are sent from (E.164). A dedicated SMS line kept separate
+ * from the voice caller-ID rotation, falling back to TWILIO_CALLER_ID only if unset so a
+ * misconfigured deploy still has *a* number rather than throwing deep in a request.
+ */
+export function smsFromNumber(): string {
+  return process.env.TWILIO_SMS_FROM || process.env.TWILIO_CALLER_ID || ''
+}
+
+/**
+ * Send an SMS via the Twilio REST API. `to` and `from` must be E.164 (use toE164US on
+ * the destination first). When `statusCallback` is supplied Twilio POSTs delivery
+ * lifecycle (sent → delivered | undelivered | failed) there. Throws on API error — unlike
+ * the fire-and-forget voice webhooks, a failed send is worth surfacing to the agent
+ * immediately (and, on US long codes, a 30007 here is the tell that A2P 10DLC isn't
+ * registered).
+ */
+export async function sendSms(opts: {
+  to: string
+  body: string
+  from?: string
+  statusCallback?: string
+}): Promise<SendSmsResult> {
+  const from = opts.from || smsFromNumber()
+  if (!from) throw new Error('[twilio] No SMS from-number configured (set TWILIO_SMS_FROM)')
+  const msg = await restClient().messages.create({
+    to: opts.to,
+    from,
+    body: opts.body,
+    ...(opts.statusCallback ? { statusCallback: opts.statusCallback } : {}),
+  })
+  return { sid: msg.sid, status: msg.status }
 }
 
 /**

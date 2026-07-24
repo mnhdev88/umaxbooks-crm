@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, CalendarDays, Images,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -25,6 +25,7 @@ const agentSections: NavSection[] = [
     { href: '/audits',         label: 'Audits & Follow-up', icon: Activity },
     { href: '/calendar',       label: 'Calendar',           icon: CalendarDays },
     { href: '/ai-calls',       label: 'Calls',           icon: PhoneCall },
+    { href: '/sms',            label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',   label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',   label: 'Unsubscribes',       icon: MailX },
     { href: '/reports',        label: 'Reports',            icon: BarChart3 },
@@ -43,6 +44,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
+    { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
     { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
@@ -76,6 +78,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
+    { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
     { href: '/unsubscribes',    label: 'Unsubscribes',       icon: MailX },
     { href: '/support-tickets', label: 'Support Tickets',    icon: LifeBuoy },
@@ -96,6 +99,7 @@ const adminSections: NavSection[] = [
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
+    { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },

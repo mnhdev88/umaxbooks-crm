@@ -10,6 +10,7 @@ import { RevisionTab } from './tabs/RevisionTab'
 import { LiveTab } from './tabs/LiveTab'
 import { ActivityTab } from './tabs/ActivityTab'
 import { CallsTab } from './tabs/CallsTab'
+import { SmsTab } from './tabs/SmsTab'
 import { NotesTab } from './tabs/NotesTab'
 import { SendContentTab } from './tabs/SendContentTab'
 import { BeforeAfterTab } from './tabs/BeforeAfterTab'
@@ -25,6 +26,7 @@ const ALL_TABS = [
   { id: 'notes',           label: 'Notes',           roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
   { id: 'demo',            label: 'Demo',            roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
   { id: 'calls',           label: 'AI Calls',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager'] },
+  { id: 'sms',             label: 'SMS',             roles: ['admin', 'agent', 'sales_agent', 'sales_manager'] },
   { id: 'appointments',    label: 'Calls & Appts',   roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'deal',            label: 'Deal',            roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent', 'sales_manager'] },
@@ -156,6 +158,9 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId, init
       <div className="p-5">
         {activeTab === 'activity' && <ActivityTab leadId={lead.id} />}
         {activeTab === 'calls' && <CallsTab leadId={lead.id} />}
+        {activeTab === 'sms' && (
+          <SmsTab leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
+        )}
         {activeTab === 'notes' && <NotesTab leadId={lead.id} userId={userId} userRole={profile.role} />}
         {activeTab === 'audits' && (
           <AuditTab

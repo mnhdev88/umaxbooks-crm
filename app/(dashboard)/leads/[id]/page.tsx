@@ -6,6 +6,7 @@ import { LeadDetailTabsClient } from '@/components/leads/LeadDetailTabsClient'
 import { EditLeadButton } from '@/components/leads/EditLeadButton'
 import { AICallButton } from '@/components/leads/AICallButton'
 import { DialButton } from '@/components/dialer/DialButton'
+import { SmsButton } from '@/components/sms/SmsButton'
 import { LocalTimeClock } from '@/components/leads/LocalTimeClock'
 import { getTimezoneFromZip } from '@/lib/zip-timezone'
 import { Profile, Lead, LeadAltContact } from '@/types'
@@ -234,6 +235,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <div className="text-right text-xs text-slate-500 flex flex-col items-end gap-1">
               <div className="flex items-center gap-2">
                 <DialButton leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
+                <SmsButton leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
                 <AICallButton leadId={lead.id} phone={lead.phone} name={lead.name} />
               </div>
               {lead.source && (

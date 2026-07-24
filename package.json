@@ -9,6 +9,7 @@
     "lint": "eslint",
     "validate:emails": "node scripts/validate-all-lead-emails.mjs",
     "twilio:webhooks": "node scripts/set-twilio-voice-webhooks.mjs",
+    "twilio:sms-webhooks": "node scripts/set-twilio-sms-webhooks.mjs",
     "db:start": "node_modules\\supabase\\bin\\supabase.exe start",
     "db:stop": "node_modules\\supabase\\bin\\supabase.exe stop",
     "db:status": "node_modules\\supabase\\bin\\supabase.exe status",
