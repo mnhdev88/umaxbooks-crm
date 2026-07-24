@@ -43,6 +43,14 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
   return { value, label }
 })
 
+// Agents sometimes log a call a day or two after it happened, so allow the
+// Call Date to be back-dated up to 2 days (but not into the future beyond today).
+function minCallDate() {
+  const d = new Date()
+  d.setDate(d.getDate() - 2)
+  return d.toLocaleDateString('en-CA')
+}
+
 function emptyForm(initialNotes?: string) {
   return {
     call_date: new Date().toLocaleDateString('en-CA'),
@@ -169,7 +177,8 @@ export function LogCallModal({ open, onClose, leadId, userId, zipCode, initialNo
           label="Call Date"
           type="date"
           value={form.call_date}
-          min={new Date().toLocaleDateString('en-CA')}
+          min={minCallDate()}
+          max={new Date().toLocaleDateString('en-CA')}
           onChange={(e) => setForm(f => ({ ...f, call_date: e.target.value }))}
         />
         <TextArea
