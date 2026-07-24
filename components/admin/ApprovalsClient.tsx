@@ -16,6 +16,8 @@ interface ApprovalsClientProps {
   initialApprovals: any[]
   salesAgents: Profile[]
   userId: string
+  /** Read-only viewers (e.g. sales managers) see everything but cannot approve/decline. */
+  readOnly?: boolean
 }
 
 const STATUS_CLS = {
@@ -30,7 +32,7 @@ const STATUS_ICON = {
   declined: XCircle,
 }
 
-export function ApprovalsClient({ initialApprovals, salesAgents, userId }: ApprovalsClientProps) {
+export function ApprovalsClient({ initialApprovals, salesAgents, userId, readOnly = false }: ApprovalsClientProps) {
   const supabase = createClient()
   const [approvals, setApprovals] = useState(initialApprovals)
   const [actioningId, setActioningId] = useState<string | null>(null)
@@ -265,8 +267,8 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                 </div>
               )}
 
-              {/* Actions */}
-              {approval.status === 'pending' && (
+              {/* Actions — hidden for read-only viewers (e.g. sales managers) */}
+              {approval.status === 'pending' && !readOnly && (
                 <div className="space-y-3 pt-1">
                   <TextArea
                     label="Decline Notes (required to decline)"
@@ -320,7 +322,7 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId }: Appro
                 </div>
               )}
 
-              {approval.status !== 'pending' && lead?.id && (
+              {(approval.status !== 'pending' || readOnly) && lead?.id && (
                 <div className="pt-1">
                   <a
                     href={`/leads/${lead.id}`}

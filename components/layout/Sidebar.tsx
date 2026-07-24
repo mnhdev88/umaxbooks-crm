@@ -77,6 +77,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
+    { href: '/approvals',       label: 'Approvals',          icon: ClipboardList },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
@@ -150,7 +151,8 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     agentSections
 
   useEffect(() => {
-    if (profile.role !== 'admin') return
+    // Admins act on approvals; sales managers see them read-only. Both get the badge.
+    if (profile.role !== 'admin' && profile.role !== 'sales_manager') return
     fetchPendingCount()
     const id = setInterval(fetchPendingCount, 30000)
     return () => clearInterval(id)

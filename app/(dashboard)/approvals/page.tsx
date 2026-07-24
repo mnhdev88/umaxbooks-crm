@@ -11,7 +11,8 @@ export default async function ApprovalsPage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') redirect('/')
+  // Admins can approve/decline; sales managers get read-only visibility.
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'sales_manager')) redirect('/')
 
   const { data: approvals } = await supabase
     .from('project_approvals')
@@ -34,6 +35,7 @@ export default async function ApprovalsPage() {
         initialApprovals={(approvals || []) as any[]}
         salesAgents={(salesAgents || []) as Profile[]}
         userId={user.id}
+        readOnly={profile.role !== 'admin'}
       />
     </>
   )
