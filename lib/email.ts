@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/service'
+import { renderSection } from '@/lib/emailSections'
 
 export interface EmailAttachment {
   filename: string
@@ -99,19 +100,23 @@ interface TemplateAgent {
 }
 
 /** Replace every placeholder convention used across our templates. */
-function fillPlaceholders(text: string, lead: TemplateLead, agent?: TemplateAgent | null): string {
+function fillPlaceholders(text: string, lead: TemplateLead, agent?: TemplateAgent | null, demoUrl?: string | null): string {
   const company      = lead.company_name || lead.name || 'your business'
   const fullName     = lead.name || 'there'
   const firstName    = (lead.name || '').trim().split(/\s+/)[0] || 'there'
   const city         = lead.city || 'your area'
   // Explicit business_type wins; fall back to the Google Business category, then a safe generic.
   const businessType = lead.business_type || lead.gmb_category || 'local'
+  const demo         = demoUrl || ''
   // Agent/agency placeholders — same values ComposeModal uses, so templates render
   // identically whether sent by hand or auto-sent (no logged-in user on this path).
   const agencyName    = process.env.NEXT_PUBLIC_AGENCY_NAME    || 'Novelio Technologies'
   const agencyPhone   = process.env.NEXT_PUBLIC_AGENCY_PHONE   || ''
   const agencyWebsite = process.env.NEXT_PUBLIC_AGENCY_WEBSITE || 'noveliotech.com'
-  return text
+  // Resolve {{#demo_url}}/{{^demo_url}} blocks before the flat replace so the
+  // demo link only appears when the lead has an approved demo (else blank).
+  return renderSection(text, 'demo_url', !!demo)
+    .replace(/\{\{\s*demo_url\s*\}\}/gi, demo)
     .replace(/\{\{\s*company_name\s*\}\}/gi, company)
     .replace(/\{\{\s*business_name\s*\}\}/gi, company)
     .replace(/\{\{\s*client_name\s*\}\}/gi, fullName)
@@ -189,8 +194,26 @@ export async function sendTemplateEmailToLead(opts: {
     console.error('[email] sendTemplateEmailToLead: agent lookup failed, using agency defaults', e)
   }
 
-  const subject = fillPlaceholders(template.subject || '', lead, agent)
-  const html    = fillPlaceholders(template.html_body || '', lead, agent)
+  // Approved demo link for {{demo_url}} — latest approved project_approvals row.
+  // Blank when the lead has no approved demo, so the templates fall back cleanly.
+  let demoUrl = ''
+  try {
+    const { data } = await supabase
+      .from('project_approvals')
+      .select('demo_url')
+      .eq('lead_id', lead.id)
+      .eq('status', 'approved')
+      .not('demo_url', 'is', null)
+      .order('approved_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    demoUrl = data?.demo_url || ''
+  } catch (e) {
+    console.error('[email] sendTemplateEmailToLead: demo_url lookup failed', e)
+  }
+
+  const subject = fillPlaceholders(template.subject || '', lead, agent, demoUrl)
+  const html    = fillPlaceholders(template.html_body || '', lead, agent, demoUrl)
 
   const { error } = await sendEmail({ to: lead.email, subject, html })
   if (error) return { sent: false, error }

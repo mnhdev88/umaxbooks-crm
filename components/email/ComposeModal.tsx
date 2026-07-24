@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { renderSection } from '@/lib/emailSections'
 import {
   X, Send, Save, Eye, Paperclip, Bold, Italic, Underline, Strikethrough,
   List, ListOrdered, Link2, Unlink, Code, Clock, ChevronDown, Loader2, Trash2,
@@ -52,6 +53,8 @@ export function ComposeModal({
   // Agent profile for template placeholders
   const [agentName, setAgentName]   = useState('')
   const [agentEmail, setAgentEmail] = useState('')
+  // Approved demo link for this lead → {{demo_url}} (blank when none approved)
+  const [demoUrl, setDemoUrl]       = useState('')
 
   // Form state
   const [providers, setProviders]     = useState<EmailProvider[]>([])
@@ -91,6 +94,7 @@ export function ComposeModal({
   useEffect(() => {
     loadProviders()
     loadTemplates()
+    loadDemoUrl()
     if (initialDraft) {
       // Pre-filled from draft click — show CC/BCC if populated, set body version
       if (initialDraft.cc || initialDraft.bcc) setShowCcBcc(true)
@@ -130,6 +134,20 @@ export function ComposeModal({
   async function loadTemplates() {
     const { data } = await supabase.from('email_templates').select('*').order('name')
     setTemplates(data || [])
+  }
+
+  // Latest approved demo link for this lead — powers {{demo_url}} in templates.
+  async function loadDemoUrl() {
+    const { data } = await supabase
+      .from('project_approvals')
+      .select('demo_url')
+      .eq('lead_id', leadId)
+      .eq('status', 'approved')
+      .not('demo_url', 'is', null)
+      .order('approved_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    setDemoUrl(data?.demo_url || '')
   }
 
   async function loadDraft(): Promise<boolean> {
@@ -242,6 +260,7 @@ export function ComposeModal({
         ['{{business_type}}',  businessType  || ''],
         ['{{city}}',           city          || ''],
         ['{{report_url}}',     auditPdfUrl   || ''],
+        ['{{demo_url}}',       demoUrl       || ''],
         ['{{agent_name}}',     agentName     || agencyName],
         ['{{agent_email}}',    agentEmail    || ''],
         ['{{agent_phone}}',    agencyPhone],
@@ -249,7 +268,10 @@ export function ComposeModal({
         ['{{agency_website}}', agencyWebsite],
         ['{{agent_whatsapp}}', process.env.NEXT_PUBLIC_AGENT_WHATSAPP || ''],
       ]
-      return pairs.reduce((s, [key, val]) => s.split(key).join(val), str)
+      // Resolve {{#demo_url}}/{{^demo_url}} blocks first so the demo link only
+      // renders when an approved demo exists, then run the flat token replace.
+      const withSections = renderSection(str, 'demo_url', !!demoUrl)
+      return pairs.reduce((s, [key, val]) => s.split(key).join(val), withSections)
     }
 
     setHtmlBody(replacePlaceholders(t.html_body))

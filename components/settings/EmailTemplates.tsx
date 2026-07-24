@@ -110,7 +110,7 @@ export function EmailTemplates() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs text-slate-400">HTML Body</label>
-              <span className="text-xs text-slate-500">Use {'{{client_name}}'}, {'{{business_name}}'}, {'{{report_url}}'} as placeholders</span>
+              <span className="text-xs text-slate-500">Use {'{{client_name}}'}, {'{{business_name}}'}, {'{{report_url}}'}, {'{{demo_url}}'} as placeholders</span>
             </div>
             <textarea
               value={form.html_body}
