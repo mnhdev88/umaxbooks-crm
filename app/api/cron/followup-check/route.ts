@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 
 const TERMINAL_STATUSES = ['Live', 'Completed', 'Lost', 'Disqualified']
 const FOLLOWUP_INTERVAL_DAYS = 5
@@ -9,6 +10,12 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Automated email paused in Settings. Bail before the eligibility scan so no lead
+  // gets its last_followup_sent_at stamped for an email that never went out.
+  if (!(await automatedEmailEnabled())) {
+    return NextResponse.json({ ok: true, paused: true, processed: 0, message: 'Automated email is turned off' })
   }
 
   const supabase = createClient(

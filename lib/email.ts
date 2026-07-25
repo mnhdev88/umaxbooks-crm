@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/service'
 import { renderSection } from '@/lib/emailSections'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 
 export interface EmailAttachment {
   filename: string
@@ -16,6 +17,10 @@ interface SendEmailOptions {
   attachments?: EmailAttachment[]
 }
 
+// Raw send — used by BOTH human-initiated and automated paths, so it is deliberately
+// not gated by the automated-email kill switch. If you're adding a send that fires
+// without a user pressing Send, check automatedEmailEnabled() from
+// @/lib/automated-email first (see supabase/migrations/095_automated_email_toggle.sql).
 export async function sendEmail({ to, subject, html, attachments }: SendEmailOptions): Promise<{ data: any; error: string | null }> {
   const supabase = createServiceClient()
 
@@ -80,6 +85,9 @@ export async function sendEmail({ to, subject, html, attachments }: SendEmailOpt
 // elsewhere). Renders an email_templates row against the lead, sends it, and logs
 // the send to email_sends + activity_logs. Eligibility (has email, not
 // do_not_call / unsubscribed, once-guard) is the CALLER's responsibility.
+//
+// This path is automated by definition (no user presses Send), so it self-checks the
+// automated-email kill switch and reports back as not-sent when it's off.
 // ────────────────────────────────────────────────────────────────────────────
 
 interface TemplateLead {
@@ -145,6 +153,7 @@ export async function sendTemplateEmailToLead(opts: {
 }): Promise<{ sent: boolean; error?: string }> {
   const { lead, templateName, context } = opts
   if (!lead.email) return { sent: false, error: 'lead has no email' }
+  if (!(await automatedEmailEnabled())) return { sent: false, error: 'automated email is turned off' }
 
   const supabase = createServiceClient()
 

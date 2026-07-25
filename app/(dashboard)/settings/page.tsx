@@ -5,6 +5,7 @@ import { Profile } from '@/types'
 import { UserManagement } from '@/components/settings/UserManagement'
 import { EmailProviders } from '@/components/settings/EmailProviders'
 import { EmailTemplates } from '@/components/settings/EmailTemplates'
+import { AutomatedEmailSetting } from '@/components/settings/AutomatedEmailSetting'
 import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
 import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
 import { CallerNumbers } from '@/components/settings/CallerNumbers'
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
       <Header title="Settings" profile={profile as Profile} />
       <div className="p-6 max-w-3xl space-y-6">
         <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
+        <AutomatedEmailSetting />
         <CallTargetSetting />
         <CallWindowSetting />
         <CallerNumbers />

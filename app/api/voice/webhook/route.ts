@@ -147,8 +147,10 @@ export async function POST(req: NextRequest) {
       })
 
       // 4. Auto cold-outreach email — fires when a call ends by ANY means, once per lead.
-      //    Skipped for: no email, do-not-call, unsubscribed, or already-sent. Kill switch:
-      //    set COLD_OUTREACH_AFTER_CALL=off to disable entirely. Best-effort.
+      //    Skipped for: no email, do-not-call, unsubscribed, or already-sent. Kill switches:
+      //    COLD_OUTREACH_AFTER_CALL=off disables just this, and Settings → Automated Emails
+      //    (checked inside sendTemplateEmailToLead) stops it along with every other
+      //    automated send. Best-effort.
       if (process.env.COLD_OUTREACH_AFTER_CALL !== 'off') {
         try {
           const { data: lead } = await supabase

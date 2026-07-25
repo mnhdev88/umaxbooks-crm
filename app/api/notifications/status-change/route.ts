@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail, buildDemoScheduledEmail, buildRevisionEmail } from '@/lib/notifications'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 
 export async function POST(req: NextRequest) {
   const { leadId, newStatus } = await req.json()
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
     revisionNotes = rev?.custom_notes || ''
   }
 
+  // In-app notifications always fire; the email copy is held when automated email is off.
+  const emailAllowed = await automatedEmailEnabled()
+
   for (const dev of developers) {
     // Create in-app notification
     await supabase.from('notifications').insert({
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Send email
-    if (dev.email) {
+    if (emailAllowed && dev.email) {
       const emailContent = newStatus === 'Demo Scheduled'
         ? buildDemoScheduledEmail(lead.name, lead.company_name, dev.full_name)
         : buildRevisionEmail(lead.name, lead.company_name, dev.full_name, revisionNotes)
@@ -58,5 +62,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, emailsPaused: !emailAllowed })
 }

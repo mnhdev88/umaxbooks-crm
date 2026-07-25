@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 
 export async function POST(req: NextRequest) {
   const { leadId, demoUrl, companyName, developerName } = await req.json()
   if (!leadId || !demoUrl) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  // Automated email paused in Settings. The demo still lands in Approvals for admins.
+  if (!(await automatedEmailEnabled())) {
+    return NextResponse.json({ success: true, skipped: 'automated-email-off' })
   }
 
   const supabase = createClient(

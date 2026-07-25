@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendLeadEmail } from '@/lib/email-send'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 
 // Processes scheduled emails whose send time has passed. Trigger on a short
 // interval (e.g. every 1–2 min) via the server crontab:
@@ -9,6 +10,12 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Automated email paused in Settings — leave due rows 'scheduled' so they flush
+  // when it's switched back on, rather than failing them.
+  if (!(await automatedEmailEnabled())) {
+    return NextResponse.json({ ok: true, paused: true, processed: 0, message: 'Automated email is turned off' })
   }
 
   const service = createClient(

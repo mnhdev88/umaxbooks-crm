@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { automatedEmailEnabled } from '@/lib/automated-email'
 import { buildDialerReport, dialerReportToCSV, dialerSummaryHtml } from '@/lib/dialer-report'
 
 // End-of-day per-sales-agent dialer-call report. Designed to run at 4:30 AM, so
@@ -13,6 +14,12 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Automated email paused in Settings — skip the whole report rather than build one
+  // nobody receives. Reports → Call Performance still shows the same numbers live.
+  if (!(await automatedEmailEnabled())) {
+    return NextResponse.json({ ok: true, paused: true, sent: 0, message: 'Automated email is turned off' })
   }
 
   const service = createClient(
