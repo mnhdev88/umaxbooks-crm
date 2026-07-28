@@ -81,6 +81,19 @@ export function NotificationsClient({ initialNotifications, userId, isAdmin }: P
           setNotifications((prev) => [newNotif, ...prev])
         }
       })
+      // Reading a chat marks its notifications read in the DB (096), and another
+      // tab can mark anything read. Without this the list keeps showing them as
+      // unread until the next page load.
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        ...(isAdmin ? {} : { filter: `user_id=eq.${userId}` }),
+      }, (payload) => {
+        const updated = payload.new as Notification
+        // Keep the joined `user` info the INSERT handler fetched for admins.
+        setNotifications((prev) => prev.map((n) => n.id === updated.id ? { ...n, ...updated, user: n.user } : n))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }

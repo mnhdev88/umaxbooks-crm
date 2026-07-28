@@ -23,6 +23,12 @@ export function NotificationBell({ userId }: { userId: string }) {
 
   const unread = notifications.filter((n) => !n.read).length
 
+  // When a chat is already open, its message INSERT and the read-marking UPDATE
+  // (096) race. If the UPDATE arrives first, the row it refers to isn't in state
+  // yet and the map below drops it — then the INSERT lands and the ping is stuck
+  // unread. Remembering those ids lets the INSERT apply the read state it missed.
+  const readAheadRef = useRef<Set<string>>(new Set())
+
   useEffect(() => {
     fetchNotifications()
 
@@ -34,7 +40,28 @@ export function NotificationBell({ userId }: { userId: string }) {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, (payload) => {
-        setNotifications((prev) => [payload.new as Notification, ...prev])
+        const incoming = payload.new as Notification
+        if (readAheadRef.current.delete(incoming.id)) incoming.read = true
+        setNotifications((prev) => prev.some((n) => n.id === incoming.id) ? prev : [incoming, ...prev])
+      })
+      // Reading a chat marks its notifications read in the DB (096), and another
+      // tab can mark anything read. Without this the badge keeps counting rows
+      // that are already read until the next page load.
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`,
+      }, (payload) => {
+        const updated = payload.new as Notification
+        setNotifications((prev) => {
+          if (!prev.some((n) => n.id === updated.id)) {
+            // Not here yet — the INSERT is still in flight. Record it.
+            if (updated.read) readAheadRef.current.add(updated.id)
+            return prev
+          }
+          return prev.map((n) => n.id === updated.id ? { ...n, ...updated } : n)
+        })
       })
       .subscribe()
 
