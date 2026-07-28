@@ -65,8 +65,13 @@ export default function RootLayout({
           Skip to main content
         </a>
         <ThemeProvider>{children}</ThemeProvider>
+        {/* visibleToasts caps the stack so a burst of notifications doesn't
+            wallpaper the screen. Duration stays at sonner's 4s default —
+            incoming-notification popups pass their own 10s, so action
+            confirmations (including live-call toasts in the dialer) stay quick. */}
         <Toaster
           position="bottom-right"
+          visibleToasts={3}
           toastOptions={{
             style: { background: '#1e1b4b', border: '1px solid #3730a3', color: '#f1f5f9' },
           }}

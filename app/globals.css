@@ -429,11 +429,26 @@ html.light .to-orange-900\/5 { --tw-gradient-to: #FBFAFF var(--tw-gradient-to-po
 .fade-in { animation-name: fade-in; }
 .zoom-in-95 { animation-name: zoom-in-95; }
 
+/* Notification popup countdown — drains over the toast's 10s lifetime. */
+@keyframes notif-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+.notif-countdown {
+  transform-origin: left;
+  animation: notif-countdown 10s linear forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Exempt: this bar IS the remaining-time readout, so collapsing it to 0.01ms
+     would report "expired" the instant the toast appears. It's a single linear
+     transform, not decorative motion. */
+  .notif-countdown {
+    animation-duration: 10s !important;
   }
 }
