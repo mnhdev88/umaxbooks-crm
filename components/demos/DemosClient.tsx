@@ -6,7 +6,7 @@ import { cn, formatDate, ensureHttps } from '@/lib/utils'
 import { CopyButton } from '@/components/ui/CopyButton'
 import {
   Search, ExternalLink, Monitor, Clock, CheckCircle2, XCircle,
-  Code2, ArrowUpRight, MonitorPlay, Users, ChevronDown,
+  Code2, ArrowUpRight, MonitorPlay, Users, ChevronDown, Hammer,
 } from 'lucide-react'
 
 export interface DemoRow {
@@ -25,6 +25,10 @@ export interface DemoRow {
   createdAt: string
   approvalStatus: 'pending' | 'approved' | 'declined' | null
   revisionNotes: string | null
+  /** 'building' while a developer holds the claim (098); null once submitted. */
+  buildStatus: 'building' | null
+  buildDeveloperName: string | null
+  buildStartedAt: string | null
 }
 
 const APPROVAL_BADGE = {
@@ -33,7 +37,11 @@ const APPROVAL_BADGE = {
   declined: { cls: 'bg-red-900/40 text-red-300 border-red-700/50',       Icon: XCircle,      label: 'Declined' },
 } as const
 
-type FilterKey = 'all' | 'approved' | 'pending' | 'declined'
+const BUILDING_BADGE = {
+  cls: 'bg-blue-900/40 text-blue-300 border-blue-700/50', Icon: Hammer, label: 'Building',
+} as const
+
+type FilterKey = 'all' | 'building' | 'approved' | 'pending' | 'declined'
 
 // Sentinel select value for demos whose lead has no assigned agent.
 const UNASSIGNED = '__unassigned__'
@@ -80,6 +88,7 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
 
   const counts = useMemo(() => ({
     all:      agentScoped.length,
+    building: agentScoped.filter(r => r.buildStatus === 'building').length,
     approved: agentScoped.filter(r => r.approvalStatus === 'approved').length,
     pending:  agentScoped.filter(r => r.approvalStatus === 'pending').length,
     declined: agentScoped.filter(r => r.approvalStatus === 'declined').length,
@@ -88,7 +97,9 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     return agentScoped.filter(r => {
-      if (filter !== 'all' && r.approvalStatus !== filter) return false
+      if (filter === 'building') {
+        if (r.buildStatus !== 'building') return false
+      } else if (filter !== 'all' && r.approvalStatus !== filter) return false
       if (!q) return true
       return (
         r.companyName.toLowerCase().includes(q) ||
@@ -96,13 +107,14 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
         (r.demoVersion || '').toLowerCase().includes(q) ||
         (r.developerName || '').toLowerCase().includes(q) ||
         (r.agentName || '').toLowerCase().includes(q) ||
-        r.tempUrl.toLowerCase().includes(q)
+        (r.tempUrl || '').toLowerCase().includes(q)
       )
     })
   }, [agentScoped, search, filter])
 
   const FILTERS: { key: FilterKey; label: string; count: number }[] = [
     { key: 'all',      label: 'All',      count: counts.all },
+    { key: 'building', label: 'Building', count: counts.building },
     { key: 'approved', label: 'Approved', count: counts.approved },
     { key: 'pending',  label: 'Pending',  count: counts.pending },
     { key: 'declined', label: 'Declined', count: counts.declined },
@@ -173,7 +185,11 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visible.map(demo => {
-            const badge = demo.approvalStatus ? APPROVAL_BADGE[demo.approvalStatus] : null
+            // An in-flight build outranks the approval badge: "being revised"
+            // is more actionable than the stale "Declined" that preceded it.
+            const badge = demo.buildStatus === 'building'
+              ? BUILDING_BADGE
+              : demo.approvalStatus ? APPROVAL_BADGE[demo.approvalStatus] : null
             return (
               <div key={demo.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col gap-3">
                 {/* Header */}
@@ -215,33 +231,49 @@ export function DemosClient({ rows, role }: { rows: DemoRow[]; role: string }) {
                   <span className="text-slate-500">{formatDate(demo.createdAt)}</span>
                 </div>
 
-                {/* URL */}
-                <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700/60 rounded-lg px-2.5 py-1.5">
-                  <a
-                    href={ensureHttps(demo.tempUrl)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 truncate flex-1 min-w-0"
-                  >
-                    <ExternalLink size={12} className="shrink-0" />
-                    <span className="truncate">{demo.tempUrl.replace(/^https?:\/\//, '')}</span>
-                  </a>
-                  <CopyButton text={ensureHttps(demo.tempUrl)} />
-                </div>
+                {/* URL — a build in progress has none yet, so show who's on it. */}
+                {demo.tempUrl ? (
+                  <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700/60 rounded-lg px-2.5 py-1.5">
+                    <a
+                      href={ensureHttps(demo.tempUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 truncate flex-1 min-w-0"
+                    >
+                      <ExternalLink size={12} className="shrink-0" />
+                      <span className="truncate">{demo.tempUrl.replace(/^https?:\/\//, '')}</span>
+                    </a>
+                    <CopyButton text={ensureHttps(demo.tempUrl)} />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700/60 rounded-lg px-2.5 py-1.5 text-xs text-slate-400">
+                    <Hammer size={12} className="text-blue-400 shrink-0" />
+                    <span className="truncate">
+                      {demo.buildDeveloperName
+                        ? `${demo.buildDeveloperName} is building — no URL yet`
+                        : 'Build in progress — no URL yet'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 mt-auto pt-1">
-                  <a
-                    href={ensureHttps(demo.tempUrl)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-                  >
-                    Open Demo <ArrowUpRight size={13} />
-                  </a>
+                  {demo.tempUrl && (
+                    <a
+                      href={ensureHttps(demo.tempUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                    >
+                      Open Demo <ArrowUpRight size={13} />
+                    </a>
+                  )}
                   <Link
                     href={`/leads/${demo.leadId}?tab=demo`}
-                    className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg transition-colors',
+                      !demo.tempUrl && 'flex-1',
+                    )}
                   >
                     View Lead
                   </Link>

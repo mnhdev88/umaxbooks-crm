@@ -255,6 +255,25 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
     }
   } catch { /* silently skip if table unavailable */ }
 
+  // Build claims (098) — who, if anyone, is already on each demo. The queue is
+  // shared and unfiltered, so without this two developers can unknowingly build
+  // the same demo.
+  try {
+    const ids = allQueueLeads.map((l: any) => l.id)
+    if (ids.length) {
+      const { data: builds } = await supabase
+        .from('demo_builds')
+        .select('lead_id, status, started_at, developer_id, developer:profiles(full_name)')
+        .in('lead_id', ids)
+
+      const byLead = new Map((builds || []).map((b: any) => [b.lead_id, b]))
+      for (const lead of allQueueLeads) {
+        const b = byLead.get((lead as any).id)
+        if (b) (lead as any).demo_build = b
+      }
+    }
+  } catch { /* demo_builds not migrated yet — queue still works without it */ }
+
   return (
     <>
       <Header title="Developer Queue" profile={profile as Profile} />

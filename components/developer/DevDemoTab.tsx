@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Demo } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
-import { Monitor, ExternalLink, Folder, Clock, Send, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Monitor, ExternalLink, Folder, Clock, Send, AlertTriangle, CheckCircle2, Hammer, UserCheck } from 'lucide-react'
 import { ensureHttps } from '@/lib/utils'
+import { notifyLeadManagers } from '@/lib/notify/managers'
 import { toast } from 'sonner'
 
 interface DevDemoTabProps {
@@ -32,8 +33,10 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
   const [newUrl, setNewUrl] = useState('')
   const [newVersion, setNewVersion] = useState('')
   const [saving, setSaving] = useState(false)
+  const [build, setBuild] = useState<any>(null)
+  const [starting, setStarting] = useState(false)
 
-  useEffect(() => { fetchDemos(); fetchLatestApproval() }, [leadId])
+  useEffect(() => { fetchDemos(); fetchLatestApproval(); fetchBuild() }, [leadId])
 
   async function fetchDemos() {
     setLoading(true)
@@ -55,6 +58,76 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       .limit(1)
       .maybeSingle()
     setLatestApproval(data)
+  }
+
+  async function fetchBuild() {
+    const { data } = await supabase
+      .from('demo_builds')
+      .select('*, developer:profiles(full_name)')
+      .eq('lead_id', leadId)
+      .maybeSingle()
+    setBuild(data)
+  }
+
+  /**
+   * Claim the demo and tell the sales manager work has begun. The queue is
+   * shared and unfiltered, so this is the first point at which a specific
+   * developer is attached to a specific lead.
+   */
+  async function startBuild() {
+    setStarting(true)
+
+    // Two developers can hit Start at the same moment. The unique index on
+    // lead_id makes the DB pick a winner; ignoreDuplicates turns the loser's
+    // insert into a no-op rather than an error, and the refetch below shows
+    // them who actually holds the claim.
+    const { error } = await supabase
+      .from('demo_builds')
+      .upsert({
+        lead_id: leadId,
+        developer_id: userId,
+        status: 'building',
+        started_at: new Date().toISOString(),
+      }, { onConflict: 'lead_id', ignoreDuplicates: true })
+
+    if (error) {
+      toast.error(`Could not start the build: ${error.message}`)
+      setStarting(false)
+      return
+    }
+
+    const { data: claimed } = await supabase
+      .from('demo_builds')
+      .select('*, developer:profiles(full_name)')
+      .eq('lead_id', leadId)
+      .maybeSingle()
+
+    setBuild(claimed)
+    setStarting(false)
+
+    // Someone else won the race — don't log or notify on their behalf.
+    if (claimed && claimed.developer_id !== userId) {
+      toast.error(`${claimed.developer?.full_name || 'Another developer'} already started this build.`)
+      return
+    }
+
+    const { data: me } = await supabase.from('profiles').select('full_name').eq('id', userId).single()
+    const who = me?.full_name || 'A developer'
+
+    await notifyLeadManagers(supabase, leadId, {
+      title: 'Demo Build Started',
+      message: `${who} started building the demo for ${companyName}.`,
+      type: 'info',
+    }, userId)
+
+    await supabase.from('activity_logs').insert({
+      lead_id: leadId,
+      user_id: userId,
+      action: 'Demo Build Started',
+      details: `${who} began building the demo.`,
+    })
+
+    toast.success('Build started — the sales manager has been notified.')
   }
 
   // Save URL to demos table AND immediately create approval record
@@ -101,6 +174,17 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       .update({ status: 'Demo Done', updated_at: new Date().toISOString() })
       .eq('id', leadId)
 
+    // Close out the build claim. A demo submitted without ever clicking Start
+    // (the pre-098 habit) still gets a row, so the manager's view and the stall
+    // cron both stay accurate.
+    await supabase.from('demo_builds').upsert({
+      lead_id: leadId,
+      developer_id: userId,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      stall_alerted_at: null,
+    }, { onConflict: 'lead_id' })
+
     // In-app notifications to all admins
     const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
     if (admins && admins.length > 0) {
@@ -114,6 +198,14 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
         }))
       )
     }
+
+    // The manager whose agent booked this demo hears about it too — admins
+    // approve, but the manager is the one chasing the client call.
+    await notifyLeadManagers(supabase, leadId, {
+      title: 'Demo Submitted for Approval',
+      message: `${companyName} — the demo is built and awaiting admin approval.`,
+      type: 'info',
+    }, userId)
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
@@ -135,6 +227,7 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
     setSaving(false)
     fetchDemos()
     fetchLatestApproval()
+    fetchBuild()
   }
 
   // Resubmit existing latest demo after a decline
@@ -150,6 +243,14 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
       status: 'pending',
     })
 
+    await supabase.from('demo_builds').upsert({
+      lead_id: leadId,
+      developer_id: userId,
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      stall_alerted_at: null,
+    }, { onConflict: 'lead_id' })
+
     const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin')
     if (admins && admins.length > 0) {
       await supabase.from('notifications').insert(
@@ -162,6 +263,12 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
         }))
       )
     }
+
+    await notifyLeadManagers(supabase, leadId, {
+      title: 'Demo Resubmitted for Approval',
+      message: `${companyName} — the revised demo is awaiting admin approval.`,
+      type: 'info',
+    }, userId)
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
@@ -179,12 +286,18 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
 
     setSaving(false)
     fetchLatestApproval()
+    fetchBuild()
   }
 
   const folderPath = `/clients/${leadSlug}/demo-v${demos.length + 1}`
   const isPending = latestApproval?.status === 'pending'
   const isDeclined = latestApproval?.status === 'declined'
   const isApproved = latestApproval?.status === 'approved'
+
+  const isBuilding  = build?.status === 'building'
+  const mineToBuild = build?.developer_id === userId
+  // Offer Start only when nobody holds the claim and there's nothing in review.
+  const canStart    = !build && !isPending && !isApproved
 
   return (
     <div className="space-y-5">
@@ -209,6 +322,38 @@ export function DevDemoTab({ leadId, leadSlug, userId, companyName }: DevDemoTab
         <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl px-4 py-3.5 flex items-center gap-3">
           <Clock size={16} className="text-amber-400 flex-shrink-0" />
           <p className="text-sm text-amber-300">Demo submitted — awaiting admin approval.</p>
+        </div>
+      )}
+
+      {/* Claim the build. Until someone clicks this, nobody outside the dev
+          queue can tell whether the demo has been touched at all. */}
+      {canStart && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-start gap-3">
+          <Hammer size={16} className="text-orange-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-200">Ready to build?</p>
+            <p className="text-xs text-slate-500 mt-0.5 mb-3">
+              Claim this demo so the team knows you&apos;re on it. The sales manager is notified that work has started.
+            </p>
+            <Button onClick={startBuild} loading={starting}>
+              <Hammer size={13} /> Start Build
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isBuilding && (
+        <div className="bg-blue-900/20 border border-blue-700/40 rounded-xl px-4 py-3.5 flex items-center gap-3">
+          <UserCheck size={16} className="text-blue-400 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-300">
+              {mineToBuild ? 'You are building this demo' : `${build?.developer?.full_name || 'Another developer'} is building this demo`}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Started {formatDate(build.started_at)}
+              {mineToBuild ? ' — submit the URL below when it’s ready.' : ''}
+            </p>
+          </div>
         </div>
       )}
 

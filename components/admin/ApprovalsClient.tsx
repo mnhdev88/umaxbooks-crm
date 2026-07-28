@@ -11,6 +11,7 @@ import {
   ExternalLink, Building2, Monitor,
 } from 'lucide-react'
 import { cn, ensureHttps } from '@/lib/utils'
+import { notifyLeadManagers } from '@/lib/notify/managers'
 
 interface ApprovalsClientProps {
   initialApprovals: any[]
@@ -63,6 +64,14 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId, readOnl
       })
     }
 
+    // The agent closes the deal, but the manager owns the number — keep them
+    // in the loop on their team's demos.
+    await notifyLeadManagers(supabase, approval.lead_id, {
+      title: 'Demo Approved',
+      message: `${approval.lead?.company_name || 'A client'} demo was approved — the agent is closing.`,
+      type: 'success',
+    }, userId)
+
     await supabase.from('activity_logs').insert({
       lead_id: approval.lead_id,
       user_id: userId,
@@ -104,6 +113,24 @@ export function ApprovalsClient({ initialApprovals, salesAgents, userId, readOnl
         type: 'info',
       })
     }
+
+    // Rework is back in the developer's court, so reopen the claim. Leaving it
+    // 'submitted' would both read wrong to the manager and hide the revision
+    // from the stall cron.
+    await supabase
+      .from('demo_builds')
+      .update({ status: 'building', submitted_at: null, stall_alerted_at: null })
+      .eq('lead_id', approval.lead_id)
+
+    // A decline means the demo slips — the manager needs this more than the
+    // approval, since their agent may have a client call already booked.
+    await notifyLeadManagers(supabase, approval.lead_id, {
+      title: 'Demo Declined — Revision Required',
+      message: notes
+        ? `${approval.lead?.company_name || 'A client'} demo was declined: ${notes.slice(0, 80)}`
+        : `${approval.lead?.company_name || 'A client'} demo was declined and needs a revision.`,
+      type: 'warning',
+    }, userId)
 
     await supabase.from('activity_logs').insert({
       lead_id: approval.lead_id,

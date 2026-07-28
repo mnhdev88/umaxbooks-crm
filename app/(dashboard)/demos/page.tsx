@@ -45,8 +45,17 @@ export default async function DemosPage() {
     if (a.demo_url && !approvalByUrl[a.demo_url]) approvalByUrl[a.demo_url] = a
   }
 
+  // Build state (098), so a demo that's underway shows up before it has a URL.
+  const { data: builds } = await supabase
+    .from('demo_builds')
+    .select('lead_id, status, started_at, developer:profiles(full_name)')
+
+  const buildByLead: Record<string, any> = {}
+  for (const b of builds || []) buildByLead[(b as any).lead_id] = b
+
   const rows: DemoRow[] = (demos || []).map((d: any) => {
     const approval = d.temp_url ? approvalByUrl[d.temp_url] : undefined
+    const build = buildByLead[d.lead_id]
     return {
       id: d.id,
       leadId: d.lead_id,
@@ -63,8 +72,51 @@ export default async function DemosPage() {
       createdAt: d.created_at,
       approvalStatus: (approval?.status ?? null) as DemoRow['approvalStatus'],
       revisionNotes: approval?.revision_notes ?? null,
+      // A declined demo reopens its build row, so this reads "being revised".
+      buildStatus: build?.status === 'building' ? 'building' : null,
+      buildDeveloperName: build?.developer?.full_name ?? null,
+      buildStartedAt: build?.started_at ?? null,
     }
   })
+
+  // Demos still being built have no demos row yet — the whole blind spot this
+  // page had. Surface them as their own cards so "where does everything stand"
+  // is answerable at a glance.
+  const leadIdsWithDemo = new Set(rows.map(r => r.leadId))
+  const { data: inProgress } = await supabase
+    .from('demo_builds')
+    .select(`
+      id, lead_id, status, started_at,
+      developer:profiles(full_name),
+      lead:leads!inner(id, company_name, name, city, status,
+        assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name))
+    `)
+    .eq('status', 'building')
+    .order('started_at', { ascending: false })
+
+  for (const b of (inProgress || []) as any[]) {
+    if (leadIdsWithDemo.has(b.lead_id)) continue
+    rows.push({
+      id: `build-${b.id}`,
+      leadId: b.lead_id,
+      companyName: b.lead?.company_name ?? 'Unknown',
+      contactName: b.lead?.name ?? null,
+      city: b.lead?.city ?? null,
+      leadStatus: b.lead?.status ?? null,
+      agentId: b.lead?.assigned_agent?.id ?? null,
+      agentName: b.lead?.assigned_agent?.full_name ?? null,
+      developerName: b.developer?.full_name ?? null,
+      tempUrl: '',
+      demoVersion: null,
+      uploadDate: null,
+      createdAt: b.started_at,
+      approvalStatus: null,
+      revisionNotes: null,
+      buildStatus: 'building',
+      buildDeveloperName: b.developer?.full_name ?? null,
+      buildStartedAt: b.started_at,
+    })
+  }
 
   return (
     <>

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button'
 import {
   Search, ExternalLink, Code2, Plus,
   FileText, Monitor, BarChart2, CheckSquare, Activity,
-  Star, Bell, StickyNote,
+  Star, Bell, StickyNote, Hammer,
 } from 'lucide-react'
 
 // ── Status display ──────────────────────────────────────────────────
@@ -255,6 +255,16 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                   {auditReadyLeadIds.includes(lead.id) && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-900/40 text-violet-300 flex items-center gap-1">
                       <Code2 size={8} /> To Build
+                    </span>
+                  )}
+                  {/* Who holds the claim — the queue is shared, so this is what
+                      stops two developers building the same demo. */}
+                  {(lead as any).demo_build?.status === 'building' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-blue-900/40 text-blue-300 flex items-center gap-1">
+                      <Hammer size={8} />
+                      {(lead as any).demo_build.developer_id === userId
+                        ? 'You are building'
+                        : `${(lead as any).demo_build.developer?.full_name || 'In progress'}`}
                     </span>
                   )}
                   {agentNotesLeadIds.includes(lead.id) && (

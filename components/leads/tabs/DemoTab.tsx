@@ -14,6 +14,7 @@ import { Plus, ExternalLink, Monitor, Clock, CheckCircle2, XCircle } from 'lucid
 import { CopyButton } from '@/components/ui/CopyButton'
 import { DevDemoTab } from '@/components/developer/DevDemoTab'
 import { ensureHttps } from '@/lib/utils'
+import { notifyLeadManagers } from '@/lib/notify/managers'
 
 interface DemoTabProps {
   leadId: string
@@ -125,6 +126,12 @@ export function DemoTab({ leadId, leadSlug, companyName, userId, userRole, devel
       })
     }
 
+    await notifyLeadManagers(supabase, leadId, {
+      title: 'Demo Approved',
+      message: `${companyName} demo was approved — the agent is closing.`,
+      type: 'success',
+    }, userId)
+
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
       user_id: userId,
@@ -154,6 +161,22 @@ export function DemoTab({ leadId, leadSlug, companyName, userId, userRole, devel
         type: 'info',
       })
     }
+
+    // Rework is back in the developer's court, so reopen the claim. Leaving it
+    // 'submitted' would both read wrong to the manager and hide the revision
+    // from the stall cron.
+    await supabase
+      .from('demo_builds')
+      .update({ status: 'building', submitted_at: null, stall_alerted_at: null })
+      .eq('lead_id', leadId)
+
+    await notifyLeadManagers(supabase, leadId, {
+      title: 'Demo Declined — Revision Required',
+      message: declineReason
+        ? `${companyName} demo was declined: ${declineReason.slice(0, 80)}`
+        : `${companyName} demo was declined and needs a revision.`,
+      type: 'warning',
+    }, userId)
 
     await supabase.from('activity_logs').insert({
       lead_id: leadId,
