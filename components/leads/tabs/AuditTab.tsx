@@ -196,7 +196,15 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const [gmbSaved, setGmbSaved] = useState(false)
 
   // Agent notes thread
-  const [auditNotes, setAuditNotes] = useState<{ id: string; note: string; created_at: string; user_id: string; author: { full_name: string; role: string } | null }[]>([])
+  const [auditNotes, setAuditNotes] = useState<{
+    id: string
+    note: string
+    created_at: string
+    user_id: string
+    approval_status?: 'pending' | 'approved' | 'declined'
+    decline_reason?: string | null
+    author: { full_name: string; role: string } | null
+  }[]>([])
   const [newNoteText, setNewNoteText] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
@@ -238,13 +246,16 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
   const canNote   = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'sales_manager'
   const canUpload = userRole === 'admin' || userRole === 'agent' || userRole === 'sales_agent' || userRole === 'sales_manager' || userRole === 'developer'
   const isDev = userRole === 'developer'
+  // A sales agent's note is held for sales-manager approval instead of going
+  // straight to the developers. Managers and admins still post direct.
+  const needsApproval = userRole === 'sales_agent'
 
   useEffect(() => { fetchAudit(); fetchDemoUrl(); fetchAuditNotes() }, [leadId])
 
   async function fetchAuditNotes() {
     const { data } = await supabase
       .from('audit_notes')
-      .select('id, note, created_at, user_id, author:profiles!audit_notes_user_id_fkey(full_name, role)')
+      .select('id, note, created_at, user_id, approval_status, decline_reason, author:profiles!audit_notes_user_id_fkey(full_name, role)')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
     if (data) setAuditNotes(data as any)
@@ -368,13 +379,56 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
     const preview = newNoteText.trim().slice(0, 120) + (newNoteText.length > 120 ? '…' : '')
 
     try {
+      // approval_status is stamped by a DB trigger: 'pending' for sales_agent
+      // notes, 'approved' for everyone else. Don't set it from the client.
       await supabase.from('audit_notes').insert({
         lead_id: leadId,
         user_id: userId,
         note: newNoteText.trim(),
       })
 
-      if (isDev) {
+      if (needsApproval) {
+        // ── Sales agent note ── goes to the sales manager for approval, NOT to
+        // the developers. The lead stays in its current stage until approved.
+        const recipientIds = new Set<string>()
+
+        const { data: me } = await supabase
+          .from('profiles').select('manager_id').eq('id', userId).single()
+
+        if (me?.manager_id) {
+          recipientIds.add(me.manager_id)
+        } else {
+          // No manager assigned — fall back to every sales manager.
+          const { data: managers } = await supabase
+            .from('profiles').select('id').eq('role', 'sales_manager')
+          managers?.forEach(m => recipientIds.add(m.id))
+        }
+
+        // Admins can action these too, so keep them in the loop.
+        const { data: admins } = await supabase
+          .from('profiles').select('id').eq('role', 'admin')
+        admins?.forEach(a => recipientIds.add(a.id))
+
+        recipientIds.delete(userId)
+
+        if (recipientIds.size) {
+          await supabase.from('notifications').insert(
+            [...recipientIds].map(id => ({
+              user_id: id,
+              lead_id: leadId,
+              title: `📝 Note Needs Approval — ${businessName || 'Lead'}`,
+              message: preview,
+              type: 'info',
+            }))
+          )
+        }
+
+        await supabase.from('activity_logs').insert({
+          lead_id: leadId, user_id: userId,
+          action: 'Audit Note Submitted for Approval',
+          details: newNoteText.trim().slice(0, 100),
+        })
+      } else if (isDev) {
         // ── Developer reply ── notify the agents on this thread + the assigned agent
         const recipientIds = new Set<string>()
         for (const n of auditNotes) {
@@ -631,7 +685,7 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
       {(canNote || isDev) && (
         <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-3">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <MessageSquare size={13} /> Notes for Developer
+            <MessageSquare size={13} /> {needsApproval ? 'Notes for Developer (via Manager)' : 'Notes for Developer'}
             {auditNotes.length > 0 && (
               <span className="text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full">{auditNotes.length}</span>
             )}
@@ -642,10 +696,15 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
             <div className="space-y-2.5">
               {auditNotes.map(n => {
                 const isDevNote = n.author?.role === 'developer'
+                const pending  = n.approval_status === 'pending'
+                const declined = n.approval_status === 'declined'
                 return (
                 <div key={n.id} className={cn(
                   'border rounded-lg px-3 py-2.5',
-                  isDevNote ? 'bg-cyan-900/15 border-cyan-700/40' : 'bg-slate-900/60 border-slate-700/60'
+                  pending  ? 'bg-amber-900/15 border-amber-700/40'
+                  : declined ? 'bg-red-900/15 border-red-800/40'
+                  : isDevNote ? 'bg-cyan-900/15 border-cyan-700/40'
+                  : 'bg-slate-900/60 border-slate-700/60'
                 )}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="flex items-center gap-1.5">
@@ -656,8 +715,18 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                         'text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
                         isDevNote ? 'bg-cyan-900/40 text-cyan-300' : 'bg-orange-900/40 text-orange-300'
                       )}>
-                        {isDevNote ? 'Developer' : 'Agent'}
+                        {isDevNote ? 'Developer' : n.author?.role === 'sales_manager' ? 'Manager' : 'Agent'}
                       </span>
+                      {pending && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 flex items-center gap-1">
+                          <Clock size={9} /> Pending Approval
+                        </span>
+                      )}
+                      {declined && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-900/40 text-red-300 flex items-center gap-1">
+                          <XCircle size={9} /> Declined
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] text-slate-500">
                       {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -666,6 +735,16 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                     </span>
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{n.note}</p>
+                  {pending && (
+                    <p className="text-[11px] text-amber-400/80 mt-2">
+                      Waiting for your sales manager to review. The developer can&apos;t see this yet.
+                    </p>
+                  )}
+                  {declined && n.decline_reason && (
+                    <p className="text-[11px] text-red-300/90 mt-2 bg-red-950/30 rounded px-2 py-1.5">
+                      <span className="font-semibold">Reason:</span> {n.decline_reason}
+                    </p>
+                  )}
                 </div>
               )})}
             </div>
@@ -679,6 +758,8 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                 onChange={e => setNewNoteText(e.target.value)}
                 placeholder={isDev
                   ? 'Reply to the agent — questions, blockers, or a status update…'
+                  : needsApproval
+                  ? 'Write your note for the developer — your sales manager will review it before it goes out…'
                   : 'Add instructions for the developer — focus areas, competitor info, client priorities…'}
                 rows={3}
                 className={cn(
@@ -699,11 +780,13 @@ export function AuditTab({ leadId, leadSlug, userId, userRole, websiteUrl, busin
                 >
                   {isDev
                     ? <><Send size={13} /> Send Reply</>
+                    : needsApproval
+                    ? <><Send size={13} /> Submit for Approval</>
                     : <><Bell size={13} /> Save & Notify Developer</>}
                 </Button>
                 {notesSaved && (
                   <span className="text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle size={12} /> {isDev ? 'Reply sent' : 'Saved & notified'}
+                    <CheckCircle size={12} /> {isDev ? 'Reply sent' : needsApproval ? 'Sent to your manager' : 'Saved & notified'}
                   </span>
                 )}
               </div>

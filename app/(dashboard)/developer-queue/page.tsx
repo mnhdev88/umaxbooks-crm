@@ -138,9 +138,12 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
   let agentNotesLeadIds: string[] = []
   let auditNotifiedIds: string[] = []   // leads where Save & Notify Developer was clicked
   try {
+    // Notes awaiting sales-manager approval must never reach the developer —
+    // filter explicitly, since parts of this page use the service client.
     const { data: noteRows } = await supabase
       .from('audit_notes')
-      .select('id, lead_id, note, created_at, user_id')
+      .select('id, lead_id, note, created_at, user_id, approval_status')
+      .eq('approval_status', 'approved')
       .order('created_at', { ascending: true })
 
     if (noteRows?.length) {

@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -78,6 +78,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
     { href: '/approvals',       label: 'Approvals',          icon: ClipboardList },
+    { href: '/note-approvals',  label: 'Note Approvals',     icon: MessageSquarePlus },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
@@ -103,6 +104,7 @@ const adminSections: NavSection[] = [
     { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
     { href: '/approvals',                       label: 'Approvals',  icon: ClipboardList },
+    { href: '/note-approvals',                  label: 'Note Approvals', icon: MessageSquarePlus },
     { href: '/email-status',     label: 'Email Status',      icon: Mail },
     { href: '/unsubscribes',     label: 'Unsubscribes',      icon: MailX },
     { href: '/support-tickets',  label: 'Support Tickets',   icon: LifeBuoy },
@@ -139,6 +141,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const supabase = createClient()
   const { theme, toggleTheme } = useTheme()
   const [pendingCount, setPendingCount] = useState(0)
+  const [pendingNotes, setPendingNotes] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
   const [chatUnread, setChatUnread]     = useState(0)
   const [signingOut, setSigningOut]     = useState(false)
@@ -154,7 +157,8 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     // Admins act on approvals; sales managers see them read-only. Both get the badge.
     if (profile.role !== 'admin' && profile.role !== 'sales_manager') return
     fetchPendingCount()
-    const id = setInterval(fetchPendingCount, 30000)
+    fetchPendingNotes()
+    const id = setInterval(() => { fetchPendingCount(); fetchPendingNotes() }, 30000)
     return () => clearInterval(id)
   }, [profile.role])
 
@@ -191,6 +195,15 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
     setPendingCount(count || 0)
+  }
+
+  // Agent audit notes waiting on a sales-manager review.
+  async function fetchPendingNotes() {
+    const { count } = await supabase
+      .from('audit_notes')
+      .select('id', { count: 'exact', head: true })
+      .eq('approval_status', 'pending')
+    setPendingNotes(count || 0)
   }
 
   async function fetchUnreadCount() {
@@ -274,6 +287,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
                   : pathname === href || (href !== '/' && pathname.startsWith(href))
                 const badge =
                   href === '/approvals'    && pendingCount > 0 ? pendingCount :
+                  href === '/note-approvals' && pendingNotes > 0 ? pendingNotes :
                   href === '/notifications' && unreadCount  > 0 ? unreadCount  :
                   href === '/messages'      && chatUnread   > 0 ? chatUnread   :
                   0

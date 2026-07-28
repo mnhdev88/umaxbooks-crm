@@ -170,7 +170,7 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
                       'text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
                       isDevNote ? 'bg-cyan-900/40 text-cyan-300' : 'bg-orange-900/40 text-orange-300'
                     )}>
-                      {isDevNote ? 'Developer' : 'Agent'}
+                      {isDevNote ? 'Developer' : n.author?.role === 'sales_manager' ? 'Manager' : 'Agent'}
                     </span>
                   </span>
                   <span className="text-[10px] text-slate-500">
