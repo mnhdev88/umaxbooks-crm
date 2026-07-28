@@ -228,9 +228,9 @@ export function NoteApprovalsClient({ initialApprovals, userId }: Props) {
                     <Building2 size={15} className="text-orange-400" />
                   </div>
                   <div className="min-w-0">
-                    {a.lead?.slug ? (
+                    {a.lead?.id ? (
                       <Link
-                        href={`/leads/${a.lead.slug}`}
+                        href={`/leads/${a.lead.id}`}
                         className="text-sm font-semibold text-slate-100 hover:text-orange-400 transition-colors flex items-center gap-1.5"
                       >
                         {company} <ExternalLink size={11} className="flex-shrink-0" />
