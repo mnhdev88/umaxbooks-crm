@@ -138,6 +138,23 @@ const PRIORITY_CLS: Record<string, string> = {
   'Low':    'text-slate-600',
 }
 
+// Imported sheets spell priority however they like ('high', 'P1', 'urgent!!').
+// The DB check constraint only accepts the five canonical values, so anything
+// we can't confidently map falls back to 'Normal' rather than failing the row.
+const PRIORITY_ALIASES: Record<string, string> = {
+  urgent: 'Urgent', critical: 'Urgent', asap: 'Urgent', p0: 'Urgent', '1': 'Urgent',
+  high: 'High', hot: 'High', p1: 'High', '2': 'High',
+  medium: 'Medium', med: 'Medium', mid: 'Medium', warm: 'Medium', p2: 'Medium', '3': 'Medium',
+  normal: 'Normal', standard: 'Normal', default: 'Normal', none: 'Normal', p3: 'Normal', '4': 'Normal',
+  low: 'Low', cold: 'Low', p4: 'Low', '5': 'Low',
+}
+
+function normalizePriority(raw: unknown): string {
+  if (typeof raw !== 'string') return 'Normal'
+  const key = raw.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  return PRIORITY_ALIASES[key] || 'Normal'
+}
+
 function StarRating({ rating }: { rating?: number }) {
   if (!rating) return <span className="text-slate-600 text-xs">No GMB</span>
   return (
@@ -300,11 +317,28 @@ async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const raw = utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' })
   if (raw.length < 2) return { headers: [], rows: [] }
-  const headers = (raw[0] as any[]).map(h => String(h ?? '').trim()).filter(Boolean)
+  // Keep the header row positional. A sheet with a blank column (or a stray
+  // trailing one) used to have its empty headers filtered out while the data
+  // cells stayed put, shifting every later column's values one place left —
+  // priority silently received the category, city received the address, etc.
+  // So pair each header with its own index first, THEN drop the blanks.
+  const rawHeaders = (raw[0] as any[]).map(h => String(h ?? '').trim())
+  const cols = rawHeaders
+    .map((name, index) => ({ name, index }))
+    .filter(c => c.name)
+  // Duplicate header names would collapse onto one key and lose a column; make
+  // them unique so each still maps independently.
+  const seen = new Map<string, number>()
+  cols.forEach(c => {
+    const n = seen.get(c.name) ?? 0
+    seen.set(c.name, n + 1)
+    if (n) c.name = `${c.name} (${n + 1})`
+  })
+  const headers = cols.map(c => c.name)
   const rows = raw.slice(1)
     .filter((r: any[]) => r.some(c => c !== '' && c != null))
     .map((r: any[]) =>
-      headers.reduce((o, h, i) => ({ ...o, [h]: String(r[i] ?? '').trim() }), {} as Record<string, string>)
+      cols.reduce((o, c) => ({ ...o, [c.name]: String(r[c.index] ?? '').trim() }), {} as Record<string, string>)
     )
   return { headers, rows }
 }
@@ -559,6 +593,7 @@ export function LeadsPageClient({
       record.slug = slugify(record.company_name) + '-' + Date.now() + i
       record.gmb_review_rating = record.gmb_review_rating ? parseFloat(record.gmb_review_rating) : null
       record.number_of_reviews = record.number_of_reviews ? parseInt(record.number_of_reviews) : null
+      record.priority = normalizePriority(record.priority)
       const { error } = await supabase.from('leads').insert(record)
       if (error) {
         // The DB enforces uniqueness on company/phone/email; treat a constraint
