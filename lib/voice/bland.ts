@@ -44,9 +44,9 @@ function spokenPhone(raw: string): string {
 // Callback number the agent reads out — in voicemails and when asked for one on a live call.
 // Override via env; defaults to the agency's published line.
 const CALLBACK_PHONE =
-  process.env.BLAND_CALLBACK_NUMBER || process.env.NEXT_PUBLIC_AGENCY_PHONE || '(908) 201-2264'
-// TTS reads "(908) 201-2264" as numbers ("two hundred one"); spell it out digit-by-digit
-// ("nine zero eight, two zero one, two two six four") so the voice agent reads it correctly.
+  process.env.BLAND_CALLBACK_NUMBER || process.env.NEXT_PUBLIC_AGENCY_PHONE || '(888) 738-4655'
+// TTS reads "(888) 738-4655" as numbers ("seven hundred thirty eight"); spell it out digit-by-digit
+// ("eight eight eight, seven three eight, four six five five") so the voice agent reads it correctly.
 const CALLBACK_PHONE_SPOKEN = spokenPhone(CALLBACK_PHONE)
 // The name the AI agent introduces itself with.
 const AGENT_NAME = process.env.BLAND_AGENT_NAME || 'Aria'
