@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { PhoneOutgoing, Plus, Trash2, ShieldCheck, ShieldAlert, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { PhoneOutgoing, PhoneIncoming, PhoneForwarded, Plus, Trash2, ShieldCheck, ShieldAlert, AlertCircle, CheckCircle, X } from 'lucide-react'
 
 // Admin management of the outbound caller-ID pool (caller_numbers). Volume spreads
 // across these numbers under per-number daily caps so no single one trips the
@@ -14,6 +14,8 @@ interface CallerNumber {
   daily_cap: number
   is_active: boolean
   registered: boolean
+  /** What a callback does: ring the team, or speak a redirect and hang up (093). */
+  inbound_mode: 'full' | 'deflect'
   notes: string | null
 }
 
@@ -93,6 +95,16 @@ export function CallerNumbers() {
       const d = await res.json().catch(() => ({}))
       setResult({ ok: false, msg: d.error || 'Update failed.' })
       load()
+      return
+    }
+    // Twilio holds the Voice URL per number, so this column alone re-routes nothing.
+    // Saying so here is the difference between "toggled it, calls still deflect, no idea
+    // why" and a known follow-up step.
+    if ('inbound_mode' in body) {
+      setResult({
+        ok: true,
+        msg: 'Saved. Inbound routing only changes once someone runs scripts/set-twilio-voice-webhooks.mjs --run on the server.',
+      })
     }
   }
 
@@ -165,6 +177,7 @@ export function CallerNumbers() {
                 <th className="pb-2 font-medium" title="Answered but under 30s — hang-ups and voicemail. A rising share means the number is being labelled.">Short</th>
                 <th className="pb-2 font-medium" title="Inbound calls received on this number over 30 days. Leads calling back is the strongest sign a number is trusted.">Callbacks</th>
                 <th className="pb-2 font-medium">Registered</th>
+                <th className="pb-2 font-medium" title="What happens when a lead calls this number back. Rings = the owning agent, then the hunt group, then voicemail. Redirect = a spoken message pointing them at the main line.">Inbound</th>
                 <th className="pb-2 font-medium">Active</th>
                 <th className="pb-2"></th>
               </tr>
@@ -211,6 +224,26 @@ export function CallerNumbers() {
                       >
                         {n.registered ? <ShieldCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
                         {n.registered ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <button
+                        onClick={() => patch(n.id, { inbound_mode: n.inbound_mode === 'full' ? 'deflect' : 'full' })}
+                        title={
+                          n.inbound_mode === 'full'
+                            ? 'Callbacks ring the owning agent, then the hunt group, then voicemail.'
+                            : 'Callbacks hear a spoken redirect to the main line, then hang up.'
+                        }
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
+                          n.inbound_mode === 'full'
+                            ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                            : 'text-slate-500 bg-white/5 border-white/10'
+                        }`}
+                      >
+                        {n.inbound_mode === 'full'
+                          ? <PhoneIncoming className="w-3 h-3" />
+                          : <PhoneForwarded className="w-3 h-3" />}
+                        {n.inbound_mode === 'full' ? 'Rings' : 'Redirect'}
                       </button>
                     </td>
                     <td className="py-3 pr-4">

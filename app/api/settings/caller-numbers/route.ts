@@ -127,6 +127,14 @@ export async function PATCH(req: NextRequest) {
   if ('notes' in body)      patch.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
   if ('is_active' in body)  patch.is_active = body.is_active === true
   if ('registered' in body) patch.registered = body.registered === true
+  // Validated rather than coerced: the column has a CHECK constraint (093), so a bad
+  // value would come back as a raw Postgres error instead of something an admin can act on.
+  if ('inbound_mode' in body) {
+    if (body.inbound_mode !== 'full' && body.inbound_mode !== 'deflect') {
+      return NextResponse.json({ error: "Inbound mode must be 'full' or 'deflect'." }, { status: 400 })
+    }
+    patch.inbound_mode = body.inbound_mode
+  }
   if ('daily_cap' in body) {
     const cap = parseCap(body.daily_cap, NaN)
     if (cap === null || !Number.isFinite(cap)) {
