@@ -13,14 +13,30 @@ import { toast } from 'sonner'
 /** voice_calls row with the resolved agent name (dialer calls only). */
 type CallWithAgent = VoiceCall & { agent?: { full_name: string | null } | null }
 
+/** One of our outbound numbers, as offered in the "Call from" dropdown. */
+interface CallerOption {
+  id: string
+  phone_number: string
+  label: string | null
+  daily_cap: number
+  inbound_mode: 'full' | 'deflect'
+}
+
+/** +19086395666 → +1 908 639 5666. Left as-is for anything not US E.164. */
+function prettyNumber(e164: string): string {
+  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
+  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
+}
+
 /**
  * Pre-call confirmation popup shared by the dialer ("Call") and AI ("AI Call") buttons.
  *
  * On open it loads this lead's last 5 calls so the agent can review recent history before
- * dialing. For browser ("dialer") calls it also shows an editable number + keypad, pre-filled
- * with the lead's phone, so the agent can dial an alternate number for this lead. "Call" runs
- * the caller-supplied action with the number to dial; "Do not call" flags the lead
- * (leads.do_not_call = true) and closes without dialing.
+ * dialing. For browser ("dialer") calls it also shows a "Call from" dropdown and an editable
+ * number + keypad, pre-filled with the lead's phone, so the agent can dial an alternate
+ * number for this lead. "Call" runs the caller-supplied action with the number to dial and
+ * the chosen caller ID; "Do not call" flags the lead (leads.do_not_call = true) and closes
+ * without dialing.
  */
 export function PreCallModal({
   open,
@@ -39,14 +55,24 @@ export function PreCallModal({
   altPhones?: { value: string; label?: string }[] | null
   name?: string | null
   callType: 'dialer' | 'ai'
-  /** Receives the number the agent chose to dial (the editable field, or the lead's phone). */
-  onConfirm: (dialNumber: string) => void
+  /**
+   * Receives the number the agent chose to dial (the editable field, or the lead's phone),
+   * and the caller_numbers id to call from — undefined when left on "Auto".
+   */
+  onConfirm: (dialNumber: string, callerNumberId?: string) => void
   onClose: () => void
 }) {
   const [calls, setCalls] = useState<CallWithAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [flagging, setFlagging] = useState(false)
   const [dialNumber, setDialNumber] = useState('')
+  // Our outbound numbers + how many calls each has placed today, for the "Call from" picker.
+  const [callerOptions, setCallerOptions] = useState<CallerOption[]>([])
+  const [usedToday, setUsedToday] = useState<Record<string, number>>({})
+  // '' = Auto. Deliberately reset on every open (see the effect below): letting a manual
+  // pick persist is how one number ends up placing the whole day's volume and gets
+  // spam-flagged, which is the problem the rotating pool exists to solve.
+  const [callerNumberId, setCallerNumberId] = useState('')
   // History is reference-only, so it starts collapsed to keep the Call button in view.
   const [showHistory, setShowHistory] = useState(false)
   const supabase = createClient()
@@ -57,13 +83,36 @@ export function PreCallModal({
     ...(altPhones || []).filter(p => p.value?.trim()),
   ]
 
-  // Reset the dial field to the lead's number, and collapse history, each time the modal opens.
+  // Reset the dial field to the lead's number, drop back to the automatic caller ID, and
+  // collapse history, each time the modal opens.
   useEffect(() => {
     if (open) {
       setDialNumber(phone || altPhones?.[0]?.value || '')
+      setCallerNumberId('')
       setShowHistory(false)
     }
   }, [open, phone])
+
+  // Load the caller-ID pool. Refetched per open so today's counts (and any number an
+  // admin just deactivated) are current; a failure is silent and simply leaves the
+  // dropdown on Auto, which is the server's default behaviour anyway.
+  useEffect(() => {
+    if (!open || callType !== 'dialer') return
+    let active = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/dialer/caller-options')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!active) return
+        setCallerOptions((data.numbers || []) as CallerOption[])
+        setUsedToday((data.usedToday || {}) as Record<string, number>)
+      } catch {
+        // Auto-select still works — nothing to tell the agent.
+      }
+    })()
+    return () => { active = false }
+  }, [open, callType])
 
   useEffect(() => {
     if (!open) return
@@ -120,7 +169,8 @@ export function PreCallModal({
     // AI calls dial the lead server-side (leadId only); browser calls use the editable field.
     const number = callType === 'ai' ? (phone || '') : dialNumber.trim()
     if (!number) return
-    onConfirm(number)
+    // '' (Auto) is sent as undefined so the server runs its normal rotation.
+    onConfirm(number, callType === 'dialer' ? callerNumberId || undefined : undefined)
     onClose()
   }
 
@@ -154,6 +204,64 @@ export function PreCallModal({
 
         {/* Scrollable middle so the footer (Call / Do not call) stays pinned and always visible. */}
         <div className="-mx-1 mt-1 flex-1 overflow-y-auto px-1">
+        {callType === 'dialer' && callerOptions.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Call from
+            </p>
+            <select
+              value={callerNumberId}
+              onChange={(e) => setCallerNumberId(e.target.value)}
+              aria-label="Number to call from"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm
+                         font-medium text-slate-100 focus:border-orange-500/60 focus:outline-none"
+            >
+              <option value="">Auto — best available number</option>
+              {callerOptions.map((o) => {
+                const used = usedToday[o.phone_number] || 0
+                const atCap = used >= o.daily_cap
+                return (
+                  <option key={o.id} value={o.id}>
+                    {o.label ? `${o.label} · ` : ''}
+                    {prettyNumber(o.phone_number)}
+                    {` · ${used}/${o.daily_cap} today`}
+                    {atCap ? ' ⚠ at cap' : ''}
+                  </option>
+                )
+              })}
+            </select>
+            {(() => {
+              if (!callerNumberId) {
+                return (
+                  <p className="mt-1.5 text-[10px] text-slate-500">
+                    Rotates across our numbers and prefers the lead&rsquo;s area code.
+                  </p>
+                )
+              }
+              const picked = callerOptions.find((o) => o.id === callerNumberId)
+              if (!picked) return null
+              const used = usedToday[picked.phone_number] || 0
+              // Two distinct warnings, both worth surfacing before the call connects.
+              return (
+                <div className="mt-1.5 space-y-0.5">
+                  {used >= picked.daily_cap && (
+                    <p className="text-[10px] text-amber-400/80">
+                      This number is at its daily cap ({used}/{picked.daily_cap}). Calling anyway
+                      raises the risk it gets flagged as spam.
+                    </p>
+                  )}
+                  {picked.inbound_mode === 'deflect' && (
+                    <p className="text-[10px] text-amber-400/80">
+                      Outbound-only line — if the lead calls back, they hear a redirect message
+                      instead of reaching an agent.
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
         {callType === 'dialer' && (
           <div className="mt-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">

@@ -31,6 +31,11 @@ export interface StartCallArgs {
   phone: string
   leadId?: string
   name?: string
+  /**
+   * caller_numbers id to place the call from ("Call from" in the pre-call modal).
+   * Omit to let the server rotate the pool automatically — the normal case.
+   */
+  callerNumberId?: string
 }
 
 interface DialerContextValue {
@@ -145,7 +150,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   }, [cleanupCall])
 
   const startCall = useCallback(
-    async ({ phone, leadId, name }: StartCallArgs) => {
+    async ({ phone, leadId, name, callerNumberId }: StartCallArgs) => {
       if (state !== 'idle') {
         toast.error('A call is already in progress.')
         return
@@ -161,7 +166,13 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       try {
         const device = await ensureDevice()
         const call = await device.connect({
-          params: { To: phone, leadId: leadId || '' },
+          params: {
+            To: phone,
+            leadId: leadId || '',
+            // Empty string = auto-select. The TwiML route validates this id against the
+            // active pool, so it can't be used to dial from an arbitrary number.
+            callerNumberId: callerNumberId || '',
+          },
         })
         callRef.current = call
 

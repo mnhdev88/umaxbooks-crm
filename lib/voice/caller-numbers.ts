@@ -39,7 +39,7 @@ export interface CallerSelection {
   /** E.164 number to use as the caller ID. */
   from: string
   /** Why this one — logged on the TwiML route, handy when pickup drops. */
-  reason: 'area-match' | 'least-used' | 'all-capped' | 'env-fallback'
+  reason: 'manual' | 'area-match' | 'least-used' | 'all-capped' | 'env-fallback'
 }
 
 /** Area code of a US E.164 number, or null for anything else. Mirrors the generated column in 091. */
@@ -52,10 +52,21 @@ export function areaCodeOf(e164: string): string | null {
  * Pick the caller ID for a call to `toE164`. Uses the service client (this runs from
  * the unauthenticated TwiML webhook, which has no session). Never throws — any
  * failure degrades to the env fallback so a config problem can't kill the dialer.
+ *
+ * `preferredId` is the agent's "Call from" choice in the pre-call modal. It is an id,
+ * never a number: the webhook it arrives on is public (Twilio-signature verified, but
+ * a signed request can be replayed), so accepting a raw From would let a caller ID be
+ * spoofed. Resolving the id against the active pool means the worst a bad value can do
+ * is fall through to the automatic pick.
+ *
+ * A manual pick that is over its daily cap is honoured anyway, matching the automatic
+ * path — a call is never blocked for want of a number, and the modal already warned
+ * the agent the number was at cap.
  */
 export async function selectCallerNumber(
   supabase: SupabaseClient,
-  toE164: string
+  toE164: string,
+  preferredId?: string
 ): Promise<CallerSelection> {
   const envFallback = process.env.TWILIO_CALLER_ID || ''
 
@@ -69,6 +80,15 @@ export async function selectCallerNumber(
 
     const pool = (data || []) as CallerNumber[]
     if (pool.length === 0) return { from: envFallback, reason: 'env-fallback' }
+
+    // Honour the agent's explicit choice, if it still resolves to an active number.
+    // An id that's unknown, or belongs to a number deactivated since the modal loaded,
+    // falls through to the ranking below rather than failing the call.
+    if (preferredId) {
+      const chosen = pool.find((n) => n.id === preferredId)
+      if (chosen) return { from: chosen.phone_number, reason: 'manual' }
+      console.warn('[caller-numbers] requested caller id is not in the active pool, auto-selecting', preferredId)
+    }
 
     // Calls placed on each number so far in the current reporting day. The business
     // day starts at a configurable hour (default 06:00 IST), NOT server midnight, so

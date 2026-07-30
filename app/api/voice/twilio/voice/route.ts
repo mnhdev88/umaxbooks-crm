@@ -29,9 +29,12 @@ export async function POST(req: NextRequest) {
   const VoiceResponse = twilio.twiml.VoiceResponse
   const twiml = new VoiceResponse()
 
-  // The browser sends these via device.connect({ params: { To, leadId } }).
+  // The browser sends these via device.connect({ params: { To, leadId, callerNumberId } }).
   const to = (params.To || params.to || '').trim()
   const leadId = (params.leadId || '').trim()
+  // The agent's "Call from" choice, as a caller_numbers id — resolved against the active
+  // pool server-side. Empty means auto-select. Never a raw number: see selectCallerNumber.
+  const callerNumberId = (params.callerNumberId || '').trim()
   // From a client call this looks like "client:agent_<userId>".
   const agent = (params.From || '').replace(/^client:/, '')
 
@@ -43,9 +46,10 @@ export async function POST(req: NextRequest) {
   const dialTo = toE164US(to)
 
   // Pick the caller ID from the pool (spreads volume so no single number gets spam-
-  // flagged, and prefers one matching the lead's area code). Falls back to
-  // TWILIO_CALLER_ID when the pool is empty. See lib/voice/caller-numbers.ts.
-  const { from: callerId, reason } = await selectCallerNumber(createServiceClient(), dialTo)
+  // flagged, and prefers one matching the lead's area code), unless the agent chose one
+  // in the pre-call modal. Falls back to TWILIO_CALLER_ID when the pool is empty.
+  // See lib/voice/caller-numbers.ts.
+  const { from: callerId, reason } = await selectCallerNumber(createServiceClient(), dialTo, callerNumberId)
   if (!callerId) {
     twiml.say('The dialer is not configured. Please contact an administrator.')
     return xml(twiml)

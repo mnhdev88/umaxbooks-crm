@@ -51,8 +51,8 @@ export function DialButton({
         altPhones={altPhones}
         name={name}
         callType="dialer"
-        onConfirm={(dialNumber) =>
-          dialNumber && startCall({ phone: dialNumber, leadId, name: name || undefined })
+        onConfirm={(dialNumber, callerNumberId) =>
+          dialNumber && startCall({ phone: dialNumber, leadId, name: name || undefined, callerNumberId })
         }
         onClose={() => setOpen(false)}
       />
