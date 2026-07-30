@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { DEFAULT_BUSINESS_HOURS } from '@/lib/business-hours'
+import { DEFAULT_REPORT_TZ } from '@/lib/reporting-day'
 
 // Admin-only read/write of the office's working hours: when a caller reaching one of
 // our inbound lines gets a live ring versus the after-hours voicemail greeting (098).
 // Stored in app_settings; writes go through the service client.
 //
-// The timezone isn't settable here on purpose — it's app_settings.report_timezone,
-// owned by the Reporting Day card, and reused rather than duplicated.
+// The timezone IS settable here (099). It was previously borrowed from the Reporting
+// Day card's report_timezone, until the two had to diverge: reporting stays anchored to
+// Asia/Kolkata so a shift crossing IST midnight stays in one day, while the phones are
+// staffed against US Eastern hours. Saving here writes business_timezone only and
+// leaves report_timezone alone, so the reporting boundary can't be moved by accident.
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -34,7 +38,13 @@ export async function GET() {
   const service = createServiceClient()
   const { data } = await service
     .from('app_settings').select('key, value')
-    .in('key', ['business_open', 'business_close', 'business_days', 'report_timezone'])
+    .in('key', [
+      'business_open',
+      'business_close',
+      'business_days',
+      'business_timezone',
+      'report_timezone',
+    ])
   const map = Object.fromEntries((data ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
 
   return NextResponse.json({
@@ -44,8 +54,9 @@ export async function GET() {
       .split(',')
       .map((d: string) => Number(d.trim()))
       .filter((n: number) => Number.isInteger(n) && n >= 1 && n <= 7),
-    // Read-only here; shown so the admin knows which zone the times are in.
-    timezone: map['report_timezone'] || 'Asia/Kolkata',
+    // Same fallback chain as readBusinessHours, so the card shows the zone the
+    // router will actually use rather than the one that happens to be stored.
+    timezone: map['business_timezone'] || map['report_timezone'] || DEFAULT_REPORT_TZ,
   })
 }
 
@@ -56,6 +67,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const open = String(body?.open ?? '').trim()
   const close = String(body?.close ?? '').trim()
+  const timezone = String(body?.timezone ?? '').trim()
   const days: number[] = Array.isArray(body?.days)
     ? Array.from(
         new Set(
@@ -79,6 +91,16 @@ export async function POST(req: NextRequest) {
   if (!days.length) {
     return NextResponse.json({ error: 'Pick at least one working day.' }, { status: 400 })
   }
+  // Validate against the Intl database, as the Reporting Day route does. A zone the
+  // server can't resolve would make isOpenNow fail open and ring dead phones all night.
+  if (!timezone) {
+    return NextResponse.json({ error: 'Pick a timezone for the working hours.' }, { status: 400 })
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+  } catch {
+    return NextResponse.json({ error: 'Invalid timezone.' }, { status: 400 })
+  }
 
   const service = createServiceClient()
   const { error: dbError } = await service
@@ -87,8 +109,11 @@ export async function POST(req: NextRequest) {
       { key: 'business_open', value: open },
       { key: 'business_close', value: close },
       { key: 'business_days', value: days.join(',') },
+      // business_timezone only — report_timezone stays where the Reporting Day card
+      // put it, so saving working hours can't shift the reporting day boundary.
+      { key: 'business_timezone', value: timezone },
     ], { onConflict: 'key' })
   if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 
-  return NextResponse.json({ open, close, days })
+  return NextResponse.json({ open, close, days, timezone })
 }

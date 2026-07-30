@@ -10,15 +10,19 @@ import { DEFAULT_REPORT_TZ } from './reporting-day'
  * anyone here", in our timezone. The wall-clock maths is the same shape; the meaning
  * and the configuration are not.
  *
- * The timezone comes from app_settings.report_timezone (074) rather than a key of its
- * own — that setting already means "the business's timezone", and a second copy would
- * eventually disagree with the first.
+ * The timezone comes from app_settings.business_timezone (099), falling back to
+ * report_timezone (074) when unset. 098 originally reused report_timezone outright,
+ * on the grounds that a second copy would drift — true only while both meanings named
+ * the same zone. They now differ: the reporting day is anchored to Asia/Kolkata so a
+ * shift crossing IST midnight stays in one day, while the phones are staffed against
+ * US Eastern business hours. The fallback keeps installs that never set the new key on
+ * exactly 098's behaviour.
  */
 
 export const DEFAULT_BUSINESS_HOURS = {
   open: '09:30',
-  close: '18:00',
-  days: [1, 2, 3, 4, 5], // ISO: 1 = Mon … 7 = Sun
+  close: '18:30',
+  days: [1, 2, 3, 4, 5], // ISO: 1 = Mon … 7 = Sun, read in the business timezone
 } as const
 
 export interface BusinessHours {
@@ -49,17 +53,23 @@ function parseDays(s: string | undefined): number[] | null {
   return days.length ? Array.from(new Set(days)).sort() : null
 }
 
+/**
+ * `tz` is the business timezone (099); `reportTz` the reporting-day zone (074) used
+ * as the fallback when the former was never set, so pre-099 installs keep behaving
+ * exactly as 098 left them.
+ */
 export function parseBusinessHours(
   open?: string,
   close?: string,
   days?: string,
-  tz?: string
+  tz?: string,
+  reportTz?: string
 ): BusinessHours {
   return {
     open: parseHM(open || '') !== null ? open!.trim() : DEFAULT_BUSINESS_HOURS.open,
     close: parseHM(close || '') !== null ? close!.trim() : DEFAULT_BUSINESS_HOURS.close,
     days: parseDays(days) ?? [...DEFAULT_BUSINESS_HOURS.days],
-    tz: tz || DEFAULT_REPORT_TZ,
+    tz: tz?.trim() || reportTz?.trim() || DEFAULT_REPORT_TZ,
   }
 }
 
@@ -120,12 +130,19 @@ export async function readBusinessHours(client: SupabaseClient): Promise<Busines
     const { data } = await client
       .from('app_settings')
       .select('key, value')
-      .in('key', ['business_open', 'business_close', 'business_days', 'report_timezone'])
+      .in('key', [
+        'business_open',
+        'business_close',
+        'business_days',
+        'business_timezone',
+        'report_timezone',
+      ])
     const map = Object.fromEntries((data ?? []).map((r: { key: string; value: string }) => [r.key, r.value]))
     return parseBusinessHours(
       map['business_open'],
       map['business_close'],
       map['business_days'],
+      map['business_timezone'],
       map['report_timezone']
     )
   } catch {
