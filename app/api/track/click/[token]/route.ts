@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getRequestOrigin } from '@/lib/request-ip'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -17,13 +18,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     safeUrl = '/'
   }
 
+  const origin = getRequestOrigin(req.headers)
+
   try {
     const supabase = createServiceClient()
     const now = new Date().toISOString()
 
     const { data: send } = await supabase
       .from('email_sends')
-      .select('id, click_count, first_clicked_at')
+      .select('id, lead_id, click_count, first_clicked_at')
       .eq('tracking_token', token)
       .maybeSingle()
 
@@ -36,6 +39,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
           last_clicked_url: safeUrl,
         })
         .eq('id', send.id)
+
+      // Unlike an open, a click is fetched by the recipient's own browser, so this IP
+      // is the real one — no proxy filtering needed and no dedupe (a repeat click is a
+      // genuine repeat visit worth showing on the timeline).
+      await supabase.from('email_engagement_events').insert({
+        token,
+        lead_id: send.lead_id,
+        event_type: 'click',
+        ip: origin.ip,
+        user_agent: origin.userAgent,
+        is_proxy: origin.isProxy,
+        proxy_name: origin.proxyName,
+        clicked_url: safeUrl,
+      })
     }
   } catch {
     // Never block the redirect due to a DB error

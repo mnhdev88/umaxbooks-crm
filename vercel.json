@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/demo-build-stalled",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/resolve-email-geo",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

@@ -98,12 +98,15 @@ export default async function EmailStatusPage() {
     first_opened_at: string | null
     last_opened_at: string | null
     opened_count: number
+    last_open_ip: string | null
+    last_open_location: string | null
+    last_open_is_proxy: boolean | null
   }> = {}
 
   if (tokens.length > 0) {
     const { data: trackingRows } = await supabase
       .from('email_tracking')
-      .select('token, first_opened_at, last_opened_at, opened_count')
+      .select('token, first_opened_at, last_opened_at, opened_count, last_open_ip, last_open_location, last_open_is_proxy')
       .in('token', tokens)
 
     for (const row of (trackingRows || []) as any[]) {

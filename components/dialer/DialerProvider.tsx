@@ -20,9 +20,10 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, PhoneIncoming, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, PhoneIncoming, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 import { LogCallModal } from '@/components/leads/LogCallModal'
+import { createRingtone, ringMuted, setRingMuted } from '@/lib/voice/ringtone'
 
 export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup' | 'incoming'
 
@@ -45,6 +46,10 @@ interface IncomingInfo {
   leadId: string | null
   name: string | null
   phone: string
+  /** Which of our business lines they dialed (caller_numbers.label), for the greeting. */
+  lineName: string | null
+  /** The number they dialed, shown when that line has no label. */
+  toPhone: string | null
 }
 
 const DialerContext = createContext<DialerContextValue | null>(null)
@@ -206,10 +211,15 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       }
 
       const p = call.customParameters
+      const params = call.parameters as Record<string, string> | undefined
       const info: IncomingInfo = {
         leadId: p?.get('leadId') || null,
         name: p?.get('leadName') || null,
-        phone: (call.parameters as Record<string, string> | undefined)?.From || '',
+        phone: params?.From || '',
+        lineName: p?.get('lineName') || null,
+        // On a <Client> leg To is our client identity, not the dialed number, so the
+        // number we fall back to has to come from the server too.
+        toPhone: p?.get('toPhone') || null,
       }
 
       incomingRef.current = call
@@ -523,9 +533,14 @@ function CallWidget({
 }
 
 /**
- * Ringing inbound call. Deliberately loud (pulsing ring, full-width buttons) — it
- * appears while the agent is doing something else and only has ~15 seconds before
- * the call rolls on to the rest of the team.
+ * Ringing inbound call — a centred, full-screen modal with a ringtone.
+ *
+ * Deliberately the loudest surface in the app: it appears while the agent is doing
+ * something else and there are only ~15 seconds before the call rolls on to the rest
+ * of the team. Because the hunt group rings several browsers at once, this can vanish
+ * on its own the moment a colleague answers (the 'cancel' handler in DialerProvider).
+ *
+ * Escape declines, so a misdirected call can be cleared from the keyboard.
  */
 function IncomingCallWidget({
   info,
@@ -536,45 +551,107 @@ function IncomingCallWidget({
   onAccept: () => void
   onReject: () => void
 }) {
+  const [muted, setMuted] = useState(false)
+  const answerRef = useRef<HTMLButtonElement | null>(null)
+  const ringRef = useRef<ReturnType<typeof createRingtone> | null>(null)
+
+  // Ring for as long as this modal is mounted. The ringtone object is per-mount:
+  // an inbound call is rare enough that building one AudioContext per ring is fine,
+  // and it guarantees we never leak a running interval between calls.
+  useEffect(() => {
+    setMuted(ringMuted())
+    const ring = createRingtone()
+    ringRef.current = ring
+    ring.start()
+    return () => {
+      ring.dispose()
+      ringRef.current = null
+    }
+  }, [])
+
+  // Focus Answer so Enter picks up — the agent may be typing when this appears.
+  useEffect(() => {
+    answerRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onReject()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onReject])
+
+  // Muting stops the current ring and persists for future calls in this browser.
+  const toggleRing = useCallback(() => {
+    const next = !muted
+    setMuted(next)
+    setRingMuted(next)
+    if (next) ringRef.current?.stop()
+    else ringRef.current?.start()
+  }, [muted])
+
   return (
     <div
-      role="dialog"
-      aria-label="Incoming call"
-      className="fixed bottom-5 right-5 z-[100] w-72 rounded-2xl border border-emerald-500/40 bg-[#0E0B24] p-4 shadow-2xl shadow-black/40"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      // Backdrop clicks are ignored on purpose: a stray click must never drop a call.
     >
-      <div className="flex items-center gap-3">
-        <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Incoming call"
+        className="w-full max-w-sm rounded-3xl border border-emerald-500/40 bg-[#0E0B24] p-8 text-center shadow-2xl shadow-black/60"
+      >
+        <span className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
           <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
-          <PhoneIncoming size={18} className="relative" />
+          <PhoneIncoming size={32} className="relative" />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-100">
-            {info?.name || info?.phone || 'Unknown caller'}
-          </p>
-          <p className="truncate text-xs text-emerald-300">
-            {info?.name ? info.phone : 'Incoming call'}
-          </p>
+
+        {/* Which line was dialed, as a badge. Sits above the caller because it decides
+            the greeting — the agent reads it first, in the second before answering. */}
+        <p className="mt-5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-500/40
+                      bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+          <PhoneIncoming size={12} className="shrink-0" />
+          <span className="truncate">
+            {info?.lineName || (info?.toPhone ? `Call to ${info.toPhone}` : 'Incoming call')}
+          </span>
+        </p>
+        <p className="mt-2 truncate text-2xl font-bold text-slate-50">
+          {info?.name || info?.phone || 'Unknown caller'}
+        </p>
+        {info?.name ? (
+          <p className="mt-1 truncate text-sm tabular-nums text-slate-400">{info.phone}</p>
+        ) : null}
+        {!info?.leadId && (
+          <p className="mt-2 text-xs text-slate-500">Not matched to a lead in the CRM.</p>
+        )}
+
+        <div className="mt-8 flex items-center gap-3">
+          <button
+            onClick={onReject}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 py-3.5
+                       text-sm font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+          >
+            <PhoneOff size={17} /> Decline
+          </button>
+          <button
+            ref={answerRef}
+            onClick={onAccept}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm
+                       font-semibold text-white transition-colors hover:bg-emerald-500
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2
+                       focus-visible:ring-offset-[#0E0B24]"
+          >
+            <Phone size={17} /> Answer
+          </button>
         </div>
-      </div>
 
-      {!info?.leadId && (
-        <p className="mt-2 text-xs text-slate-500">Not matched to a lead in the CRM.</p>
-      )}
-
-      <div className="mt-4 flex items-center gap-2">
         <button
-          onClick={onReject}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 py-2.5
-                     text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+          onClick={toggleRing}
+          className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
         >
-          <PhoneOff size={15} /> Decline
-        </button>
-        <button
-          onClick={onAccept}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2.5
-                     text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
-        >
-          <Phone size={15} /> Answer
+          {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+          {muted ? 'Ringtone off for this browser' : 'Mute ringtone'}
         </button>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   Search, MailCheck, Mail, RefreshCw, Pen, RotateCcw,
   Building2, User, Calendar, Eye, CheckCircle2, XCircle, AlertTriangle,
   Clock, UserMinus, MousePointerClick, X, CloudDownload,
+  MapPin, ShieldQuestion, Monitor,
 } from 'lucide-react'
 import { ComposeModal } from '@/components/email/ComposeModal'
 
@@ -12,6 +13,23 @@ interface TrackingInfo {
   first_opened_at: string | null
   last_opened_at: string | null
   opened_count: number
+  last_open_ip: string | null
+  last_open_location: string | null
+  last_open_is_proxy: boolean | null
+}
+
+interface EngagementEvent {
+  id: string
+  event_type: 'open' | 'click'
+  ip: string | null
+  user_agent: string | null
+  is_proxy: boolean
+  proxy_name: string | null
+  geo_city: string | null
+  geo_region: string | null
+  geo_country: string | null
+  clicked_url: string | null
+  created_at: string
 }
 
 interface EmailSendRow {
@@ -57,6 +75,163 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: 'spam',         label: 'Spam' },
   { key: 'unsubscribed', label: 'Unsubscribed' },
 ]
+
+// Human label for a mail-provider image proxy.
+const PROXY_LABELS: Record<string, string> = {
+  gmail:              'Gmail proxy',
+  apple:              'Apple Mail Privacy',
+  outlook:            'Outlook proxy',
+  yahoo:              'Yahoo proxy',
+  'security-scanner': 'Security scanner',
+}
+
+/**
+ * Formats a resolved location. Returns null when there is nothing trustworthy to show
+ * so callers can fall back rather than rendering an empty pill.
+ */
+function formatLocation(e: { geo_city: string | null; geo_region: string | null; geo_country: string | null }) {
+  const parts = [e.geo_city, e.geo_region, e.geo_country].filter(Boolean)
+  return parts.length ? parts.join(', ') : null
+}
+
+/**
+ * Location of the most recent open.
+ *
+ * Deliberately three-state. Gmail, Apple Mail Privacy Protection and Outlook fetch the
+ * tracking pixel through their own servers, so the recorded IP is a datacenter and its
+ * city says nothing about the lead. Showing that as a location would have reps reading
+ * "Council Bluffs, Iowa" as fact, so proxied opens render as hidden instead. Clicks are
+ * unaffected — those come from the recipient's real browser.
+ */
+function OpenLocation({ tracking }: { tracking: TrackingInfo | null }) {
+  if (!tracking?.first_opened_at) return <span className="text-slate-600">—</span>
+
+  if (tracking.last_open_is_proxy) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap"
+        title="This email was opened through a mail provider's image proxy, which hides the recipient's real location. Link clicks still show a real location."
+      >
+        <ShieldQuestion className="w-3 h-3 text-slate-500" /> Hidden
+      </span>
+    )
+  }
+
+  if (tracking.last_open_location) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-slate-300 whitespace-nowrap" title={tracking.last_open_ip || undefined}>
+        <MapPin className="w-3 h-3 text-orange-400" /> {tracking.last_open_location}
+      </span>
+    )
+  }
+
+  // Real (non-proxy) IP captured, but geolocation hasn't been resolved yet.
+  if (tracking.last_open_ip) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap font-mono" title="IP captured; location not resolved yet">
+        <MapPin className="w-3 h-3 text-slate-500" /> {tracking.last_open_ip}
+      </span>
+    )
+  }
+
+  return <span className="text-slate-600">—</span>
+}
+
+/** Condense a user agent to something a sales rep can read at a glance. */
+function shortClient(ua: string | null): string | null {
+  if (!ua) return null
+  const browser =
+    /Edg\//.test(ua)     ? 'Edge' :
+    /OPR\//.test(ua)     ? 'Opera' :
+    /Chrome\//.test(ua)  ? 'Chrome' :
+    /Firefox\//.test(ua) ? 'Firefox' :
+    /Safari\//.test(ua)  ? 'Safari' :
+    /Outlook/i.test(ua)  ? 'Outlook' :
+    /Thunderbird/i.test(ua) ? 'Thunderbird' : null
+  const os =
+    /Windows/i.test(ua)          ? 'Windows' :
+    /iPhone|iPad|iOS/i.test(ua)  ? 'iOS' :
+    /Mac OS X|Macintosh/i.test(ua) ? 'macOS' :
+    /Android/i.test(ua)          ? 'Android' :
+    /Linux/i.test(ua)            ? 'Linux' : null
+  const parts = [browser, os].filter(Boolean)
+  return parts.length ? parts.join(' · ') : null
+}
+
+/**
+ * Per-event engagement timeline for the drawer. This is what the counters can't show:
+ * five opens from three different places, and which links were actually clicked.
+ */
+function EngagementTimeline({ events, loading }: { events: EngagementEvent[]; loading: boolean }) {
+  if (loading) {
+    return <p className="text-xs text-slate-500 px-1 py-2">Loading activity…</p>
+  }
+  if (events.length === 0) {
+    return <p className="text-xs text-slate-500 px-1 py-2">No opens or clicks recorded yet.</p>
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {events.map(e => {
+        const isClick  = e.event_type === 'click'
+        const location = formatLocation(e)
+        const client   = shortClient(e.user_agent)
+        return (
+          <li key={e.id} className="flex gap-2 text-xs">
+            <div className="pt-0.5 shrink-0">
+              {isClick
+                ? <MousePointerClick className="w-3.5 h-3.5 text-violet-400" />
+                : <MailCheck className="w-3.5 h-3.5 text-green-400" />}
+            </div>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={isClick ? 'text-violet-300 font-medium' : 'text-green-300 font-medium'}>
+                  {isClick ? 'Clicked' : 'Opened'}
+                </span>
+                <span className="text-slate-500" title={fmtDateTime(e.created_at)}>
+                  {timeAgo(e.created_at)}
+                </span>
+              </div>
+
+              {isClick && e.clicked_url && (
+                <span className="text-slate-400 truncate max-w-[380px]" title={e.clicked_url}>
+                  {e.clicked_url}
+                </span>
+              )}
+
+              {/* Location line. A proxied open is labelled, never geolocated — the IP
+                  belongs to the mail provider, not the lead. */}
+              {e.is_proxy ? (
+                <span className="inline-flex items-center gap-1 text-slate-500">
+                  <ShieldQuestion className="w-3 h-3" />
+                  Location hidden{e.proxy_name ? ` · ${PROXY_LABELS[e.proxy_name] || e.proxy_name}` : ''}
+                </span>
+              ) : location ? (
+                <span className="inline-flex items-center gap-1 text-slate-300">
+                  <MapPin className="w-3 h-3 text-orange-400" />
+                  {location}
+                  {e.ip && <span className="text-slate-600 font-mono">· {e.ip}</span>}
+                </span>
+              ) : e.ip ? (
+                <span className="inline-flex items-center gap-1 text-slate-400 font-mono">
+                  <MapPin className="w-3 h-3 text-slate-500" />
+                  {e.ip}
+                </span>
+              ) : null}
+
+              {client && (
+                <span className="inline-flex items-center gap-1 text-slate-500">
+                  <Monitor className="w-3 h-3" />
+                  {client}
+                </span>
+              )}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 function DeliveryBadge({ status, bounceType }: { status: string; bounceType?: string | null }) {
   if (status === 'delivered') return (
@@ -130,6 +305,8 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
   const [search, setSearch]             = useState('')
   const [tab, setTab]                   = useState<FilterTab>('all')
   const [selectedEmail, setSelectedEmail] = useState<EmailSendRow | null>(null)
+  const [engagement, setEngagement]             = useState<EngagementEvent[]>([])
+  const [engagementLoading, setEngagementLoading] = useState(false)
   const [composeLead, setComposeLead]   = useState<EmailSendRow | null>(null)
   const [resendTarget, setResendTarget] = useState<EmailSendRow | null>(null)
   const [syncing, setSyncing]           = useState(false)
@@ -160,6 +337,31 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  // Load the engagement timeline for whichever email the drawer is showing. Fetched
+  // per-selection instead of with the list: most rows are never opened in the drawer,
+  // and every event for every email would be a large payload for rarely-read detail.
+  useEffect(() => {
+    const token = selectedEmail?.tracking_token
+    if (!token) {
+      setEngagement([])
+      return
+    }
+
+    let cancelled = false
+    setEngagementLoading(true)
+    setEngagement([])
+
+    fetch(`/api/email/engagement/${token}`)
+      .then(res => (res.ok ? res.json() : { events: [] }))
+      .then(data => { if (!cancelled) setEngagement(data.events || []) })
+      .catch(() => { if (!cancelled) setEngagement([]) })
+      .finally(() => { if (!cancelled) setEngagementLoading(false) })
+
+    // Guards against a slow response for a previously-selected email overwriting the
+    // timeline after the user has already clicked a different row.
+    return () => { cancelled = true }
+  }, [selectedEmail?.tracking_token])
 
   const filtered = useMemo(() => {
     let data = initialSends
@@ -309,23 +511,31 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
       {/* Body: table + side drawer */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Table */}
-        <div className="flex-1 overflow-auto">
+        {/* Table. min-w-0 lets this flex child shrink below the table's natural width
+            instead of forcing the whole page wider (which pushed the fixed-height
+            container out of the viewport and left dead space below it). */}
+        <div className="flex-1 min-w-0 overflow-auto">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
               <Mail className="w-10 h-10 opacity-20" />
               <p className="text-sm">No emails found</p>
             </div>
           ) : (
-            <table className="w-full text-sm border-collapse">
+            // table-fixed so the w-[…] column widths act as proportions rather than
+            // minimums. Without it the columns sum to ~1010px and, with the 480px
+            // drawer and 240px sidebar alongside, overflow any screen under ~1730px —
+            // which forced a horizontal scrollbar and pushed the fixed-height
+            // container out of view, leaving blank space below the page.
+            <table className="w-full table-fixed text-sm border-collapse">
               <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
                 <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th scope="col" className="px-4 py-3 w-[220px]">Lead</th>
-                  <th scope="col" className="px-4 py-3 w-[200px]">Subject</th>
-                  <th scope="col" className="px-4 py-3 w-[100px]">Sent By</th>
-                  <th scope="col" className="px-4 py-3 w-[110px]">Sent Date</th>
-                  <th scope="col" className="px-4 py-3 w-[180px]">Status</th>
-                  <th scope="col" className="px-4 py-3 w-[160px]">Actions</th>
+                  <th scope="col" className="px-4 py-3 w-[200px]">Lead</th>
+                  <th scope="col" className="px-4 py-3 w-[180px]">Subject</th>
+                  <th scope="col" className="px-4 py-3 w-[90px]">Sent By</th>
+                  <th scope="col" className="px-4 py-3 w-[100px]">Sent Date</th>
+                  <th scope="col" className="px-4 py-3 w-[170px]">Status</th>
+                  <th scope="col" className="px-4 py-3 w-[120px]">Location</th>
+                  <th scope="col" className="px-4 py-3 w-[150px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -349,21 +559,21 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-1.5 text-slate-200 font-medium">
                             <User size={12} className="text-slate-500 shrink-0" />
-                            <span className="truncate max-w-[180px]">{s.lead?.name || '—'}</span>
+                            <span className="truncate max-w-full">{s.lead?.name || '—'}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-slate-500 text-xs">
                             <Building2 size={11} className="shrink-0" />
-                            <span className="truncate max-w-[180px]">{s.lead?.company_name || '—'}</span>
+                            <span className="truncate max-w-full">{s.lead?.company_name || '—'}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-slate-400 text-xs">
                             <Mail size={11} className="shrink-0" />
-                            <span className="truncate max-w-[180px]">{s.to_email}</span>
+                            <span className="truncate max-w-full">{s.to_email}</span>
                           </div>
                         </div>
                       </td>
 
                       {/* Subject */}
-                      <td className="px-4 py-3 max-w-[200px]">
+                      <td className="px-4 py-3 max-w-[180px]">
                         <span className="text-slate-300 truncate block w-full" title={s.subject}>
                           {s.subject}
                         </span>
@@ -414,6 +624,12 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                         </div>
                       </td>
 
+                      {/* Where the email was opened from. Proxied opens render as
+                          "Hidden" rather than a misleading datacenter city. */}
+                      <td className="px-4 py-3">
+                        <OpenLocation tracking={tracking} />
+                      </td>
+
                       {/* Actions — stop propagation so clicks don't open drawer */}
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
@@ -443,7 +659,9 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
 
         {/* Side drawer — email preview */}
         {selectedEmail && (
-          <div className="w-[480px] shrink-0 border-l border-slate-800 flex flex-col bg-[#0A0820] overflow-hidden">
+          // Caps at 480px but is allowed to shrink to 40% on narrower screens; a fixed
+          // shrink-0 480px pushed the table past the viewport on laptop widths.
+          <div className="w-[480px] max-w-[40%] shrink border-l border-slate-800 flex flex-col bg-[#0A0820] overflow-hidden">
 
             {/* Drawer header: lead info + close */}
             <div className="flex items-start justify-between px-4 py-3 border-b border-slate-800 shrink-0 gap-3">
@@ -508,6 +726,17 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
                   </span>
                 )}
               </div>
+            </div>
+
+            {/* Engagement timeline — per-open/click detail the counters can't show */}
+            <div className="px-4 py-3 border-b border-slate-800 shrink-0 max-h-[220px] overflow-y-auto">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Eye size={12} className="text-slate-500" />
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Engagement Activity
+                </span>
+              </div>
+              <EngagementTimeline events={engagement} loading={engagementLoading} />
             </div>
 
             {/* Email body in iframe */}

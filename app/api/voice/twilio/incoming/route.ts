@@ -27,8 +27,12 @@ const OWNER_TIMEOUT = 15 // seconds to ring the owning agent alone
 const HUNT_TIMEOUT = 20 // seconds to ring everyone else
 const VOICEMAIL_MAX = 120 // seconds of message we'll accept
 
-/** Roles that should be rung on a callback. Admins are excluded — 7 of them, mostly non-calling. */
-const HUNT_ROLES = ['sales_agent', 'sales_manager']
+/**
+ * Roles that should be rung on a callback. Admins are excluded — 7 of them, mostly
+ * non-calling. 'agent' is the legacy spelling of 'sales_agent' and still in use on
+ * older profiles, so both ring; developers and client accounts never do.
+ */
+const HUNT_ROLES = ['agent', 'sales_agent', 'sales_manager']
 
 export async function POST(req: NextRequest) {
   // Shared-secret check, mirroring /status. Signature verification below is the real
@@ -64,7 +68,11 @@ export async function POST(req: NextRequest) {
 
   // ── Stage 1: entry. Identify the caller and ring whoever owns them. ────────
   if (stage === 'owner') {
-    const { leadId, leadName, ownerUserId } = await identifyCaller(supabase, from)
+    // Both reads are independent and the caller is on the line — run them together.
+    const [{ leadId, leadName, ownerUserId }, lineName] = await Promise.all([
+      identifyCaller(supabase, from),
+      lineNameFor(supabase, to),
+    ])
 
     // Log the inbound call up front so an abandoned call (hung up while ringing)
     // is still recorded — the status webhook only fires for legs that were dialed.
@@ -98,12 +106,12 @@ export async function POST(req: NextRequest) {
         action: next('hunt', { leadId, owner: ownerUserId }),
         method: 'POST',
       })
-      addClient(dial, clientIdentityForUser(ownerUserId), leadId, leadName)
+      addClient(dial, clientIdentityForUser(ownerUserId), leadId, leadName, { name: lineName, to })
       return xml(twiml)
     }
 
     // Nobody owns this caller (unknown number, or the owner has left) — go wide.
-    return huntTwiml(twiml, supabase, { leadId, leadName, excludeUserId: null })
+    return huntTwiml(twiml, supabase, { leadId, leadName, lineName, to, excludeUserId: null })
   }
 
   // ── Stage 2: the owner didn't answer. Ring everyone else. ──────────────────
@@ -117,8 +125,11 @@ export async function POST(req: NextRequest) {
       return xml(twiml)
     }
 
-    const leadName = await leadNameFor(supabase, leadId)
-    return huntTwiml(twiml, supabase, { leadId, leadName, excludeUserId: owner })
+    const [leadName, lineName] = await Promise.all([
+      leadNameFor(supabase, leadId),
+      lineNameFor(supabase, to),
+    ])
+    return huntTwiml(twiml, supabase, { leadId, leadName, lineName, to, excludeUserId: owner })
   }
 
   // ── Stage 3: nobody answered. Take a message. ─────────────────────────────
@@ -198,17 +209,47 @@ function cb(route: string, ctx: Record<string, string | null>): string {
 /**
  * Add a <Client> to a <Dial>, passing lead context as custom parameters so the
  * browser can show who's calling before the agent answers.
+ *
+ * lineName is which of our business lines was dialed — the agent needs it to pick a
+ * greeting, and it has to arrive before they answer, so it rides along here rather
+ * than being fetched by the browser.
  */
 function addClient(
   dial: ReturnType<twilio.twiml.VoiceResponse['dial']>,
   identity: string,
   leadId: string | null,
-  leadName: string | null
+  leadName: string | null,
+  line: { name: string | null; to: string }
 ) {
   const client = dial.client()
   client.identity(identity)
   if (leadId) client.parameter({ name: 'leadId', value: leadId })
   if (leadName) client.parameter({ name: 'leadName', value: leadName })
+  if (line.name) client.parameter({ name: 'lineName', value: line.name })
+  // On the browser's leg, `To` is the client identity — the dialed number isn't
+  // otherwise recoverable, so send it for the unlabelled-line fallback.
+  if (line.to) client.parameter({ name: 'toPhone', value: line.to })
+}
+
+/**
+ * Friendly name for one of our numbers, from caller_numbers.label (097).
+ *
+ * Looked up per stage rather than threaded through the ?stage= chain: `To` is present
+ * on every Twilio callback, so a fresh read is one indexed lookup and can't drift out
+ * of sync with the query string. Returns null for an unlabelled or unknown number and
+ * the popup falls back to the number itself.
+ */
+async function lineNameFor(
+  supabase: ReturnType<typeof createServiceClient>,
+  to: string
+): Promise<string | null> {
+  if (!to) return null
+  const { data } = await supabase
+    .from('caller_numbers')
+    .select('label')
+    .eq('phone_number', to)
+    .maybeSingle()
+  return data?.label ?? null
 }
 
 /**
@@ -267,7 +308,13 @@ async function leadNameFor(
 async function huntTwiml(
   twiml: twilio.twiml.VoiceResponse,
   supabase: ReturnType<typeof createServiceClient>,
-  opts: { leadId: string | null; leadName: string | null; excludeUserId: string | null }
+  opts: {
+    leadId: string | null
+    leadName: string | null
+    lineName: string | null
+    to: string
+    excludeUserId: string | null
+  }
 ): Promise<NextResponse> {
   const { data: staff } = await supabase.from('profiles').select('id').in('role', HUNT_ROLES)
 
@@ -290,7 +337,12 @@ async function huntTwiml(
     method: 'POST',
   })
   // Multiple <Client> nouns in one <Dial> ring simultaneously; first to answer wins.
-  for (const id of ids) addClient(dial, clientIdentityForUser(id), opts.leadId, opts.leadName)
+  for (const id of ids) {
+    addClient(dial, clientIdentityForUser(id), opts.leadId, opts.leadName, {
+      name: opts.lineName,
+      to: opts.to,
+    })
+  }
 
   return xml(twiml)
 }
