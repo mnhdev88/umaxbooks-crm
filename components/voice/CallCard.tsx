@@ -96,12 +96,20 @@ function fmtDuration(call: VoiceCall): string | null {
   return null
 }
 
-/** How an inbound call ended (migration 092). Green where we actually spoke to them. */
+/**
+ * How an inbound call ended (migration 092). Green where we actually spoke to them.
+ *
+ * The '-closed' variants (098) are calls that arrived outside working hours and went
+ * straight to the recorder. They're amber, not red: nobody missed anything, so they
+ * shouldn't read as a failure on the agent's timeline.
+ */
 const INBOUND_STYLE: Record<string, { label: string; cls: string }> = {
-  'answered-owner': { label: 'Answered',        cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
-  'answered-hunt':  { label: 'Answered by team', cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
-  voicemail:        { label: 'Left voicemail',   cls: 'bg-sky-900/30 text-sky-400 border-sky-800/40' },
-  abandoned:        { label: 'Missed',           cls: 'bg-red-900/30 text-red-400 border-red-800/40' },
+  'answered-owner':    { label: 'Answered',         cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
+  'answered-hunt':     { label: 'Answered by team', cls: 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40' },
+  voicemail:           { label: 'Left voicemail',   cls: 'bg-sky-900/30 text-sky-400 border-sky-800/40' },
+  abandoned:           { label: 'Missed',           cls: 'bg-red-900/30 text-red-400 border-red-800/40' },
+  'voicemail-closed':  { label: 'Voicemail (after hours)', cls: 'bg-amber-900/30 text-amber-400 border-amber-800/40' },
+  'abandoned-closed':  { label: 'After hours',      cls: 'bg-amber-900/30 text-amber-400 border-amber-800/40' },
 }
 
 function InboundBadge({ outcome }: { outcome: string | null }) {

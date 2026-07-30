@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { createServiceClient } from '@/lib/supabase/service'
 import { verifyTwilioRequest, clientIdentityForUser } from '@/lib/voice/twilio'
+import { readBusinessHours, isOpenNow } from '@/lib/business-hours'
 
 /**
  * POST /api/voice/twilio/incoming — a lead is calling one of our pool numbers back.
@@ -68,10 +69,11 @@ export async function POST(req: NextRequest) {
 
   // ── Stage 1: entry. Identify the caller and ring whoever owns them. ────────
   if (stage === 'owner') {
-    // Both reads are independent and the caller is on the line — run them together.
-    const [{ leadId, leadName, ownerUserId }, lineName] = await Promise.all([
+    // All three reads are independent and the caller is on the line — run together.
+    const [{ leadId, leadName, ownerUserId }, lineName, hours] = await Promise.all([
       identifyCaller(supabase, from),
       lineNameFor(supabase, to),
+      readBusinessHours(supabase),
     ])
 
     // Log the inbound call up front so an abandoned call (hung up while ringing)
@@ -94,7 +96,22 @@ export async function POST(req: NextRequest) {
     // explicit error line to make that traceable.
     if (logError) console.error('[voice/twilio/incoming] could not log inbound call', callSid, logError)
 
-    console.log('[voice/twilio/incoming]', { callSid, from, to, leadId, ownerUserId })
+    // Outside working hours nobody is at a desk, so ringing the owner for 15s and
+    // then the whole team for 20s just burns 35 seconds of the caller's patience
+    // before the beep — most hang up first, leaving an 'abandoned' row and no way to
+    // call back. Skip straight to the recorder with a greeting that says we're shut.
+    const open = isOpenNow(hours, new Date())
+    console.log('[voice/twilio/incoming]', { callSid, from, to, leadId, ownerUserId, open })
+
+    if (!open) {
+      recordVoicemail(twiml, {
+        leadId,
+        owner: ownerUserId,
+        greeting: `Thanks for calling ${lineName || 'us'}. Our office is closed at the moment. Please leave a message after the tone and we will call you back on the next working day.`,
+        closed: true,
+      })
+      return xml(twiml)
+    }
 
     if (ownerUserId) {
       const dial = twiml.dial({
@@ -142,21 +159,18 @@ export async function POST(req: NextRequest) {
       return xml(twiml)
     }
 
-    twiml.say(
-      { voice: 'Polly.Joanna' },
-      'Sorry, no one is available to take your call right now. Please leave a message after the tone and we will call you straight back.'
-    )
-    twiml.record({
-      maxLength: VOICEMAIL_MAX,
-      playBeep: true,
-      trim: 'trim-silence',
-      recordingStatusCallback: cb('status', { kind: 'recording', leadId }),
-      recordingStatusCallbackEvent: ['completed'],
-      action: next('voicemail-done', { leadId, owner }),
-      method: 'POST',
+    // 'closed' is set by the entry stage when we skipped ringing entirely, so the
+    // caller hears "we're closed" rather than "nobody is available" — the latter
+    // sounds like the team ignored them.
+    const closed = req.nextUrl.searchParams.get('closed') === '1'
+    recordVoicemail(twiml, {
+      leadId,
+      owner,
+      greeting: closed
+        ? `Thanks for calling ${await lineNameFor(supabase, to) || 'us'}. Our office is closed at the moment. Please leave a message after the tone and we will call you back on the next working day.`
+        : 'Sorry, no one is available to take your call right now. Please leave a message after the tone and we will call you straight back.',
+      closed,
     })
-    // Reached only if the caller hangs up without recording.
-    twiml.hangup()
     return xml(twiml)
   }
 
@@ -164,9 +178,17 @@ export async function POST(req: NextRequest) {
   if (stage === 'voicemail-done') {
     const leadId = req.nextUrl.searchParams.get('leadId') || null
     const owner = req.nextUrl.searchParams.get('owner') || null
+    const closed = req.nextUrl.searchParams.get('closed') === '1'
 
-    await markOutcome(supabase, callSid, 'voicemail', owner)
-    await notifyMissed(supabase, { leadId, owner, from, voicemail: true })
+    // RecordingDuration is absent/0 when the caller hung up at the beep — that's not
+    // a voicemail, and marking it as one would leave an agent chasing silence.
+    const left = Number(params.RecordingDuration || '0') > 0
+    const base = left ? 'voicemail' : 'abandoned'
+
+    await markOutcome(supabase, callSid, closed ? `${base}-closed` : base, owner)
+    if (left) {
+      await notifyMissed(supabase, { leadId, owner, from, voicemail: true, closed })
+    }
 
     twiml.say({ voice: 'Polly.Joanna' }, 'Thanks. We will be in touch shortly. Goodbye.')
     twiml.hangup()
@@ -229,6 +251,33 @@ function addClient(
   // On the browser's leg, `To` is the client identity — the dialed number isn't
   // otherwise recoverable, so send it for the unlabelled-line fallback.
   if (line.to) client.parameter({ name: 'toPhone', value: line.to })
+}
+
+/**
+ * Speak a greeting and record a message. Shared by the after-hours path (which skips
+ * ringing entirely) and the rang-out path, so both produce an identical recording +
+ * transcription + notification chain.
+ */
+function recordVoicemail(
+  twiml: twilio.twiml.VoiceResponse,
+  opts: { leadId: string | null; owner: string | null; greeting: string; closed: boolean }
+) {
+  twiml.say({ voice: 'Polly.Joanna' }, opts.greeting)
+  twiml.record({
+    maxLength: VOICEMAIL_MAX,
+    playBeep: true,
+    trim: 'trim-silence',
+    recordingStatusCallback: cb('status', { kind: 'recording', leadId: opts.leadId }),
+    recordingStatusCallbackEvent: ['completed'],
+    action: next('voicemail-done', {
+      leadId: opts.leadId,
+      owner: opts.owner,
+      closed: opts.closed ? '1' : null,
+    }),
+    method: 'POST',
+  })
+  // Reached only if the caller hangs up without recording.
+  twiml.hangup()
 }
 
 /**
@@ -352,6 +401,8 @@ const OUTCOME_LABEL: Record<string, string> = {
   'answered-hunt': 'Answered by the team.',
   voicemail: 'Nobody answered — the caller left a voicemail.',
   abandoned: 'Nobody answered — the caller hung up before voicemail.',
+  'voicemail-closed': 'Called outside working hours and left a voicemail.',
+  'abandoned-closed': 'Called outside working hours and hung up without leaving a message.',
 }
 
 /**
@@ -399,20 +450,42 @@ async function markOutcome(
  */
 async function notifyMissed(
   supabase: ReturnType<typeof createServiceClient>,
-  opts: { leadId: string | null; owner: string | null; from: string; voicemail: boolean }
+  opts: {
+    leadId: string | null
+    owner: string | null
+    from: string
+    voicemail: boolean
+    closed?: boolean
+  }
 ) {
-  if (!opts.owner) return
   const name = await leadNameFor(supabase, opts.leadId)
   const who = name || opts.from || 'An unknown number'
-  const { error } = await supabase.from('notifications').insert({
-    user_id: opts.owner,
-    lead_id: opts.leadId,
-    title: opts.voicemail ? 'Voicemail from a lead' : 'Missed callback',
-    message: opts.voicemail
-      ? `${who} called back and left a voicemail.`
-      : `${who} called back but nobody answered.`,
-    type: 'warning',
-  })
+
+  // Normally only the owning agent is told. But an after-hours voicemail often has no
+  // owner at all (a brand-new caller at 10pm), and a message nobody is notified about
+  // is a lost lead — so fall back to the whole hunt group rather than dropping it.
+  let recipients: string[] = opts.owner ? [opts.owner] : []
+  if (!recipients.length && opts.voicemail) {
+    const { data: staff } = await supabase.from('profiles').select('id').in('role', HUNT_ROLES)
+    recipients = (staff || []).map((s: { id: string }) => s.id)
+  }
+  if (!recipients.length) return
+
+  const message = opts.voicemail
+    ? opts.closed
+      ? `${who} called outside working hours and left a voicemail.`
+      : `${who} called back and left a voicemail.`
+    : `${who} called back but nobody answered.`
+
+  const { error } = await supabase.from('notifications').insert(
+    recipients.map((user_id) => ({
+      user_id,
+      lead_id: opts.leadId,
+      title: opts.voicemail ? 'Voicemail from a lead' : 'Missed callback',
+      message,
+      type: 'warning',
+    }))
+  )
   if (error) console.error('[voice/twilio/incoming] notify failed', error)
 }
 
