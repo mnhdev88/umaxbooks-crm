@@ -320,7 +320,7 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                 <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium', STATUS_CLS[selectedLead.status] || 'bg-slate-700 text-slate-400')}>
                   {selectedLead.status}
                 </span>
-                <Link href={`/leads/${selectedLead.id}`}
+                <Link href={`/leads/${selectedLead.id}`} target="_blank" rel="noreferrer"
                   className="flex items-center gap-1 text-xs text-slate-400 hover:text-orange-400 border border-slate-700 hover:border-orange-700 rounded-lg px-2.5 py-1.5 transition-colors">
                   Open Lead <ExternalLink size={11} />
                 </Link>

@@ -28,6 +28,22 @@ function Field({ label, value, mono = false }: { label: string; value?: string |
   )
 }
 
+function LinkField({ label, url, icon: Icon }: { label: string; url?: string | null; icon: typeof MapPin }) {
+  if (!url) return null
+  const href = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  return (
+    <div className="col-span-2 min-w-0">
+      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+      <a href={href} target="_blank" rel="noreferrer"
+        className="text-sm text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1.5 max-w-full">
+        <Icon size={12} className="text-green-400 flex-shrink-0" />
+        <span className="truncate">{url.replace(/^https?:\/\//i, '')}</span>
+        <ExternalLink size={11} className="flex-shrink-0 opacity-70" />
+      </a>
+    </div>
+  )
+}
+
 export function DevBriefTab({ lead }: DevBriefTabProps) {
   const audit = lead.audits?.[0]
   const appointment = lead.appointments?.[0]
@@ -108,7 +124,7 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
           <Field label="Phone" value={lead.phone} />
           <Field label="Email" value={lead.email} />
           <Field label="WhatsApp" value={lead.whatsapp_number} />
-          <Field label="Website" value={lead.website_url} />
+          <LinkField label="Website" url={lead.website_url} icon={Globe} />
           <Field label="Website Status" value={lead.website_status} />
           <Field label="City" value={lead.city} />
           <Field label="Country" value={lead.country} />
@@ -119,10 +135,11 @@ export function DevBriefTab({ lead }: DevBriefTabProps) {
         </div>
 
         {/* GMB info */}
-        {(lead.gmb_url || lead.gmb_review_rating) && (
+        {(lead.gmb_url || lead.gmb_review_rating || lead.gmb_category || lead.gmb_last_seen || lead.competitor_count != null) && (
           <div className="mt-4 pt-4 border-t border-slate-800">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">GMB Info</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <LinkField label="GMB Profile URL" url={lead.gmb_url} icon={MapPin} />
               <Field label="GMB Category" value={lead.gmb_category} />
               {lead.gmb_review_rating && (
                 <div>
