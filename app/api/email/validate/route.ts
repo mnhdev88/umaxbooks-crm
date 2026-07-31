@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
+
+// ZeroBounce status → the same verdict vocabulary the frontend already renders.
+// "valid" -> Valid, "invalid"/"spamtrap"/"abuse"/"do_not_mail" -> Invalid, everything else (catch-all/unknown) -> Risky.
+function verdictFromStatus(status: string): 'Valid' | 'Risky' | 'Invalid' {
+  if (status === 'valid') return 'Valid'
+  if (['invalid', 'spamtrap', 'abuse', 'do_not_mail'].includes(status)) return 'Invalid'
+  return 'Risky'
+}
+
+function scoreFromStatus(status: string): number {
+  if (status === 'valid') return 1
+  if (['invalid', 'spamtrap', 'abuse', 'do_not_mail'].includes(status)) return 0
+  return 0.5
+}
 
 export async function POST(req: NextRequest) {
   // Auth check
@@ -11,61 +24,56 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json()
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
-  // Get SendGrid API key — prefer dedicated validation key, fall back to send key
-  let apiKey = process.env.SENDGRID_VALIDATION_KEY || ''
-
+  const apiKey = process.env.ZEROBOUNCE_API_KEY || ''
   if (!apiKey) {
-    const service = createServiceClient()
-    const { data: provider } = await service
-      .from('email_providers')
-      .select('password')
-      .eq('provider', 'sendgrid')
-      .eq('is_active', true)
-      .single()
-
-    apiKey = provider?.password || ''
+    return NextResponse.json({ error: 'No ZeroBounce API key configured.' }, { status: 400 })
   }
 
-  if (!apiKey) {
-    return NextResponse.json({ error: 'No SendGrid API key configured.' }, { status: 400 })
-  }
+  const url = new URL('https://api.zerobounce.net/v2/validate')
+  url.searchParams.set('api_key', apiKey)
+  url.searchParams.set('email', email.trim())
+  url.searchParams.set('ip_address', '')
 
-  const res = await fetch('https://api.sendgrid.com/v3/validations/email', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email: email.trim(), source: 'crm' }),
-  })
+  const res = await fetch(url.toString())
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    const msg = (err as any)?.errors?.[0]?.message || res.statusText || 'Validation failed'
-    console.error('[email/validate] SendGrid error', res.status, msg, 'key prefix:', apiKey.slice(0, 12))
+    const msg = (err as any)?.error || res.statusText || 'Validation failed'
+    console.error('[email/validate] ZeroBounce error', res.status, msg)
 
-    if (res.status === 403 || res.status === 401) {
+    if (res.status === 401) {
       return NextResponse.json({
-        error: `SendGrid auth error (${res.status}): ${msg}. Check the API key has Email Address Validation permission.`,
+        error: `ZeroBounce auth error (${res.status}): ${msg}. Check ZEROBOUNCE_API_KEY.`,
       }, { status: 402 })
     }
     return NextResponse.json({ error: `${res.status}: ${msg}` }, { status: 500 })
   }
 
   const data = await res.json()
-  const result = data?.result
+  if (data?.error) {
+    const msg = String(data.error)
+    const isAuthError = /key/i.test(msg) && /invalid|inactive/i.test(msg)
+    return NextResponse.json(
+      { error: isAuthError ? `ZeroBounce auth error: ${msg}. Check ZEROBOUNCE_API_KEY.` : msg },
+      { status: isAuthError ? 402 : 500 }
+    )
+  }
+
+  const status = data?.status as string // valid | invalid | catch-all | unknown | spamtrap | abuse | do_not_mail
+  const subStatus = data?.sub_status as string // e.g. disposable | role_based | mailbox_not_found | ...
+  const verdict = verdictFromStatus(status)
 
   return NextResponse.json({
-    verdict:    result?.verdict,          // "Valid" | "Risky" | "Invalid"
-    score:      result?.score,            // 0–1 confidence
-    suggestion: result?.suggestion,       // e.g. "did you mean @gmail.com?"
+    verdict,
+    score: scoreFromStatus(status),
+    suggestion: data?.did_you_mean || null,
     checks: {
-      hasValidSyntax:       result?.checks?.domain?.has_valid_address_syntax,
-      hasMxRecord:          result?.checks?.domain?.has_mx_or_a_record,
-      isDisposable:         result?.checks?.domain?.is_suspected_disposable_address,
-      isRoleAddress:        result?.checks?.local_part?.is_suspected_role_address,
-      hasKnownBounces:      result?.checks?.additional?.has_known_bounces,
-      hasSuspectedBounces:  result?.checks?.additional?.has_suspected_bounces,
+      hasValidSyntax:      status !== 'invalid' || subStatus !== 'failed_syntax_check',
+      hasMxRecord:         !!data?.mx_found,
+      isDisposable:        subStatus === 'disposable',
+      isRoleAddress:       subStatus === 'role_based',
+      hasKnownBounces:     status === 'invalid',
+      hasSuspectedBounces: status === 'unknown',
     },
   })
 }

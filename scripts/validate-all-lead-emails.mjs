@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Backfill SendGrid email-validation verdicts for existing leads.
+ * Backfill ZeroBounce email-validation verdicts for existing leads.
  *
  * Requires migration 047_lead_email_validation.sql to be applied first.
  *
@@ -13,7 +13,7 @@
  *   node scripts/validate-all-lead-emails.mjs --run --concurrency 4 --rate 0.0089
  *
  * Env (read from .env.local automatically):
- *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SENDGRID_VALIDATION_KEY
+ *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ZEROBOUNCE_API_KEY
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -44,12 +44,12 @@ const RUN          = has('--run')
 const ALL          = has('--all')
 const LIMIT        = parseInt(valOf('--limit', '0'), 10) || 0
 const CONCURRENCY  = Math.max(1, parseInt(valOf('--concurrency', '5'), 10) || 5)
-const RATE         = parseFloat(valOf('--rate', '0.0089'))   // $ per validation — APPROX, check your SendGrid plan
+const RATE         = parseFloat(valOf('--rate', '0.007'))    // $ per validation — APPROX, check your ZeroBounce plan
 const BATCH_DELAY  = 250 // ms between batches, to stay friendly with rate limits
 
 const url        = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-let   sgKey      = process.env.SENDGRID_VALIDATION_KEY || ''
+let   zbKey      = process.env.ZEROBOUNCE_API_KEY || ''
 
 if (!url || !serviceKey) {
   console.error('❌ Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (.env.local)')
@@ -88,16 +88,16 @@ async function fetchAllLeadsWithEmail() {
   return rows
 }
 
-// ── Resolve SendGrid key (fall back to active DB provider, like the API route) ─
-async function ensureSendgridKey() {
-  if (sgKey) return
-  const { data } = await supabase
-    .from('email_providers')
-    .select('password')
-    .eq('provider', 'sendgrid')
-    .eq('is_active', true)
-    .single()
-  sgKey = data?.password || ''
+function verdictFromStatus(status) {
+  if (status === 'valid') return 'Valid'
+  if (['invalid', 'spamtrap', 'abuse', 'do_not_mail'].includes(status)) return 'Invalid'
+  return 'Risky'
+}
+
+function scoreFromStatus(status) {
+  if (status === 'valid') return 1
+  if (['invalid', 'spamtrap', 'abuse', 'do_not_mail'].includes(status)) return 0
+  return 0.5
 }
 
 async function validateOne(email) {
@@ -105,19 +105,20 @@ async function validateOne(email) {
   if (!EMAIL_RE.test(email)) {
     return { verdict: 'Invalid', score: 0, local: true }
   }
-  const res = await fetch('https://api.sendgrid.com/v3/validations/email', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${sgKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, source: 'crmbackfill' }),
-  })
+  const url = new URL('https://api.zerobounce.net/v2/validate')
+  url.searchParams.set('api_key', zbKey)
+  url.searchParams.set('email', email)
+  url.searchParams.set('ip_address', '')
+
+  const res = await fetch(url.toString())
   if (res.status === 429) return { rateLimited: true }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    return { error: err?.errors?.[0]?.message || `${res.status} ${res.statusText}` }
+    return { error: err?.error || `${res.status} ${res.statusText}` }
   }
   const data = await res.json()
-  const r = data?.result
-  return { verdict: r?.verdict, score: r?.score ?? null }
+  if (data?.error) return { error: data.error }
+  return { verdict: verdictFromStatus(data?.status), score: scoreFromStatus(data?.status) }
 }
 
 ;(async () => {
@@ -136,7 +137,7 @@ async function validateOne(email) {
   console.log(`  Leads with an email address : ${withEmail}`)
   console.log(`  Already have a verdict       : ${alreadyDone.length}`)
   console.log(`  Malformed (free, local only) : ${malformed.length}`)
-  console.log(`  Will validate this run       : ${todo.length}  (${billable} billable SendGrid calls)`)
+  console.log(`  Will validate this run       : ${todo.length}  (${billable} billable ZeroBounce calls)`)
   console.log(`  Estimated cost               : ~$${estCost}  (@ $${RATE}/call — verify against your plan)\n`)
 
   if (!RUN) {
@@ -146,8 +147,7 @@ async function validateOne(email) {
     process.exit(0)
   }
 
-  await ensureSendgridKey()
-  if (!sgKey) { console.error('❌ No SendGrid validation key (SENDGRID_VALIDATION_KEY or active sendgrid provider).'); process.exit(1) }
+  if (!zbKey) { console.error('❌ No ZeroBounce API key (set ZEROBOUNCE_API_KEY in .env.local).'); process.exit(1) }
 
   const tally = { Valid: 0, Risky: 0, Invalid: 0, error: 0 }
   let done = 0
