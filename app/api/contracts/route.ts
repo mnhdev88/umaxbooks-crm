@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { buildInstallmentPlan } from '@/lib/contract-plan'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -32,6 +33,31 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { lead_id, ...fields } = body
+
+  // Rebuild the installment plan server-side from the three inputs. The browser's
+  // derived numbers are never trusted — this is the amount the client will be
+  // asked to agree to, and it's frozen into payment_schedule so a later change to
+  // the maths can't retroactively alter a signed agreement.
+  if (fields.payment_type === 'Installment') {
+    const plan = buildInstallmentPlan({
+      total:     Number(fields.total_amount),
+      down:      Number(fields.down_payment) || 0,
+      months:    Number(fields.installment_count),
+      startDate: fields.start_date,
+    })
+    if (plan.error) return NextResponse.json({ error: plan.error }, { status: 400 })
+    fields.down_payment             = plan.down
+    fields.installment_count        = plan.months
+    fields.installment_amount       = plan.monthly
+    fields.final_installment_amount = plan.finalMonthly
+    fields.payment_schedule         = plan.schedule
+  } else {
+    fields.down_payment             = null
+    fields.installment_count        = null
+    fields.installment_amount       = null
+    fields.final_installment_amount = null
+    fields.payment_schedule         = null
+  }
 
   const service = createServiceClient()
   const { data: contract, error } = await service

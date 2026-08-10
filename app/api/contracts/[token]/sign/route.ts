@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/service'
+import { readSchedule, round2 } from '@/lib/contract-plan'
 
 const IPINFO_TOKEN = 'cc7528fe4ebae3'
 
@@ -72,6 +73,25 @@ export async function POST(
     client_meta, // { timezone, screen, language, browser, signed_at_utc }
   } = body
 
+  // When the rep set the terms (a one-time amount, or an installment plan), the
+  // recorded breakdown comes from the contract — not from whatever the browser
+  // posted. Older agreements have neither, and keep the client-entered figures.
+  const schedule    = readSchedule(contract.payment_schedule)
+  const totalAmount = Number(contract.total_amount) || 0
+  let firstAmount:       number | null = first_payment       || null
+  let installmentAmount: number | null = installment_payment || null
+  let balanceAmount:     number | null = balance_payment     || null
+
+  if (schedule.length > 0) {
+    firstAmount       = round2(Number(schedule[0].amount) || 0)
+    installmentAmount = contract.installment_amount != null ? round2(Number(contract.installment_amount)) : null
+    balanceAmount     = round2(totalAmount - firstAmount)
+  } else if (contract.payment_type === 'One-Time') {
+    firstAmount       = totalAmount || null
+    installmentAmount = null
+    balanceAmount     = null
+  }
+
   const clientIp  = extractIp(req)
   const userAgent = req.headers.get('user-agent') || ''
   const acceptLang = req.headers.get('accept-language') || ''
@@ -120,9 +140,9 @@ export async function POST(
     service.from('contracts').update({
       status: 'signed',
       name_on_card, card_type, card_last_4,
-      first_payment:       first_payment       || null,
-      installment_payment: installment_payment || null,
-      balance_payment:     balance_payment     || null,
+      first_payment:       firstAmount,
+      installment_payment: installmentAmount,
+      balance_payment:     balanceAmount,
       client_full_name, client_sign_date, client_signature,
       client_ip:        clientIp,
       signing_metadata,

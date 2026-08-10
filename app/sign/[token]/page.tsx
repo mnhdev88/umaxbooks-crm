@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { SigningForm } from './SigningForm'
+import { readSchedule, prettyDate, usd } from '@/lib/contract-plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,24 @@ export default async function SigningPage({ params }: PageProps) {
                 </tbody>
               </table>
             </div>
+
+            {/* Agreed payment schedule */}
+            {readSchedule(contract.payment_schedule).length > 0 && (
+              <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '20px 24px', marginBottom: '24px' }}>
+                <p style={{ fontSize: '11px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: '14px' }}>Payment Schedule</p>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <tbody>
+                    {readSchedule(contract.payment_schedule).map((row, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: '5px 0', color: '#374151' }}>{row.label}</td>
+                        <td style={{ padding: '5px 0', color: '#9ca3af', whiteSpace: 'nowrap' }}>{prettyDate(row.due_date)}</td>
+                        <td style={{ padding: '5px 0', color: '#111', fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>{usd(Number(row.amount))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Download / view buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

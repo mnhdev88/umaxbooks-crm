@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { getPortalLeadId } from '@/lib/portal-context'
+import { readSchedule, prettyDate, usd } from '@/lib/contract-plan'
 
 export default async function PortalContractPage() {
   const supabase = await createClient()
@@ -24,7 +25,7 @@ export default async function PortalContractPage() {
 
   const [{ data: contract }, { data: deal }] = await Promise.all([
     supabase.from('contracts')
-      .select('business_name, contact_person, package, project_name, start_date, delivery_timeline, total_amount, payment_type, signed_at, signed_pdf_url, status, first_payment, installment_payment, balance_payment')
+      .select('business_name, contact_person, package, project_name, start_date, delivery_timeline, total_amount, payment_type, signed_at, signed_pdf_url, status, first_payment, installment_payment, balance_payment, down_payment, installment_count, installment_amount, payment_schedule')
       .eq('lead_id', leadId)
       .eq('status', 'signed')
       .maybeSingle(),
@@ -33,6 +34,8 @@ export default async function PortalContractPage() {
       .eq('lead_id', leadId)
       .maybeSingle(),
   ])
+
+  const schedule = readSchedule(contract?.payment_schedule)
 
   return (
     <div className="p-8 max-w-3xl space-y-5">
@@ -98,8 +101,36 @@ export default async function PortalContractPage() {
               )}
             </dl>
 
+            {/* Dated installment schedule, when the agreement carries a plan */}
+            {schedule.length > 0 && (
+              <div className="border-t border-slate-700 pt-4 mb-5">
+                <div className="flex items-baseline gap-2 flex-wrap mb-3">
+                  <p className="text-xs text-slate-500">Payment Schedule</p>
+                  {contract.installment_amount != null && (
+                    <p className="text-xs text-slate-400 ml-auto">
+                      {contract.down_payment ? `${usd(Number(contract.down_payment))} down + ` : ''}
+                      {usd(Number(contract.installment_amount))}/mo × {contract.installment_count}
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-lg border border-slate-700 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {schedule.map((row, i) => (
+                        <tr key={i} className={i % 2 ? 'bg-slate-900/60' : ''}>
+                          <td className="px-3 py-2 text-slate-400">{row.label}</td>
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{prettyDate(row.due_date)}</td>
+                          <td className="px-3 py-2 text-right text-white font-medium whitespace-nowrap">{usd(Number(row.amount))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Payment breakdown */}
-            {(contract.first_payment != null || contract.installment_payment != null || contract.balance_payment != null) && (
+            {schedule.length === 0 && (contract.first_payment != null || contract.installment_payment != null || contract.balance_payment != null) && (
               <div className="border-t border-slate-700 pt-4 mb-5">
                 <p className="text-xs text-slate-500 mb-3">Payment Breakdown</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">

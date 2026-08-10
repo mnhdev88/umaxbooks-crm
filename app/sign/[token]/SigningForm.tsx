@@ -1,6 +1,42 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
+import { readSchedule, prettyDate, usd, round2, type ScheduleRow } from '@/lib/contract-plan'
+
+/**
+ * Dated installment schedule for the PDF. Renders nothing for one-time
+ * contracts, or for older agreements sent before plans existed.
+ */
+function scheduleTableHtml(schedule: ScheduleRow[], total: number): string {
+  if (schedule.length === 0) return ''
+  const rows = schedule.map((r, i) => `
+    <tr style="background:${i % 2 ? '#f9fafb' : '#fff'}">
+      <td style="padding:5px 10px;font-size:12px;color:#374151;">${escapeHtml(r.label)}</td>
+      <td style="padding:5px 10px;font-size:12px;color:#6b7280;white-space:nowrap;">${prettyDate(r.due_date)}</td>
+      <td style="padding:5px 10px;font-size:12px;color:#111;text-align:right;font-weight:600;white-space:nowrap;">${usd(Number(r.amount))}</td>
+    </tr>`).join('')
+
+  return `
+    <div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">
+        Payment Schedule
+      </div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+        ${rows}
+        <tr style="background:#eef1fb;">
+          <td colspan="2" style="padding:6px 10px;font-size:12px;color:#1F3A93;font-weight:700;">Total</td>
+          <td style="padding:6px 10px;font-size:12px;color:#1F3A93;text-align:right;font-weight:700;white-space:nowrap;">${usd(total)}</td>
+        </tr>
+      </table>
+      <p style="font-size:11px;color:#9ca3af;margin:6px 0 0;">
+        Each payment is charged to the card on file on or after its due date.
+      </p>
+    </div>`
+}
+
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+}
 
 // ---------------------------------------------------------------------------
 // Build a self-contained, inline-styled div for PDF capture.
@@ -76,7 +112,7 @@ function buildContractPdfHtml(
     kv('First Payment',      payment.first_payment      ? `$${payment.first_payment}`      : ''),
     kv('Installment Payment',payment.installment_payment? `$${payment.installment_payment}`: ''),
     kv('Balance Payment',    payment.balance_payment    ? `$${payment.balance_payment}`    : ''),
-  ))}
+  ) + scheduleTableHtml(readSchedule(contract.payment_schedule), Number(contract.total_amount) || 0))}
 
   ${sec('4 · Scope of Services',
     `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
@@ -295,6 +331,36 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hasSigRef = useRef(false)
 
+  // The rep sets the payment breakdown when sending, so the client confirms it
+  // rather than inventing it. Agreements sent before installment plans existed
+  // have no schedule and keep the original editable fields.
+  const schedule = useMemo(() => readSchedule(contract.payment_schedule), [contract.payment_schedule])
+  const total    = Number(contract.total_amount) || 0
+  const isOneTime = contract.payment_type === 'One-Time'
+  const locked    = isOneTime || schedule.length > 0
+
+  const fixed = useMemo(() => {
+    if (isOneTime) return { first: total, installment: null as number | null, balance: null as number | null }
+    if (schedule.length === 0) return null
+    const first = round2(Number(schedule[0].amount) || 0)
+    return {
+      first,
+      installment: contract.installment_amount != null ? round2(Number(contract.installment_amount)) : null,
+      balance:     round2(total - first),
+    }
+  }, [isOneTime, schedule, total, contract.installment_amount])
+
+  // Keep the submitted/PDF values in sync with the fixed plan.
+  useEffect(() => {
+    if (!fixed) return
+    setPayment(p => ({
+      ...p,
+      first_payment:       fixed.first != null        ? fixed.first.toFixed(2)        : '',
+      installment_payment: fixed.installment != null  ? fixed.installment.toFixed(2)  : '',
+      balance_payment:     fixed.balance != null      ? fixed.balance.toFixed(2)      : '',
+    }))
+  }, [fixed])
+
   // Load html2canvas + jsPDF from CDN, tracking success/failure so we can warn the user
   useEffect(() => {
     let cancelled = false
@@ -407,7 +473,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
     if (!payment.name_on_card)    return setError('Please enter the name on card.')
     if (!payment.card_type)       return setError('Please select a card type.')
     if (!payment.card_last_4 || payment.card_last_4.length !== 4) return setError('Please enter the last 4 digits of your card.')
-    if (!payment.first_payment)   return setError('Please enter the first payment amount.')
+    if (!locked && !payment.first_payment) return setError('Please enter the first payment amount.')
     if (!payment.client_full_name) return setError('Please enter your full legal name.')
     if (!acks.every(Boolean))     return setError('Please check all acknowledgment boxes.')
     if (!hasSig)                  return setError('Please draw your signature.')
@@ -658,20 +724,64 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
                 />
               </div>
               <div>
-                <label>First Payment (USD) <span className="req">*</span></label>
-                <input type="number" value={payment.first_payment} onChange={setP('first_payment')} placeholder="0.00" min="0" step="0.01" />
+                <label>
+                  {locked ? (isOneTime ? 'Amount Due (USD)' : 'Due at Signing (USD)') : <>First Payment (USD) <span className="req">*</span></>}
+                </label>
+                {locked
+                  ? <input readOnly className="readonly" value={usd(fixed!.first)} />
+                  : <input type="number" value={payment.first_payment} onChange={setP('first_payment')} placeholder="0.00" min="0" step="0.01" />}
               </div>
             </div>
-            <div className="row c2">
-              <div>
-                <label>Installment Payment (USD)</label>
-                <input type="number" value={payment.installment_payment} onChange={setP('installment_payment')} placeholder="0.00" min="0" step="0.01" />
+            {locked ? (
+              fixed!.installment != null && (
+                <div className="row c2">
+                  <div>
+                    <label>Monthly Installment (USD)</label>
+                    <input readOnly className="readonly" value={`${usd(fixed!.installment)} × ${contract.installment_count}`} />
+                  </div>
+                  <div>
+                    <label>Balance After Down Payment (USD)</label>
+                    <input readOnly className="readonly" value={usd(fixed!.balance ?? 0)} />
+                  </div>
+                </div>
+              )
+            ) : (
+              <div className="row c2">
+                <div>
+                  <label>Installment Payment (USD)</label>
+                  <input type="number" value={payment.installment_payment} onChange={setP('installment_payment')} placeholder="0.00" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label>Balance Payment (USD)</label>
+                  <input type="number" value={payment.balance_payment} onChange={setP('balance_payment')} placeholder="0.00" min="0" step="0.01" />
+                </div>
               </div>
-              <div>
-                <label>Balance Payment (USD)</label>
-                <input type="number" value={payment.balance_payment} onChange={setP('balance_payment')} placeholder="0.00" min="0" step="0.01" />
+            )}
+
+            {schedule.length > 0 && (
+              <div style={{ marginTop: '6px' }}>
+                <label>Payment Schedule</label>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                  <tbody>
+                    {schedule.map((r, i) => (
+                      <tr key={i} style={{ background: i % 2 ? '#f9fafb' : '#fff' }}>
+                        <td style={{ padding: '7px 12px', fontSize: '13px', color: '#374151' }}>{r.label}</td>
+                        <td style={{ padding: '7px 12px', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap' }}>{prettyDate(r.due_date)}</td>
+                        <td style={{ padding: '7px 12px', fontSize: '13px', color: '#111', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{usd(Number(r.amount))}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: '#eef1fb' }}>
+                      <td colSpan={2} style={{ padding: '8px 12px', fontSize: '13px', color: '#1F3A93', fontWeight: 700 }}>Total</td>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', color: '#1F3A93', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{usd(total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                  Each payment is charged to the card on file on or after its due date.
+                </p>
               </div>
-            </div>
+            )}
+
             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '10px', fontStyle: 'italic' }}>
               🔒 Novelio Technologies LLC does not store complete card information.
             </p>

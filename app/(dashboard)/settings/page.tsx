@@ -13,6 +13,7 @@ import { CallerNumbers } from '@/components/settings/CallerNumbers'
 import { ReportingDaySetting } from '@/components/settings/ReportingDaySetting'
 import { KpiScorecardSettings } from '@/components/settings/KpiScorecardSettings'
 import { ManualKpiEntries } from '@/components/settings/ManualKpiEntries'
+import { ContractPackageDefaults } from '@/components/settings/ContractPackageDefaults'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
         <BusinessHoursSetting />
         <CallerNumbers />
         <ReportingDaySetting />
+        <ContractPackageDefaults />
         <KpiScorecardSettings />
         <ManualKpiEntries
           staff={((users || []) as Profile[])

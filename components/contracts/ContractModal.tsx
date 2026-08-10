@@ -1,14 +1,16 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { Lead, Profile } from '@/types'
-import { X, FileSignature, Loader2, CheckCircle } from 'lucide-react'
+import { X, FileSignature, Loader2, CheckCircle, CalendarClock } from 'lucide-react'
+import {
+  CONTRACT_PACKAGES as PACKAGES, MIN_MONTHS, MAX_MONTHS,
+  FALLBACK_PACKAGE_DEFAULTS, buildInstallmentPlan, prettyDate, usd, round2,
+  type PackageDefaults,
+} from '@/lib/contract-plan'
 
-const PACKAGES = [
-  'Startup – Basic Website Design',
-  'Professional – Advanced Design + SEO',
-  'Enterprise – Full Suite + Support',
-]
+/** Quick-set chips for the down payment, as a share of the total. */
+const DOWN_PCT_CHIPS = [0, 25, 33, 50, 75]
 
 interface Props {
   lead: Lead
@@ -34,10 +36,14 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     delivery_timeline: '',
     payment_type:      '',
     total_amount:      '',
+    down_payment:      '',
+    installment_count: '',
     rep_name:          profile.full_name || '',
     rep_title:         '',
     rep_sign_date:     today,
   })
+
+  const [pkgDefaults, setPkgDefaults] = useState<PackageDefaults>(FALLBACK_PACKAGE_DEFAULTS)
 
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const [drawing, setDrawing]   = useState(false)
@@ -55,6 +61,49 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     if (!canvas || canvas.offsetWidth === 0) return
     canvas.width = canvas.offsetWidth
   }, [])
+
+  // Admin-configured suggestions per package (Settings → Contract Packages).
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/settings/contract-packages')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.defaults) setPkgDefaults(d.defaults) })
+      .catch(() => { /* fall back to the built-in suggestions */ })
+    return () => { cancelled = true }
+  }, [])
+
+  const isInstallment = form.payment_type === 'Installment'
+
+  const plan = useMemo(() => buildInstallmentPlan({
+    total:     Number(form.total_amount),
+    down:      Number(form.down_payment) || 0,
+    months:    Number(form.installment_count),
+    startDate: form.start_date,
+  }), [form.total_amount, form.down_payment, form.installment_count, form.start_date])
+
+  /**
+   * Picking a package pre-fills the suggested numbers, but never overwrites a
+   * figure the rep has already typed for this contract.
+   */
+  function onPackageChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const pkg = e.target.value
+    const d   = pkgDefaults[pkg]
+    setForm(f => {
+      const next = { ...f, package: pkg }
+      if (!d) return next
+      if (!f.total_amount && d.total > 0) next.total_amount = String(d.total)
+      const total = Number(next.total_amount) || 0
+      if (!f.installment_count) next.installment_count = String(d.months)
+      if (!f.down_payment && total > 0) next.down_payment = String(round2(total * d.down_pct / 100))
+      return next
+    })
+  }
+
+  /** Down-payment quick-set: percentage of the current total. */
+  function setDownPct(pct: number) {
+    const total = Number(form.total_amount) || 0
+    setForm(f => ({ ...f, down_payment: total > 0 ? String(round2(total * pct / 100)) : '' }))
+  }
 
   function getPos(e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) {
     const c = canvasRef.current!
@@ -99,6 +148,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     if (!form.total_amount)      return setError('Please enter the total amount')
     if (!form.delivery_timeline) return setError('Please enter the delivery timeline')
     if (!form.rep_title)         return setError('Please enter your title (e.g. CEO)')
+    if (isInstallment && plan.error) return setError(plan.error)
     if (!hasSig)                 return setError('Please draw your signature before sending')
 
     const rep_signature = canvasRef.current!.toDataURL('image/png')
@@ -110,6 +160,10 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
         body: JSON.stringify({
           ...form,
           total_amount: parseFloat(form.total_amount) || 0,
+          // The server rebuilds the schedule from these three, so only the
+          // inputs are sent — never the derived monthly figure or the rows.
+          down_payment:      isInstallment ? plan.down   : null,
+          installment_count: isInstallment ? plan.months : null,
           rep_signature,
           lead_id: lead.id,
         }),
@@ -175,7 +229,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                 <FieldLabel>Package *</FieldLabel>
                 <select
                   value={form.package}
-                  onChange={set('package')}
+                  onChange={onPackageChange}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500"
                 >
                   <option value="">— Select a package —</option>
@@ -205,6 +259,107 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                 </div>
               </div>
               <Field label="Total Amount (USD) *" value={form.total_amount} onChange={set('total_amount')} type="number" placeholder="0.00" />
+
+              {/* Installment plan builder — down payment + N equal months */}
+              {isInstallment && (
+                <div className="col-span-2 rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CalendarClock size={14} className="text-orange-400" />
+                    <p className="text-xs font-semibold text-slate-300">Installment Plan</p>
+                    <span className="text-[11px] text-slate-500">
+                      A down payment at signing, then equal monthly payments.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <FieldLabel>Down Payment (USD)</FieldLabel>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={form.down_payment}
+                        onChange={set('down_payment')}
+                        placeholder="0.00"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500 placeholder-slate-600"
+                      />
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {DOWN_PCT_CHIPS.map(pct => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => setDownPct(pct)}
+                            disabled={!(Number(form.total_amount) > 0)}
+                            className="px-2 py-1 rounded-md text-[11px] font-medium border border-slate-700 bg-slate-800 text-slate-400 hover:border-orange-500 hover:text-orange-400 disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-400 transition-colors"
+                          >
+                            {pct === 0 ? 'None' : `${pct}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <FieldLabel>Monthly Payments *</FieldLabel>
+                      <input
+                        type="number" min={MIN_MONTHS} max={MAX_MONTHS} step="1"
+                        value={form.installment_count}
+                        onChange={set('installment_count')}
+                        placeholder={`${MIN_MONTHS}–${MAX_MONTHS}`}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500 placeholder-slate-600"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-2">
+                        {plan.error
+                          ? `How many months to spread the balance over (${MIN_MONTHS}–${MAX_MONTHS}).`
+                          : <>Balance of <strong className="text-slate-300">{usd(plan.financed)}</strong> over {plan.months} months.</>}
+                      </p>
+                    </div>
+                  </div>
+
+                  {plan.error ? (
+                    <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+                      {plan.error}
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="text-2xl font-bold text-orange-400">{usd(plan.monthly)}</span>
+                        <span className="text-sm text-slate-400">/ month × {plan.months}</span>
+                        {plan.down > 0 && (
+                          <span className="text-xs text-slate-500">
+                            after {usd(plan.down)} down
+                          </span>
+                        )}
+                        {plan.finalMonthly !== plan.monthly && (
+                          <span className="text-xs text-slate-500">
+                            (final payment {usd(plan.finalMonthly)})
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border border-slate-700 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {plan.schedule.map((row, i) => (
+                              <tr key={i} className={i % 2 ? 'bg-slate-900/40' : ''}>
+                                <td className="px-3 py-1.5 text-slate-400">{row.label}</td>
+                                <td className="px-3 py-1.5 text-slate-500 whitespace-nowrap">{prettyDate(row.due_date)}</td>
+                                <td className="px-3 py-1.5 text-right text-slate-200 font-medium whitespace-nowrap">{usd(row.amount)}</td>
+                              </tr>
+                            ))}
+                            <tr className="border-t border-slate-700 bg-slate-900/60">
+                              <td className="px-3 py-1.5 text-slate-400 font-semibold" colSpan={2}>Total</td>
+                              <td className="px-3 py-1.5 text-right text-orange-400 font-bold whitespace-nowrap">{usd(plan.total)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600">
+                        Dates are generated from the Service Start Date. The client sees this exact
+                        schedule and cannot change it.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
