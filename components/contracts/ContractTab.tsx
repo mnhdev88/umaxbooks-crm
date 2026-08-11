@@ -5,6 +5,7 @@ import { Lead, Profile } from '@/types'
 import { FileSignature, Clock, CheckCircle, Download, Plus, ExternalLink } from 'lucide-react'
 import { ContractModal } from './ContractModal'
 import { formatDate } from '@/lib/utils'
+import { readScopeItems } from '@/lib/contract-plan'
 
 interface Props {
   lead: Lead
@@ -92,6 +93,22 @@ export function ContractTab({ lead, profile, userId }: Props) {
                     Sent {formatDate(c.sent_at)}
                     {c.signed_at && ` · Signed ${formatDate(c.signed_at)}`}
                   </p>
+
+                  {/* What this client was actually promised */}
+                  <details className="mt-2 group">
+                    <summary className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer list-none transition-colors">
+                      Scope of services ({readScopeItems(c.scope_items).length} items)
+                      <span className="ml-1 text-slate-600 group-open:hidden">▸</span>
+                      <span className="ml-1 text-slate-600 hidden group-open:inline">▾</span>
+                    </summary>
+                    <ul className="mt-1.5 space-y-1">
+                      {readScopeItems(c.scope_items).map((item, i) => (
+                        <li key={i} className="text-xs text-slate-400 flex items-start gap-1.5">
+                          <span className="text-slate-600">•</span>{item}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 </div>
 
                 <div className="flex flex-col gap-2 flex-shrink-0">

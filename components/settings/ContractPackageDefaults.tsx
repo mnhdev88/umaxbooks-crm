@@ -6,14 +6,20 @@ import {
   FALLBACK_PACKAGE_DEFAULTS, buildInstallmentPlan, usd,
   type PackageDefaults,
 } from '@/lib/contract-plan'
+import { ScopeItemsEditor } from '@/components/contracts/ScopeItemsEditor'
 
-type Draft = Record<string, { total: string; down_pct: string; months: string }>
+type Draft = Record<string, { total: string; down_pct: string; months: string; scope: string[] }>
 
 function toDraft(d: PackageDefaults): Draft {
   const out: Draft = {}
   for (const pkg of CONTRACT_PACKAGES) {
     const row = d[pkg] || FALLBACK_PACKAGE_DEFAULTS[pkg]
-    out[pkg] = { total: String(row.total), down_pct: String(row.down_pct), months: String(row.months) }
+    out[pkg] = {
+      total:    String(row.total),
+      down_pct: String(row.down_pct),
+      months:   String(row.months),
+      scope:    [...(row.scope || FALLBACK_PACKAGE_DEFAULTS[pkg].scope)],
+    }
   }
   return out
 }
@@ -34,8 +40,13 @@ export function ContractPackageDefaults() {
       .catch(() => setLoaded(true))
   }, [])
 
-  function edit(pkg: string, key: keyof Draft[string], value: string) {
+  function edit(pkg: string, key: 'total' | 'down_pct' | 'months', value: string) {
     setDraft(d => ({ ...d, [pkg]: { ...d[pkg], [key]: value } }))
+    setResult(null)
+  }
+
+  function setScope(pkg: string, scope: string[]) {
+    setDraft(d => ({ ...d, [pkg]: { ...d[pkg], scope } }))
     setResult(null)
   }
 
@@ -62,6 +73,7 @@ export function ContractPackageDefaults() {
         total:    Number(draft[pkg].total),
         down_pct: Number(draft[pkg].down_pct),
         months:   Math.trunc(Number(draft[pkg].months)),
+        scope:    draft[pkg].scope,
       }
     }
     const res  = await fetch('/api/settings/contract-packages', {
@@ -86,9 +98,10 @@ export function ContractPackageDefaults() {
         <h2 className="text-slate-100 font-semibold text-lg">Contract Package Defaults</h2>
       </div>
       <p className="text-slate-400 text-sm mb-5">
-        Suggested pricing and installment terms per package. Picking a package in the
-        Send Service Agreement form pre-fills these — the rep can still change any of
-        them for an individual deal.
+        Suggested pricing, installment terms and scope of services per package. Picking
+        a package in the Send Service Agreement form pre-fills these — the rep can still
+        change any of them for an individual deal. Contracts already sent keep the scope
+        they were sent with.
       </p>
 
       <div className="space-y-3">
@@ -132,6 +145,18 @@ export function ContractPackageDefaults() {
               <p className={`text-xs mt-2 ${plan.error ? 'text-amber-400' : 'text-slate-500'}`}>
                 {plan.error || `Suggests ${usd(plan.down)} down, then ${usd(plan.monthly)}/month × ${plan.months}.`}
               </p>
+
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <label className="text-xs text-slate-400 mb-2 block">
+                  Scope of services — shown to the client as section 4 of the agreement
+                </label>
+                <ScopeItemsEditor
+                  items={draft[pkg].scope}
+                  onChange={items => setScope(pkg, items)}
+                  variant="settings"
+                  disabled={!loaded}
+                />
+              </div>
             </div>
           )
         })}

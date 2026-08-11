@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { readSchedule, prettyDate, usd, round2, type ScheduleRow } from '@/lib/contract-plan'
+import { readSchedule, readScopeItems, prettyDate, usd, round2, type ScheduleRow } from '@/lib/contract-plan'
 
 /**
  * Dated installment schedule for the PDF. Renders nothing for one-time
@@ -115,9 +115,10 @@ function buildContractPdfHtml(
   ) + scheduleTableHtml(readSchedule(contract.payment_schedule), Number(contract.total_amount) || 0))}
 
   ${sec('4 · Scope of Services',
-    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
-      The selected package may include: Website Design &amp; Development, Mobile Responsive Design, Basic SEO Setup, Contact Form Setup, SSL Installation and Hosting Setup, Google Business Profile Guidance, Minor Content / Layout Adjustments.
-    </p>`)}
+    `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">The selected package includes:</p>
+     <ul style="font-size:12px;color:#374151;line-height:1.7;margin:6px 0 0;padding-left:18px;">
+       ${readScopeItems(contract.scope_items).map(item => `<li>${escapeHtml(item)}</li>`).join('')}
+     </ul>`)}
 
   ${sec('5 · Refund Policy',
     `<p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">
@@ -335,6 +336,9 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
   // rather than inventing it. Agreements sent before installment plans existed
   // have no schedule and keep the original editable fields.
   const schedule = useMemo(() => readSchedule(contract.payment_schedule), [contract.payment_schedule])
+  // Set by the rep when sending; agreements sent before it was editable fall
+  // back to the original wording.
+  const scopeItems = useMemo(() => readScopeItems(contract.scope_items), [contract.scope_items])
   const total    = Number(contract.total_amount) || 0
   const isOneTime = contract.payment_type === 'One-Time'
   const locked    = isOneTime || schedule.length > 0
@@ -790,7 +794,12 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
           {/* Terms sections — static */}
           <div className="sec">
             <div className="sec-title">4 · Scope of Services</div>
-            <div className="policy">The selected package may include: <ul><li>Website Design &amp; Development</li><li>Mobile Responsive Design</li><li>Basic SEO Setup</li><li>Contact Form Setup</li><li>SSL Installation and Hosting Setup</li><li>Google Business Profile Guidance</li><li>Minor Content / Layout Adjustments</li></ul></div>
+            <div className="policy">
+              The selected package includes:
+              <ul>
+                {scopeItems.map((item, i) => <li key={i}>{item}</li>)}
+              </ul>
+            </div>
           </div>
           <div className="sec">
             <div className="sec-title">5 · Refund Policy</div>

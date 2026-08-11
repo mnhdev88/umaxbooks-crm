@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { buildInstallmentPlan } from '@/lib/contract-plan'
+import { buildInstallmentPlan, sanitizeScopeItems, DEFAULT_SCOPE_ITEMS } from '@/lib/contract-plan'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const service = createServiceClient()
   const { data } = await service
     .from('contracts')
-    .select('id,status,business_name,client_email,package,total_amount,sent_at,signed_at,signed_pdf_url,signing_token')
+    .select('id,status,business_name,client_email,package,total_amount,scope_items,sent_at,signed_at,signed_pdf_url,signing_token')
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false })
 
@@ -33,6 +33,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { lead_id, ...fields } = body
+
+  // Scope of Services, snapshotted like the payment schedule below: what the
+  // client is shown and agrees to must not shift if the package defaults change
+  // afterwards. Sanitized here rather than trusted from the browser.
+  const scope = sanitizeScopeItems(fields.scope_items)
+  fields.scope_items = scope.length > 0 ? scope : [...DEFAULT_SCOPE_ITEMS]
 
   // Rebuild the installment plan server-side from the three inputs. The browser's
   // derived numbers are never trusted — this is the amount the client will be

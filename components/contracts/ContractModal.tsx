@@ -2,12 +2,14 @@
 
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { Lead, Profile } from '@/types'
-import { X, FileSignature, Loader2, CheckCircle, CalendarClock } from 'lucide-react'
+import { X, FileSignature, Loader2, CheckCircle, CalendarClock, ListChecks, RotateCcw } from 'lucide-react'
 import {
   CONTRACT_PACKAGES as PACKAGES, MIN_MONTHS, MAX_MONTHS,
-  FALLBACK_PACKAGE_DEFAULTS, buildInstallmentPlan, prettyDate, usd, round2,
+  FALLBACK_PACKAGE_DEFAULTS, DEFAULT_SCOPE_ITEMS, buildInstallmentPlan,
+  sanitizeScopeItems, prettyDate, usd, round2,
   type PackageDefaults,
 } from '@/lib/contract-plan'
+import { ScopeItemsEditor } from './ScopeItemsEditor'
 
 /** Quick-set chips for the down payment, as a share of the total. */
 const DOWN_PCT_CHIPS = [0, 25, 33, 50, 75]
@@ -44,6 +46,12 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
   })
 
   const [pkgDefaults, setPkgDefaults] = useState<PackageDefaults>(FALLBACK_PACKAGE_DEFAULTS)
+
+  // Scope of Services (section 4 of the agreement the client signs). Starts from
+  // the package default and follows a package change until the rep edits it —
+  // same rule the pricing fields use.
+  const [scope, setScope] = useState<string[]>(() => [...DEFAULT_SCOPE_ITEMS])
+  const [scopeTouched, setScopeTouched] = useState(false)
 
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const [drawing, setDrawing]   = useState(false)
@@ -88,6 +96,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
   function onPackageChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const pkg = e.target.value
     const d   = pkgDefaults[pkg]
+    if (!scopeTouched && d?.scope?.length) setScope([...d.scope])
     setForm(f => {
       const next = { ...f, package: pkg }
       if (!d) return next
@@ -97,6 +106,23 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
       if (!f.down_payment && total > 0) next.down_payment = String(round2(total * d.down_pct / 100))
       return next
     })
+  }
+
+  /** What the client will actually be shown — blanks and duplicates dropped. */
+  const cleanScope = useMemo(() => sanitizeScopeItems(scope), [scope])
+
+  const packageScope = pkgDefaults[form.package]?.scope?.length
+    ? pkgDefaults[form.package].scope
+    : DEFAULT_SCOPE_ITEMS
+
+  function editScope(items: string[]) {
+    setScope(items)
+    setScopeTouched(true)
+  }
+
+  function resetScope() {
+    setScope([...packageScope])
+    setScopeTouched(false)
   }
 
   /** Down-payment quick-set: percentage of the current total. */
@@ -148,6 +174,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     if (!form.total_amount)      return setError('Please enter the total amount')
     if (!form.delivery_timeline) return setError('Please enter the delivery timeline')
     if (!form.rep_title)         return setError('Please enter your title (e.g. CEO)')
+    if (cleanScope.length === 0) return setError('Add at least one line to the scope of services')
     if (isInstallment && plan.error) return setError(plan.error)
     if (!hasSig)                 return setError('Please draw your signature before sending')
 
@@ -164,6 +191,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
           // inputs are sent — never the derived monthly figure or the rows.
           down_payment:      isInstallment ? plan.down   : null,
           installment_count: isInstallment ? plan.months : null,
+          scope_items:       cleanScope,
           rep_signature,
           lead_id: lead.id,
         }),
@@ -363,9 +391,37 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
             </div>
           </section>
 
-          {/* 3 — Rep Signature */}
+          {/* 3 — Scope of Services (section 4 of the signed agreement) */}
           <section>
-            <SectionTitle>3 · Your Signature (Novelio Representative)</SectionTitle>
+            <SectionTitle>3 · Scope of Services</SectionTitle>
+            <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <ListChecks size={14} className="text-orange-400" />
+                <p className="text-xs font-semibold text-slate-300">What this package includes</p>
+                <span className="text-[11px] text-slate-500">
+                  The client sees these lines in the agreement.
+                </span>
+                <button
+                  type="button"
+                  onClick={resetScope}
+                  className="ml-auto flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-orange-400 transition-colors"
+                >
+                  <RotateCcw size={11} /> Reset to package default
+                </button>
+              </div>
+
+              <ScopeItemsEditor items={scope} onChange={editScope} variant="modal" />
+
+              <p className="text-[11px] text-slate-600">
+                Locked in when you send. Editing the package defaults later will not change
+                this agreement.
+              </p>
+            </div>
+          </section>
+
+          {/* 4 — Rep Signature */}
+          <section>
+            <SectionTitle>4 · Your Signature (Novelio Representative)</SectionTitle>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Field label="Your Full Name *" value={form.rep_name}      onChange={set('rep_name')} />
               <Field label="Your Title *"     value={form.rep_title}     onChange={set('rep_title')} placeholder="e.g. CEO" />

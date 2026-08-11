@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import {
-  CONTRACT_PACKAGES, MIN_MONTHS, MAX_MONTHS,
-  FALLBACK_PACKAGE_DEFAULTS, readPackageDefaults, type PackageDefaults,
+  CONTRACT_PACKAGES, MIN_MONTHS, MAX_MONTHS, MAX_SCOPE_ITEMS,
+  FALLBACK_PACKAGE_DEFAULTS, readPackageDefaults, sanitizeScopeItems,
+  type PackageDefaults,
 } from '@/lib/contract-plan'
 
 // Suggested contract totals / down-payment % / month counts per package
@@ -61,7 +62,18 @@ export async function POST(req: NextRequest) {
     if (!Number.isInteger(months) || months < MIN_MONTHS || months > MAX_MONTHS) {
       return NextResponse.json({ error: `${pkg}: months must be a whole number between ${MIN_MONTHS} and ${MAX_MONTHS}.` }, { status: 400 })
     }
-    defaults[pkg] = { total: Math.round(total * 100) / 100, down_pct, months }
+
+    // Blank lines and duplicates are dropped rather than rejected — they are a
+    // by-product of editing a list, not a mistake worth blocking a save for.
+    const scope = sanitizeScopeItems(row.scope)
+    if (scope.length === 0) {
+      return NextResponse.json({ error: `${pkg}: add at least one scope of services line.` }, { status: 400 })
+    }
+    if (Array.isArray(row.scope) && row.scope.length > MAX_SCOPE_ITEMS) {
+      return NextResponse.json({ error: `${pkg}: a package can list at most ${MAX_SCOPE_ITEMS} scope lines.` }, { status: 400 })
+    }
+
+    defaults[pkg] = { total: Math.round(total * 100) / 100, down_pct, months, scope }
   }
 
   const service = createServiceClient()

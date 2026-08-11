@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { getPortalLeadId } from '@/lib/portal-context'
-import { readSchedule, prettyDate, usd } from '@/lib/contract-plan'
+import { readSchedule, readScopeItems, prettyDate, usd } from '@/lib/contract-plan'
 
 export default async function PortalContractPage() {
   const supabase = await createClient()
@@ -25,7 +25,7 @@ export default async function PortalContractPage() {
 
   const [{ data: contract }, { data: deal }] = await Promise.all([
     supabase.from('contracts')
-      .select('business_name, contact_person, package, project_name, start_date, delivery_timeline, total_amount, payment_type, signed_at, signed_pdf_url, status, first_payment, installment_payment, balance_payment, down_payment, installment_count, installment_amount, payment_schedule')
+      .select('business_name, contact_person, package, project_name, start_date, delivery_timeline, total_amount, payment_type, signed_at, signed_pdf_url, status, first_payment, installment_payment, balance_payment, down_payment, installment_count, installment_amount, payment_schedule, scope_items')
       .eq('lead_id', leadId)
       .eq('status', 'signed')
       .maybeSingle(),
@@ -100,6 +100,19 @@ export default async function PortalContractPage() {
                 </div>
               )}
             </dl>
+
+            {/* Scope of services, exactly as agreed at signing */}
+            <div className="border-t border-slate-700 pt-4 mb-5">
+              <p className="text-xs text-slate-500 mb-3">Scope of Services</p>
+              <ul className="space-y-1.5">
+                {readScopeItems(contract.scope_items).map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                    <CheckCircle size={14} className="text-green-400 mt-0.5 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             {/* Dated installment schedule, when the agreement carries a plan */}
             {schedule.length > 0 && (

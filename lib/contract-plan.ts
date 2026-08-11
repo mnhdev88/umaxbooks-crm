@@ -17,6 +17,27 @@ export const CONTRACT_PACKAGES = [
 export const MIN_MONTHS = 2
 export const MAX_MONTHS = 24
 
+export const MAX_SCOPE_ITEMS    = 25
+export const MAX_SCOPE_ITEM_LEN = 200
+
+/**
+ * Scope of Services shown to the client in section 4 of the agreement.
+ *
+ * Used for contracts sent before scope became editable (their scope_items is
+ * null), and as the starting point for a package whose defaults an admin has
+ * not tailored yet. Deliberately identical for every package — narrowing what
+ * a package promises is a business decision, not a migration.
+ */
+export const DEFAULT_SCOPE_ITEMS: readonly string[] = [
+  'Website Design & Development',
+  'Mobile Responsive Design',
+  'Basic SEO Setup',
+  'Contact Form Setup',
+  'SSL Installation and Hosting Setup',
+  'Google Business Profile Guidance',
+  'Minor Content / Layout Adjustments',
+]
+
 export interface PackageDefault {
   /** Suggested total contract value in USD. */
   total: number
@@ -24,15 +45,17 @@ export interface PackageDefault {
   down_pct: number
   /** Suggested number of monthly payments. */
   months: number
+  /** Suggested Scope of Services lines the contract modal pre-fills. */
+  scope: string[]
 }
 
 export type PackageDefaults = Record<string, PackageDefault>
 
 /** Used when app_settings has no row yet, or holds something unparseable. */
 export const FALLBACK_PACKAGE_DEFAULTS: PackageDefaults = {
-  'Startup – Basic Website Design':       { total: 799,  down_pct: 50, months: 3 },
-  'Professional – Advanced Design + SEO': { total: 1499, down_pct: 50, months: 4 },
-  'Enterprise – Full Suite + Support':    { total: 2999, down_pct: 50, months: 6 },
+  'Startup – Basic Website Design':       { total: 799,  down_pct: 50, months: 3, scope: [...DEFAULT_SCOPE_ITEMS] },
+  'Professional – Advanced Design + SEO': { total: 1499, down_pct: 50, months: 4, scope: [...DEFAULT_SCOPE_ITEMS] },
+  'Enterprise – Full Suite + Support':    { total: 2999, down_pct: 50, months: 6, scope: [...DEFAULT_SCOPE_ITEMS] },
 }
 
 export interface ScheduleRow {
@@ -160,6 +183,39 @@ export function readSchedule(value: unknown): ScheduleRow[] {
   )
 }
 
+/**
+ * Narrow an untrusted value into scope lines: trims, drops blanks and
+ * duplicates, caps the length of each line and the number of lines. Returns []
+ * when nothing usable is left, so callers can decide between rejecting the
+ * input and falling back to a default list.
+ */
+export function sanitizeScopeItems(value: unknown): string[] {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw) } catch { return [] }
+  }
+  if (!Array.isArray(raw)) return []
+
+  const out: string[] = []
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue
+    const line = entry.trim().replace(/\s+/g, ' ').slice(0, MAX_SCOPE_ITEM_LEN)
+    if (!line || out.includes(line)) continue
+    out.push(line)
+    if (out.length === MAX_SCOPE_ITEMS) break
+  }
+  return out
+}
+
+/**
+ * The scope lines to render for a contract. Agreements sent before the scope
+ * became editable have no stored list and keep showing the original wording.
+ */
+export function readScopeItems(value: unknown): string[] {
+  const items = sanitizeScopeItems(value)
+  return items.length > 0 ? items : [...DEFAULT_SCOPE_ITEMS]
+}
+
 /** Coerce an untrusted app_settings value into package defaults. */
 export function readPackageDefaults(value: unknown): PackageDefaults {
   let raw: any = value
@@ -171,11 +227,14 @@ export function readPackageDefaults(value: unknown): PackageDefaults {
   const out: PackageDefaults = {}
   for (const pkg of CONTRACT_PACKAGES) {
     const row = raw[pkg]
-    const fb  = FALLBACK_PACKAGE_DEFAULTS[pkg] || { total: 0, down_pct: 50, months: 3 }
+    const fb  = FALLBACK_PACKAGE_DEFAULTS[pkg]
+      || { total: 0, down_pct: 50, months: 3, scope: [...DEFAULT_SCOPE_ITEMS] }
+    const scope = sanitizeScopeItems(row?.scope)
     out[pkg] = {
       total:    clamp(Number(row?.total), 0, 1_000_000, fb.total),
       down_pct: clamp(Number(row?.down_pct), 0, 100, fb.down_pct),
       months:   Math.trunc(clamp(Number(row?.months), MIN_MONTHS, MAX_MONTHS, fb.months)),
+      scope:    scope.length > 0 ? scope : [...fb.scope],
     }
   }
   return out
