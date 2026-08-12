@@ -10,8 +10,10 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { FollowUpsWidget } from '@/components/dashboard/FollowUpsWidget'
+import { fetchActivityFlags, type ActivityMap } from '@/lib/activity-flags'
 
-export type ActivityMap = Record<string, { emailSent: boolean; callLogged: boolean }>
+// Re-exported so the kanban components and the developer pipeline keep their import path.
+export type { ActivityMap }
 
 export default function PipelinePage() {
   const profile = useProfile()
@@ -62,21 +64,11 @@ export default function PipelinePage() {
 
         // Fetch email/call activity flags for Contacted leads only
         const contactedIds = (data as any[]).filter(l => l.status === 'Contacted').map(l => l.id)
-        if (contactedIds.length > 0) {
-          const { data: logs } = await supabase
-            .from('activity_logs')
-            .select('lead_id, action')
-            .in('lead_id', contactedIds)
-            .in('action', ['Email Sent to Client', 'Auto Follow-up Email Sent', 'Call Logged'])
-          const map: ActivityMap = {}
-          for (const log of (logs || []) as any[]) {
-            if (!map[log.lead_id]) map[log.lead_id] = { emailSent: false, callLogged: false }
-            if (log.action === 'Email Sent to Client' || log.action === 'Auto Follow-up Email Sent')
-              map[log.lead_id].emailSent = true
-            if (log.action === 'Call Logged')
-              map[log.lead_id].callLogged = true
-          }
-          setActivityMap(map)
+        try {
+          setActivityMap(await fetchActivityFlags(supabase, contactedIds))
+        } catch (err) {
+          // Badges are secondary to the board — log loudly but still render the leads.
+          console.error('Could not load email/call activity flags:', err)
         }
       }
       setLoading(false)
