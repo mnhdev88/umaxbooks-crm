@@ -74,6 +74,21 @@ async function fetchToken(): Promise<string> {
   return data.token as string
 }
 
+/** Caller details the server attached to the <Client> leg, for either incoming slot. */
+function readIncomingInfo(call: Call): IncomingInfo {
+  const p = call.customParameters
+  const params = call.parameters as Record<string, string> | undefined
+  return {
+    leadId: p?.get('leadId') || null,
+    name: p?.get('leadName') || null,
+    phone: params?.From || '',
+    lineName: p?.get('lineName') || null,
+    // On a <Client> leg To is our client identity, not the dialed number, so the
+    // number we fall back to has to come from the server too.
+    toPhone: p?.get('toPhone') || null,
+  }
+}
+
 export function DialerProvider({ children }: { children: React.ReactNode }) {
   const deviceRef = useRef<Device | null>(null)
   const callRef = useRef<Call | null>(null)
@@ -81,6 +96,15 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const callSidRef = useRef<string | null>(null)
   // The ringing inbound call, held until the agent accepts or rejects it.
   const incomingRef = useRef<Call | null>(null)
+  // A call that arrives while the agent is already busy. Kept in its own slot rather
+  // than `incoming` because it has to coexist with the live call instead of replacing
+  // it — `state` can only describe one call at a time.
+  const secondRef = useRef<Call | null>(null)
+  const [second, setSecond] = useState<IncomingInfo | null>(null)
+  // Lead whose wrap-up we owe once the dust settles. Set when a live call is cut short
+  // to take another one: its disposition form would be buried under the new call, so
+  // we hold the lead and open the log form when we're back to idle.
+  const [queuedLog, setQueuedLog] = useState<string | null>(null)
   // Indirection so the Device's 'incoming' listener — attached once, at Device
   // creation — always runs the latest handler instead of a stale closure.
   const onIncomingRef = useRef<(call: Call) => void>(() => {})
@@ -182,11 +206,17 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           const sid = (call.parameters as Record<string, string> | undefined)?.CallSid
           if (sid) callSidRef.current = sid
         }
-        call.on('ringing', () => { grabSid(); setState('ringing') })
-        call.on('accept', () => { grabSid(); setState('active') })
-        call.on('disconnect', endCall)
-        call.on('cancel', endCall)
+        // Every terminal handler is guarded on identity: when the agent cuts this call
+        // short to take an inbound one, we hand callRef to the new call and *then*
+        // disconnect this one. Ungarded, that disconnect would run endCall and drop the
+        // call we just answered into the wrap-up form.
+        const isCurrent = () => callRef.current === call
+        call.on('ringing', () => { if (!isCurrent()) return; grabSid(); setState('ringing') })
+        call.on('accept', () => { if (!isCurrent()) return; grabSid(); setState('active') })
+        call.on('disconnect', () => { if (isCurrent()) endCall() })
+        call.on('cancel', () => { if (isCurrent()) endCall() })
         call.on('reject', () => {
+          if (!isCurrent()) return
           toast.error('Call was rejected.')
           endCall()
         })
@@ -194,6 +224,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           // A call that fails/drops before the client answers surfaces here rather than as a
           // clean 'disconnect'. Still route to wrap-up (via endCall) so the agent can log the
           // attempt — "no answer", "do not call", a note — instead of losing it to idle.
+          if (!isCurrent()) return
           toast.error(e?.message || 'Call failed.')
           endCall()
         })
@@ -214,27 +245,40 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   // the caller gave up) has to reset us cleanly.
   useEffect(() => {
     onIncomingRef.current = (call: Call) => {
-      // Mid-call: decline immediately so the hunt group moves on instead of ringing
-      // out on someone who can't pick up.
-      if (callRef.current || state !== 'idle') {
-        call.reject()
+      // Busy — but the call is still offered rather than declined. It arrives as a
+      // silent card next to the live call: no ringtone (the agent is mid-conversation
+      // and the far end would hear it), and it never covers the call controls. The leg
+      // is left open so Answer is a real option; ignoring it simply lets Twilio's
+      // <Dial timeout> roll the caller on to the rest of the team as before.
+      if (callRef.current || state !== 'idle' || secondRef.current) {
+        // One at a time. A third caller during all this gets today's behaviour —
+        // declined so they escalate immediately, rather than stacking cards nobody
+        // can act on.
+        if (secondRef.current) {
+          call.reject()
+          return
+        }
+
+        secondRef.current = call
+        setSecond(readIncomingInfo(call))
+
+        const gone = () => {
+          if (secondRef.current !== call) return
+          secondRef.current = null
+          setSecond(null)
+        }
+        call.on('cancel', gone)
+        call.on('reject', gone)
+        call.on('disconnect', gone)
+        call.on('error', (e: { message?: string }) => {
+          console.error('[dialer] second incoming call error', e)
+          gone()
+        })
         return
       }
 
-      const p = call.customParameters
-      const params = call.parameters as Record<string, string> | undefined
-      const info: IncomingInfo = {
-        leadId: p?.get('leadId') || null,
-        name: p?.get('leadName') || null,
-        phone: params?.From || '',
-        lineName: p?.get('lineName') || null,
-        // On a <Client> leg To is our client identity, not the dialed number, so the
-        // number we fall back to has to come from the server too.
-        toPhone: p?.get('toPhone') || null,
-      }
-
       incomingRef.current = call
-      setIncoming(info)
+      setIncoming(readIncomingInfo(call))
       setState('incoming')
 
       const dropped = () => {
@@ -294,6 +338,60 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     call?.reject()
     cleanupCall()
   }, [cleanupCall])
+
+  /**
+   * Take the second call, cutting the current one short.
+   *
+   * Order matters: promote the new call to callRef *before* disconnecting the old one,
+   * so the old call's identity-guarded handlers see they're no longer current and skip
+   * endCall. The interrupted lead's wrap-up is queued rather than shown — the form
+   * would land on top of the call we just answered.
+   */
+  const acceptSecond = useCallback(() => {
+    const call = secondRef.current
+    if (!call) return
+    const previous = callRef.current
+    // Read before we overwrite it. There may be no live call and still a lead owed a
+    // log — answering straight out of the wrap-up form would otherwise drop it.
+    const previousLead = leadIdRef.current
+
+    callRef.current = call
+    secondRef.current = null
+    leadIdRef.current = second?.leadId || null
+    callSidRef.current = null
+    setCallee({ name: second?.name || undefined, phone: second?.phone || '' })
+    setSecond(null)
+    setMuted(false)
+    setSeconds(0)
+    // Move off the outgoing call's state immediately — left on 'wrapup' this would show
+    // a disposition form labelled with the caller we've just picked up.
+    setState('connecting')
+    if (previousLead) setQueuedLog(previousLead)
+
+    call.on('accept', () => {
+      const sid = (call.parameters as Record<string, string> | undefined)?.CallSid
+      if (sid) callSidRef.current = sid
+      setState('active')
+    })
+    // The slot handlers attached at arrival only clear the card, so this call still
+    // needs the primary-call teardown now that it owns callRef.
+    call.on('disconnect', () => { if (callRef.current === call) endCall() })
+    call.accept()
+
+    if (previous) {
+      // Just this leg — disconnectAll() would take the call we're answering with it.
+      previous.disconnect()
+      toast('Previous call ended. You can log it when this one wraps up.')
+    }
+  }, [second, endCall])
+
+  const declineSecond = useCallback(() => {
+    const call = secondRef.current
+    secondRef.current = null
+    setSecond(null)
+    // Declining frees the hunt group to keep ringing the rest of the team.
+    call?.reject()
+  }, [])
 
   const hangup = useCallback(() => {
     // Disconnecting fires the call's 'disconnect' handler (endCall), which routes to the
@@ -379,6 +477,11 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
 
   const ready = state === 'idle'
 
+  // The call just finished takes precedence; the lead whose call we cut short to take
+  // another one waits behind it, and only surfaces once the dialer is quiet. Derived
+  // rather than pushed into `logCall`, so there's one source of truth for what's owed.
+  const activeLog = logCall ?? (state === 'idle' && queuedLog ? { leadId: queuedLog, notes: '' } : null)
+
   return (
     <DialerContext.Provider value={{ startCall, hangup, sendDigit, state, ready }}>
       {children}
@@ -405,12 +508,29 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           onDigit={sendDigit}
         />
       ) : null}
-      {logCall && (
+      {/* Outside the ternary above: this one has to sit *alongside* whatever the live
+          call is showing, not replace it. */}
+      {second && (
+        <SecondCallCard
+          info={second}
+          busy={state === 'active' || state === 'ringing' || state === 'connecting'}
+          onAccept={acceptSecond}
+          onDecline={declineSecond}
+        />
+      )}
+      {activeLog && (
         <LogCallModal
+          // Remount per lead: closing one form and revealing a queued one must not
+          // carry the first lead's typed notes across.
+          key={activeLog.leadId}
           open
-          onClose={() => setLogCall(null)}
-          leadId={logCall.leadId}
-          initialNotes={logCall.notes}
+          onClose={() => {
+            // Close whichever is showing; a queued wrap-up takes its place next render.
+            if (logCall) setLogCall(null)
+            else setQueuedLog(null)
+          }}
+          leadId={activeLog.leadId}
+          initialNotes={activeLog.notes}
         />
       )}
     </DialerContext.Provider>
@@ -663,6 +783,108 @@ function IncomingCallWidget({
         >
           {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
           {muted ? 'Ringtone off for this browser' : 'Mute ringtone'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A call that arrived while the agent was already on one.
+ *
+ * Deliberately the quietest surface in the app, the inverse of IncomingCallWidget: no
+ * ringtone (the agent is mid-conversation and their mic would carry it to the far end),
+ * no backdrop, no modal focus trap, and no Escape binding — a reflexive keystroke must
+ * not drop a caller. It sits top-right because the live-call dock and the toasts both
+ * own the bottom-right corner.
+ *
+ * The leg stays open behind this card, so it disappears on its own the moment a
+ * colleague picks up or the caller rolls to voicemail.
+ */
+function SecondCallCard({
+  info,
+  busy,
+  onAccept,
+  onDecline,
+}: {
+  info: IncomingInfo
+  busy: boolean
+  onAccept: () => void
+  onDecline: () => void
+}) {
+  const [armed, setArmed] = useState(false)
+
+  // Answering mid-call hangs up a live conversation, so it takes a second, deliberate
+  // click. The confirm lapses on its own — a card that sat armed for a minute would
+  // turn a later glance-and-click into a dropped call.
+  useEffect(() => {
+    if (!armed) return
+    const id = setTimeout(() => setArmed(false), 5000)
+    return () => clearTimeout(id)
+  }, [armed])
+
+  const answer = () => {
+    if (busy && !armed) {
+      setArmed(true)
+      return
+    }
+    onAccept()
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Another incoming call"
+      className="fixed right-5 top-5 z-[110] w-72 rounded-2xl border border-emerald-500/40 bg-[#0E0B24] p-4 shadow-2xl shadow-black/50"
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+          <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
+          <PhoneIncoming size={16} className="relative" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-100">
+            {info.name || info.phone || 'Unknown caller'}
+          </p>
+          <p className="truncate text-xs text-slate-400">
+            {info.name ? info.phone : info.lineName || (info.toPhone ? `Call to ${info.toPhone}` : 'Incoming')}
+          </p>
+        </div>
+      </div>
+
+      {info.name && (info.lineName || info.toPhone) ? (
+        <p className="mt-2 truncate text-xs text-emerald-300/80">
+          {info.lineName || `Call to ${info.toPhone}`}
+        </p>
+      ) : null}
+      {!info.leadId && (
+        <p className="mt-2 text-xs text-slate-500">Not matched to a lead in the CRM.</p>
+      )}
+
+      <p className="mt-2 text-xs text-slate-500">
+        {armed
+          ? 'Answering will hang up your current call. Click again to confirm.'
+          : busy
+            ? 'Also ringing the rest of the team.'
+            : 'Ringing you now.'}
+      </p>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={onDecline}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 py-2
+                     text-xs font-semibold text-slate-300 transition-colors hover:bg-slate-800"
+        >
+          <PhoneOff size={14} /> Decline
+        </button>
+        <button
+          onClick={answer}
+          className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold
+                      text-white transition-colors ${
+                        armed ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                      }`}
+        >
+          <Phone size={14} /> {armed ? 'End call & answer' : 'Answer'}
         </button>
       </div>
     </div>
