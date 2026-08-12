@@ -11,6 +11,7 @@ import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
 import { BusinessHoursSetting } from '@/components/settings/BusinessHoursSetting'
 import { CallerNumbers } from '@/components/settings/CallerNumbers'
 import { RingtoneSetting } from '@/components/settings/RingtoneSetting'
+import { RingtonePreference } from '@/components/settings/RingtonePreference'
 import { ReportingDaySetting } from '@/components/settings/ReportingDaySetting'
 import { KpiScorecardSettings } from '@/components/settings/KpiScorecardSettings'
 import { ManualKpiEntries } from '@/components/settings/ManualKpiEntries'
@@ -23,34 +24,44 @@ export default async function SettingsPage() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') redirect('/')
+  if (!profile) redirect('/login')
 
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('created_at', { ascending: true })
+  // Everyone reaches this page now — it carries the per-agent ringtone preference, which
+  // is no use to an agent behind an admin-only redirect. Every other block below is still
+  // admin-only, gated individually rather than by turning the whole page away.
+  const isAdmin = profile.role === 'admin'
+
+  // Only fetched for the admin block that needs it; agents have no business listing staff.
+  const { data: users } = isAdmin
+    ? await supabase.from('profiles').select('*').order('created_at', { ascending: true })
+    : { data: null }
 
   return (
     <>
       <Header title="Settings" profile={profile as Profile} />
       <div className="p-6 max-w-3xl space-y-6">
-        <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
-        <AutomatedEmailSetting />
-        <CallTargetSetting />
-        <CallWindowSetting />
-        <BusinessHoursSetting />
-        <CallerNumbers />
-        <RingtoneSetting />
-        <ReportingDaySetting />
-        <ContractPackageDefaults />
-        <KpiScorecardSettings />
-        <ManualKpiEntries
-          staff={((users || []) as Profile[])
-            .filter(u => ['agent', 'sales_agent', 'sales_manager'].includes(u.role))
-            .map(u => ({ id: u.id, full_name: u.full_name, role: u.role }))}
-        />
-        <EmailProviders />
-        <EmailTemplates />
+        <RingtonePreference />
+        {isAdmin && (
+          <>
+            <UserManagement users={(users || []) as Profile[]} currentUserId={user.id} />
+            <AutomatedEmailSetting />
+            <CallTargetSetting />
+            <CallWindowSetting />
+            <BusinessHoursSetting />
+            <CallerNumbers />
+            <RingtoneSetting />
+            <ReportingDaySetting />
+            <ContractPackageDefaults />
+            <KpiScorecardSettings />
+            <ManualKpiEntries
+              staff={((users || []) as Profile[])
+                .filter(u => ['agent', 'sales_agent', 'sales_manager'].includes(u.role))
+                .map(u => ({ id: u.id, full_name: u.full_name, role: u.role }))}
+            />
+            <EmailProviders />
+            <EmailTemplates />
+          </>
+        )}
       </div>
     </>
   )

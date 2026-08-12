@@ -31,6 +31,7 @@ const agentSections: NavSection[] = [
     { href: '/reports',        label: 'Reports',            icon: BarChart3 },
     { href: '/messages',       label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',  label: 'Notifications',      icon: Bell },
+    { href: '/settings',       label: 'Settings',           icon: Settings },
   ]},
 ]
 
@@ -51,6 +52,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/reports',         label: 'Reports',            icon: BarChart3 },
     { href: '/messages',        label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',   label: 'Notifications',      icon: Bell },
+    { href: '/settings',        label: 'Settings',           icon: Settings },
   ]},
 ]
 
@@ -63,6 +65,7 @@ const developerSections: NavSection[] = [
     { href: '/demos',                           label: 'Demos',      icon: Images },
     { href: '/messages',                        label: 'Messages',   icon: MessageSquare },
     { href: '/notifications',                   label: 'Notifications', icon: Bell },
+    { href: '/settings',                        label: 'Settings',   icon: Settings },
   ]},
 ]
 
@@ -87,6 +90,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/reports',         label: 'Reports',            icon: BarChart3 },
     { href: '/messages',        label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',   label: 'Notifications',      icon: Bell },
+    { href: '/settings',        label: 'Settings',           icon: Settings },
   ]},
 ]
 
