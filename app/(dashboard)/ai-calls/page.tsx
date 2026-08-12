@@ -30,7 +30,7 @@ export default async function AICallsPage() {
     .select(
       isSalesAgent
         ? '*, lead:leads!inner(id, name, company_name, lead_number, phone, assigned_agent_id)'
-        : '*, lead:leads(id, name, company_name, lead_number, phone)'
+        : '*, lead:leads(id, name, company_name, lead_number, phone, assigned_agent_id)'
     )
     .order('created_at', { ascending: false })
     .limit(500)
@@ -80,17 +80,23 @@ export default async function AICallsPage() {
     dnc:        dnc.count        ?? rows.filter(c => c.do_not_call).length,
   }
 
-  // Attach the agent name for human dialer calls. The voice_calls.agent_user_id FK targets
-  // auth.users, so we map through profiles ourselves rather than via a PostgREST embed.
-  const agentIds = [...new Set(rows.map(c => c.agent_user_id).filter(Boolean))] as string[]
-  if (agentIds.length) {
-    const { data: agentProfiles } = await supabase
+  // Attach the two names a call card can show: whoever was on the call (placed a dialer
+  // call, or answered an inbound one) and the lead's owner. Those are the same person on
+  // an outbound call, but a hunt-answered callback is by definition somebody else's lead.
+  // The voice_calls.agent_user_id FK targets auth.users, so we map through profiles
+  // ourselves rather than via a PostgREST embed; the owner rides along in the same read.
+  const nameIds = [...new Set(
+    rows.flatMap(c => [c.agent_user_id, c.lead?.assigned_agent_id]).filter(Boolean)
+  )] as string[]
+  if (nameIds.length) {
+    const { data: named } = await supabase
       .from('profiles')
       .select('id, full_name')
-      .in('id', agentIds)
-    const byId = new Map((agentProfiles || []).map((p: any) => [p.id, p.full_name as string | null]))
+      .in('id', nameIds)
+    const byId = new Map((named || []).map((p: any) => [p.id, p.full_name as string | null]))
     for (const c of rows) {
       if (c.agent_user_id) c.agent = { full_name: byId.get(c.agent_user_id) ?? null }
+      if (c.lead?.assigned_agent_id) c.owner = { full_name: byId.get(c.lead.assigned_agent_id) ?? null }
     }
   }
 

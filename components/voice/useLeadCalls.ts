@@ -26,26 +26,36 @@ export function useLeadCalls(leadId: string, kind: LeadCallKind) {
         .from('voice_calls')
         .select('*')
         .eq('lead_id', leadId)
-      const { data } = await (kind === 'human'
-        ? query.eq('provider', 'twilio')
-        : query.neq('provider', 'twilio')
-      ).order('created_at', { ascending: false })
+      // The owner is a property of the lead, not of any one call, so it's read alongside
+      // rather than per row — an inbound call the team picked up now credits whoever
+      // answered, and the card shows the owner separately.
+      const [{ data }, { data: lead }] = await Promise.all([
+        (kind === 'human'
+          ? query.eq('provider', 'twilio')
+          : query.neq('provider', 'twilio')
+        ).order('created_at', { ascending: false }),
+        supabase.from('leads').select('assigned_agent_id').eq('id', leadId).maybeSingle(),
+      ])
       if (!active || !data) { if (active) setLoading(false); return }
 
-      // Attach the agent name for human dialer calls (FK targets auth.users, so we map
-      // through profiles ourselves rather than relying on a PostgREST embed).
-      const agentIds = [...new Set(data.map((c: VoiceCall) => c.agent_user_id).filter(Boolean))] as string[]
+      // Attach the staff names (FK targets auth.users, so we map through profiles
+      // ourselves rather than relying on a PostgREST embed).
+      const ownerId = (lead?.assigned_agent_id as string | null) ?? null
+      const ids = [...new Set(
+        [...data.map((c: VoiceCall) => c.agent_user_id), ownerId].filter(Boolean)
+      )] as string[]
       let agents: Record<string, { full_name: string | null }> = {}
-      if (agentIds.length) {
+      if (ids.length) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('id', agentIds)
+          .in('id', ids)
         agents = Object.fromEntries((profiles || []).map((p: any) => [p.id, { full_name: p.full_name }]))
       }
       const withAgents = (data as VoiceCall[]).map((c) => ({
         ...c,
         agent: c.agent_user_id ? agents[c.agent_user_id] ?? null : null,
+        owner: ownerId ? agents[ownerId] ?? null : null,
       }))
       if (active) { setCalls(withAgents); setLoading(false) }
     }

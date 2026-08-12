@@ -322,8 +322,11 @@ export interface VoiceCall {
   inbound_outcome: string | null     // inbound only: 'answered-owner' | 'answered-hunt' | 'voicemail' | 'abandoned'
   status: string | null              // Twilio DialCallStatus: completed/busy/no-answer/failed/canceled
   duration_sec: number | null        // exact call seconds (Twilio dialer)
-  agent_user_id: string | null       // staff member who placed a dialer call
+  // Staff member on the call: who placed a dialer call, or — for an inbound one — who
+  // picked it up. On a hunt-answered call that is NOT the lead's owner, who let it ring.
+  agent_user_id: string | null
   agent?: { full_name: string | null } | null // joined in views; not a column
+  owner?: { full_name: string | null } | null // the lead's assigned agent; joined, not a column
   created_at: string
 }
 

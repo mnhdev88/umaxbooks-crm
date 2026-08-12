@@ -17,6 +17,7 @@
  *   npm run dev                                     # in another terminal
  *   node scripts/test-inbound-webhook.mjs           # uses a real lead's phone
  *   node scripts/test-inbound-webhook.mjs --from +15550001111   # unknown caller
+ *   node scripts/test-inbound-webhook.mjs --dial-sid CAxxxx     # real answered leg
  *   node scripts/test-inbound-webhook.mjs --cleanup             # remove test rows
  *
  * Writes a voice_calls row with a TEST_INBOUND_ CallSid. Always finish with --cleanup.
@@ -151,6 +152,21 @@ show(
   'stage=hunt (owner DID answer — should be an empty Response)',
   await hit('hunt', {
     DialCallStatus: 'completed',
+    query: { leadId: row?.lead_id || '', owner: row?.agent_user_id || '' },
+  })
+)
+
+// The hunt happy path — the branch that has to work out WHICH of the agents we rang
+// picked up. Twilio names the connected leg in DialCallSid and nothing else, so pass a
+// real one with --dial-sid to watch agent_user_id resolve to the answerer; the fake
+// default exercises the fallback instead (lookup fails → the owner stands).
+const dialArg = process.argv.indexOf('--dial-sid')
+const DIAL_SID = dialArg > -1 ? process.argv[dialArg + 1] : 'CA00000000000000000000000000000000'
+show(
+  'stage=voicemail (someone in the hunt group answered)',
+  await hit('voicemail', {
+    DialCallStatus: 'completed',
+    DialCallSid: DIAL_SID,
     query: { leadId: row?.lead_id || '', owner: row?.agent_user_id || '' },
   })
 )

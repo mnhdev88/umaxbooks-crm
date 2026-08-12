@@ -204,3 +204,28 @@ export async function fetchTranscript(
 
   return { text, customerKey: meta.customerKey ?? null }
 }
+
+// ── Inbound routing ───────────────────────────────────────────────────────────
+
+/**
+ * Which staff member answered a <Dial>, from the DialCallSid Twilio posts to the dial's
+ * action URL.
+ *
+ * On a hunt we ring every agent at once, so the answerer isn't knowable from anything we
+ * sent — only from the leg that actually connected, whose `to` is that browser client's
+ * identity ('client:agent_<uuid>').
+ *
+ * Returns null for anything that isn't one of our clients, and for an API failure: the
+ * caller then falls back to the lead's owner, which is all we recorded before.
+ */
+export async function userIdForDialLeg(dialCallSid: string): Promise<string | null> {
+  if (!dialCallSid) return null
+  try {
+    const leg = await restClient().calls(dialCallSid).fetch()
+    const to = leg.to || ''
+    return to.startsWith('client:') ? userIdFromIdentity(to.slice('client:'.length)) : null
+  } catch (e) {
+    console.error('[twilio] could not resolve who answered dial leg', dialCallSid, e)
+    return null
+  }
+}

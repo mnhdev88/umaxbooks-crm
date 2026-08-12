@@ -19,6 +19,7 @@ export interface VoiceCallWithLead extends VoiceCall {
     company_name: string | null
     lead_number: number | null
     phone: string | null
+    assigned_agent_id?: string | null
   } | null
 }
 
@@ -112,12 +113,19 @@ const INBOUND_STYLE: Record<string, { label: string; cls: string }> = {
   'abandoned-closed':  { label: 'After hours',      cls: 'bg-amber-900/30 text-amber-400 border-amber-800/40' },
 }
 
-function InboundBadge({ outcome }: { outcome: string | null }) {
+/**
+ * `agent` is whoever answered (the incoming route records the leg that connected, not
+ * the owner it rang first). We name them in the badge itself — "Answered by team" made a
+ * manager open the card to find out who to ask. The generic labels above stay as the
+ * fallback for rows where the agent is unknown.
+ */
+function InboundBadge({ outcome, agent }: { outcome: string | null; agent?: string | null }) {
   if (!outcome) return null
   const s = INBOUND_STYLE[outcome] || { label: outcome, cls: 'bg-slate-800 text-slate-400 border-slate-700' }
+  const label = agent && outcome.startsWith('answered') ? `Answered by ${agent}` : s.label
   return (
     <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-md border ${s.cls}`}>
-      {s.label}
+      {label}
     </span>
   )
 }
@@ -138,6 +146,13 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
   const duration = fmtDuration(call)
   const lead = call.lead
   const leadName = lead?.company_name || lead?.name || 'Unknown lead'
+  // Answered inbound calls carry the answerer's name in the badge, so the only name left
+  // to show is the lead's owner — and only when it isn't the same person, which it isn't
+  // whenever the hunt group picked up a colleague's lead. On an unanswered call nobody
+  // answered, so call.agent is the owner we rang and notified: use it as the fallback.
+  const answeredInbound = isInbound && !!call.inbound_outcome?.startsWith('answered')
+  const answerer = answeredInbound ? call.agent?.full_name ?? null : null
+  const ownerName = call.owner?.full_name ?? (answeredInbound ? null : call.agent?.full_name ?? null)
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 space-y-3">
@@ -173,7 +188,7 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
             <>
               <PhoneIncoming size={14} className="text-sky-400" />
               <span className="text-sm font-semibold text-slate-200">Incoming Call</span>
-              <InboundBadge outcome={call.inbound_outcome} />
+              <InboundBadge outcome={call.inbound_outcome} agent={call.agent?.full_name} />
             </>
           ) : isDialer ? (
             <>
@@ -219,8 +234,8 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
           {call.to_number && (
             <Fact icon={Phone} label="Rang:" iconCls="text-slate-500" value={call.to_number} />
           )}
-          {call.agent?.full_name && (
-            <Fact icon={User} label="Handled by:" iconCls="text-sky-400" value={call.agent.full_name} />
+          {ownerName && ownerName !== answerer && (
+            <Fact icon={User} label="Lead owner:" iconCls="text-sky-400" value={ownerName} />
           )}
         </>
       )}

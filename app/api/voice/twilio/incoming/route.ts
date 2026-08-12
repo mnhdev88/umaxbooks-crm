@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { createServiceClient } from '@/lib/supabase/service'
-import { verifyTwilioRequest, clientIdentityForUser } from '@/lib/voice/twilio'
+import { verifyTwilioRequest, clientIdentityForUser, userIdForDialLeg } from '@/lib/voice/twilio'
 import { readBusinessHours, isOpenNow } from '@/lib/business-hours'
 
 /**
@@ -155,7 +155,11 @@ export async function POST(req: NextRequest) {
     const owner = req.nextUrl.searchParams.get('owner') || null
 
     if (params.DialCallStatus === 'completed') {
-      await markOutcome(supabase, callSid, 'answered-hunt', null)
+      // Someone in the hunt group took it — but which one? We rang them all at once, so
+      // the answerer is only recoverable from the leg that connected. Passing null here
+      // left agent_user_id as the owner who had just failed to pick up, and the call then
+      // showed as handled by them on the lead's timeline.
+      await markOutcome(supabase, callSid, 'answered-hunt', await userIdForDialLeg(params.DialCallSid))
       return xml(twiml)
     }
 
@@ -396,6 +400,11 @@ async function huntTwiml(
   return xml(twiml)
 }
 
+/**
+ * Timeline wording per outcome. The two 'answered' entries are only a fallback — when we
+ * can resolve the agent we name them instead, since "the team" tells whoever reads the
+ * timeline next nothing about who to ask about the call.
+ */
 const OUTCOME_LABEL: Record<string, string> = {
   'answered-owner': 'Answered by the agent who last called them.',
   'answered-hunt': 'Answered by the team.',
@@ -434,14 +443,27 @@ async function markOutcome(
   }
   if (!data?.lead_id) return
 
+  const handledBy = agentUserId ?? data.agent_user_id ?? null
+  const answerer = outcome.startsWith('answered') ? await agentNameFor(supabase, handledBy) : null
+
   await supabase.from('leads').update({ last_call_at: new Date().toISOString() }).eq('id', data.lead_id)
 
   await supabase.from('activity_logs').insert({
     lead_id: data.lead_id,
-    user_id: agentUserId ?? data.agent_user_id ?? null,
+    user_id: handledBy,
     action: 'Inbound Call',
-    details: `Lead called back. ${OUTCOME_LABEL[outcome] ?? outcome}`,
+    details: `Lead called back. ${answerer ? `Answered by ${answerer}.` : (OUTCOME_LABEL[outcome] ?? outcome)}`,
   })
+}
+
+/** Display name for a staff member, for timeline copy. Null when unknown. */
+async function agentNameFor(
+  supabase: ReturnType<typeof createServiceClient>,
+  userId: string | null
+): Promise<string | null> {
+  if (!userId) return null
+  const { data } = await supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle()
+  return data?.full_name ?? null
 }
 
 /**

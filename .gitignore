@@ -39,6 +39,9 @@ yarn-error.log*
 # data exports (may contain personal contact data)
 *-export.csv
 
+# undo files written by one-off backfill scripts — machine-local, not history
+scripts/*.revert.*.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
