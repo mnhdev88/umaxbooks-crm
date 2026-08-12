@@ -84,30 +84,38 @@ export function ThreadPane({
     if (!body || sending) return
     setSending(true)
     setInput('')
-    clearTyping()
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({
-        // sender_id omitted on purpose — the DB stamps it from auth.uid() (migration 104).
-        conversation_id: conversationId,
-        body,
-        parent_message_id: parent.id,
-        mentions: extractMentions(body, members),
-      })
-      .select(MESSAGE_COLUMNS)
-      .single()
-    setSending(false)
-    if (error || !data) {
-      const detail = describeSupabaseError(error)
-      console.error('Thread reply failed:', detail, error)
-      toast.error(`Reply failed: ${detail}`)
+    // See ChatWindow.send — a throw here would strand `sending` and kill the composer.
+    try {
+      clearTyping()
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          // sender_id omitted on purpose — the DB stamps it from auth.uid() (migration 104).
+          conversation_id: conversationId,
+          body,
+          parent_message_id: parent.id,
+          mentions: extractMentions(body, members),
+        })
+        .select(MESSAGE_COLUMNS)
+        .single()
+      if (error || !data) {
+        const detail = describeSupabaseError(error)
+        console.error('Thread reply failed:', detail, error)
+        toast.error(`Reply failed: ${detail}`)
+        setInput(body)
+        return
+      }
+      const msg = data as ChatMessage
+      setReplies((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+      onReplyCountChange(parent.id, 1)
+    } catch (err) {
+      console.error('Thread reply threw:', err)
+      toast.error(`Reply failed: ${describeSupabaseError(err)}`)
       setInput(body)
-      return
+    } finally {
+      setSending(false)
+      inputRef.current?.focus()
     }
-    const msg = data as ChatMessage
-    setReplies((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
-    onReplyCountChange(parent.id, 1)
-    inputRef.current?.focus()
   }
 
   async function remove(m: ChatMessage) {

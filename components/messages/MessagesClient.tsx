@@ -340,11 +340,19 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
     if (!body || !activeId || sending) return
     setSending(true)
     setInput('')
-    clearTyping()
-    const ok = await insertMessage(activeId, { body, mentions: extractMentions(body, mentionable) })
-    setSending(false)
-    if (!ok) setInput(body)
-    inputRef.current?.focus()
+    // See ChatWindow.send — a throw here would strand `sending` and kill the composer.
+    try {
+      clearTyping()
+      const ok = await insertMessage(activeId, { body, mentions: extractMentions(body, mentionable) })
+      if (!ok) setInput(body)
+    } catch (err) {
+      console.error('Chat send threw:', err)
+      toast.error(`Send failed: ${describeSupabaseError(err)}`)
+      setInput(body)
+    } finally {
+      setSending(false)
+      inputRef.current?.focus()
+    }
   }
 
   // Upload each file as its own message; the typed caption rides with the first.

@@ -202,11 +202,22 @@ export function ChatWindow({
     if (!body || sending) return
     setSending(true)
     setInput('')
-    clearTyping()
-    const ok = await insertMessage({ body, mentions: extractMentions(body, mentionable) })
-    setSending(false)
-    if (!ok) setInput(body)
-    inputRef.current?.focus()
+    // finally, not a bare setSending(false): anything throwing in here used to leave
+    // `sending` stuck true, and since send() bails on `sending` the composer was dead
+    // for the rest of the window's life — no request, no toast, typed text just sitting
+    // there. The window outlives navigation, so it never got a re-mount to recover.
+    try {
+      clearTyping()
+      const ok = await insertMessage({ body, mentions: extractMentions(body, mentionable) })
+      if (!ok) setInput(body)
+    } catch (err) {
+      console.error('Chat send threw:', err)
+      toast.error(`Send failed: ${describeSupabaseError(err)}`)
+      setInput(body)
+    } finally {
+      setSending(false)
+      inputRef.current?.focus()
+    }
   }
 
   async function removeMessage(m: ChatMessage) {
