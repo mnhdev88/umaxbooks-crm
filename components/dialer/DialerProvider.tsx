@@ -252,7 +252,14 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       // and the far end would hear it), and it never covers the call controls. The leg
       // is left open so Answer is a real option; ignoring it simply lets Twilio's
       // <Dial timeout> roll the caller on to the rest of the team as before.
-      if (callRef.current || state !== 'idle' || secondRef.current) {
+      //
+      // 'wrapup' is deliberately not busy. Nobody is on a call there — it's a form the
+      // agent may leave open indefinitely, and it survives navigation, so treating it as
+      // busy quietly downgraded every later call to the small card for the rest of the
+      // session. 'connecting' stays busy on `state` alone: callRef isn't set until
+      // device.connect() resolves, so there's a window where only the state knows.
+      const busy = callRef.current || secondRef.current || (state !== 'idle' && state !== 'wrapup')
+      if (busy) {
         // One at a time. A third caller during all this gets today's behaviour —
         // declined so they escalate immediately, rather than stacking cards nobody
         // can act on.
@@ -278,6 +285,11 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
         })
         return
       }
+
+      // Taking over an open wrap-up form: queue the lead it belonged to rather than
+      // losing it. leadIdRef is about to be overwritten by whoever we answer, and the
+      // queued log surfaces on its own once the dialer is back to idle.
+      if (state === 'wrapup' && leadIdRef.current) setQueuedLog(leadIdRef.current)
 
       incomingRef.current = call
       setIncoming(readIncomingInfo(call))
