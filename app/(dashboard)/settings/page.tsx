@@ -10,6 +10,7 @@ import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
 import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
 import { BusinessHoursSetting } from '@/components/settings/BusinessHoursSetting'
 import { CallerNumbers } from '@/components/settings/CallerNumbers'
+import { RingtoneSetting } from '@/components/settings/RingtoneSetting'
 import { ReportingDaySetting } from '@/components/settings/ReportingDaySetting'
 import { KpiScorecardSettings } from '@/components/settings/KpiScorecardSettings'
 import { ManualKpiEntries } from '@/components/settings/ManualKpiEntries'
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
         <CallWindowSetting />
         <BusinessHoursSetting />
         <CallerNumbers />
+        <RingtoneSetting />
         <ReportingDaySetting />
         <ContractPackageDefaults />
         <KpiScorecardSettings />

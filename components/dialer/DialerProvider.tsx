@@ -105,6 +105,8 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   // to take another one: its disposition form would be buried under the new call, so
   // we hold the lead and open the log form when we're back to idle.
   const [queuedLog, setQueuedLog] = useState<string | null>(null)
+  // Whether the ringtone is switched on org-wide. Silent until we hear otherwise.
+  const [ringAllowed, setRingAllowed] = useState(false)
   // Indirection so the Device's 'incoming' listener — attached once, at Device
   // creation — always runs the latest handler instead of a stale closure.
   const onIncomingRef = useRef<(call: Call) => void>(() => {})
@@ -299,6 +301,18 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, cleanupCall, endCall])
 
+  // Org-wide ringtone switch (Settings → Incoming Call Ringtone). Read once per page
+  // load; agents pick up an admin's change on their next navigation. Defaults to silent
+  // and stays silent if the read fails — an unexpected tone is worse than a quiet one.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/settings/ringtone')
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setRingAllowed(!!d?.enabled) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   // Register the Device on mount so inbound calls can reach this browser at all.
   // Registering only opens the signalling websocket — the microphone isn't touched
   // until a call is actually accepted, so this doesn't prompt for permissions.
@@ -488,6 +502,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       {state === 'incoming' ? (
         <IncomingCallWidget
           info={incoming}
+          sound={ringAllowed}
           onAccept={acceptIncoming}
           onReject={rejectIncoming}
         />
@@ -664,25 +679,32 @@ function CallWidget({
 }
 
 /**
- * Ringing inbound call — a centred, full-screen modal with a ringtone.
+ * Ringing inbound call — a centred, full-screen modal.
  *
- * Deliberately the loudest surface in the app: it appears while the agent is doing
+ * Deliberately the most visible surface in the app: it appears while the agent is doing
  * something else and there are only ~15 seconds before the call rolls on to the rest
- * of the team. Because the hunt group rings several browsers at once, this can vanish
- * on its own the moment a colleague answers (the 'cancel' handler in DialerProvider).
+ * of the team. Visible always, audible only when an admin has switched the ringtone on
+ * in Settings and the agent hasn't muted their own browser. Because the hunt group rings
+ * several browsers at once, this can vanish on its own the moment a colleague answers
+ * (the 'cancel' handler in DialerProvider).
  *
  * Escape declines, so a misdirected call can be cleared from the keyboard.
  */
 function IncomingCallWidget({
   info,
+  sound,
   onAccept,
   onReject,
 }: {
   info: IncomingInfo | null
+  /** Org-wide ringtone switch. False means no AudioContext is built at all. */
+  sound: boolean
   onAccept: () => void
   onReject: () => void
 }) {
-  const [muted, setMuted] = useState(false)
+  // Read at mount rather than in an effect: this widget only ever renders client-side,
+  // in response to a call, so there's no server pass to disagree with.
+  const [muted, setMuted] = useState(() => ringMuted())
   const answerRef = useRef<HTMLButtonElement | null>(null)
   const ringRef = useRef<ReturnType<typeof createRingtone> | null>(null)
 
@@ -690,7 +712,7 @@ function IncomingCallWidget({
   // an inbound call is rare enough that building one AudioContext per ring is fine,
   // and it guarantees we never leak a running interval between calls.
   useEffect(() => {
-    setMuted(ringMuted())
+    if (!sound) return
     const ring = createRingtone()
     ringRef.current = ring
     ring.start()
@@ -698,7 +720,7 @@ function IncomingCallWidget({
       ring.dispose()
       ringRef.current = null
     }
-  }, [])
+  }, [sound])
 
   // Focus Answer so Enter picks up — the agent may be typing when this appears.
   useEffect(() => {
@@ -777,13 +799,17 @@ function IncomingCallWidget({
           </button>
         </div>
 
-        <button
-          onClick={toggleRing}
-          className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
-        >
-          {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
-          {muted ? 'Ringtone off for this browser' : 'Mute ringtone'}
-        </button>
+        {/* Hidden when the ringtone is off org-wide: there'd be no sound to mute, and a
+            dead toggle reads as a broken one. */}
+        {sound && (
+          <button
+            onClick={toggleRing}
+            className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs text-slate-500 transition-colors hover:text-slate-300"
+          >
+            {muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            {muted ? 'Ringtone off for this browser' : 'Mute ringtone'}
+          </button>
+        )}
       </div>
     </div>
   )

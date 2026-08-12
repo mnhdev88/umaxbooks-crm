@@ -23,6 +23,11 @@ const RING_CYCLE = 3.0
 const TONE_HZ = [440, 480]
 const VOLUME = 0.12
 
+/**
+ * Per-browser mute, opt-in. Whether the ringtone exists at all is an org-wide decision
+ * (app_settings.dialer_ringtone_enabled, admin-controlled in Settings) — this is the
+ * individual override on top of it, for the one agent in a quiet room.
+ */
 export function ringMuted(): boolean {
   if (typeof window === 'undefined') return false
   try {
