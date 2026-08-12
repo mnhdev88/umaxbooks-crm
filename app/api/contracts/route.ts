@@ -37,7 +37,10 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin' && profile?.role !== 'sales_agent') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Keep this in step with ContractTab's canManage — a role that sees the button
+  // and then gets a 403 on submit is worse than not showing the button at all.
+  const CAN_SEND = ['admin', 'sales_agent', 'sales_manager']
+  if (!CAN_SEND.includes(profile?.role ?? '')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { lead_id, ...fields } = body

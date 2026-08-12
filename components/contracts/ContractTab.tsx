@@ -38,7 +38,11 @@ export function ContractTab({ lead, profile, userId }: Props) {
 
   useEffect(() => { load() }, [lead.id])
 
-  const canManage = profile.role === 'admin' || profile.role === 'sales_agent'
+  // sales_manager works leads alongside their agents (see LeadDetailTabs), so they
+  // send agreements too — leaving them out rendered the tab with no way to act on it.
+  const canManage = profile.role === 'admin'
+    || profile.role === 'sales_agent'
+    || profile.role === 'sales_manager'
   const origin    = typeof window !== 'undefined' ? window.location.origin : ''
 
   return (
