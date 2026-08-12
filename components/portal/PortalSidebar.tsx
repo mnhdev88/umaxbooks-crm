@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { Globe, GitCompare, FileText, LifeBuoy, LayoutDashboard, LogOut, Bell, Receipt, X } from 'lucide-react'
@@ -21,7 +21,6 @@ const portalNav = [
 
 export function PortalSidebar({ profile, isAdminPreview = false, isOpen = false, onClose }: { profile: Profile; isAdminPreview?: boolean; isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
-  const router   = useRouter()
   const supabase = createClient()
   const [unreadCount, setUnreadCount] = useState(0)
   const [signingOut, setSigningOut]   = useState(false)
@@ -50,7 +49,9 @@ export function PortalSidebar({ profile, isAdminPreview = false, isOpen = false,
     if (signingOut) return
     setSigningOut(true)
     await supabase.auth.signOut()
-    router.push('/login')
+    // Hard navigation — see Sidebar.handleLogout: a soft nav can leak this user's cached
+    // RSC payloads to whoever signs in next on the same tab.
+    window.location.href = '/login'
   }
 
   return (

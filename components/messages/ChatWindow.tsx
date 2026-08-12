@@ -182,7 +182,8 @@ export function ChatWindow({
   async function insertMessage(row: Record<string, unknown>): Promise<boolean> {
     const { data, error } = await supabase
       .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: userId, ...row })
+      // sender_id omitted on purpose — the DB stamps it from auth.uid() (migration 104).
+      .insert({ conversation_id: conversationId, ...row })
       .select(MESSAGE_COLUMNS)
       .single()
     if (error || !data) {

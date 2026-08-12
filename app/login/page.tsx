@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useId } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
 
@@ -12,7 +11,6 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
   const supabase = createClient()
 
   const emailId = useId()
@@ -64,8 +62,10 @@ export default function LoginPage() {
       }
     }
 
-    router.push('/')
-    router.refresh()
+    // Hard navigation, matching the client-role branch above. router.push + refresh raced:
+    // the dashboard could paint from the router cache with the *previous* user's props
+    // before the refresh landed, handing the new session a stale userId.
+    window.location.href = '/'
   }
 
   return (

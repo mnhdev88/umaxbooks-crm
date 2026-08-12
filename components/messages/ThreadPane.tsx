@@ -88,8 +88,8 @@ export function ThreadPane({
     const { data, error } = await supabase
       .from('messages')
       .insert({
+        // sender_id omitted on purpose — the DB stamps it from auth.uid() (migration 104).
         conversation_id: conversationId,
-        sender_id: userId,
         body,
         parent_message_id: parent.id,
         mentions: extractMentions(body, members),

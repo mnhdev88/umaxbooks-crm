@@ -308,9 +308,12 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
 
   // ── Send a message (text and/or attachment) ───────────────────────────────
   async function insertMessage(convId: string, row: Record<string, unknown>): Promise<boolean> {
+    // sender_id is deliberately omitted — migration 104 stamps it from auth.uid(). Sending
+    // the `userId` prop instead used to fail RLS whenever the prop went stale against the
+    // live JWT (in-tab account switch), since the policy requires sender_id = auth.uid().
     const { data, error } = await supabase
       .from('messages')
-      .insert({ conversation_id: convId, sender_id: userId, ...row })
+      .insert({ conversation_id: convId, ...row })
       .select(MESSAGE_COLUMNS)
       .single()
     if (error || !data) {

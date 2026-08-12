@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
 
@@ -137,7 +137,6 @@ interface SidebarProps {
 export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const pathname     = usePathname()
   const searchParams = useSearchParams()
-  const router       = useRouter()
   const supabase = createClient()
   const { theme, toggleTheme } = useTheme()
   const [pendingCount, setPendingCount] = useState(0)
@@ -224,7 +223,10 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     if (signingOut) return
     setSigningOut(true)
     await supabase.auth.signOut()
-    router.push('/login')
+    // Hard navigation, not router.push: a soft nav leaves Next's router cache holding this
+    // user's rendered payloads, so the next person to sign in on this tab can be handed
+    // their `userId`/`role` props. That desync is what broke chat sends (RLS 42501).
+    window.location.href = '/login'
   }
 
   return (
