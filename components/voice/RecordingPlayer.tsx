@@ -34,7 +34,10 @@ export function RecordingPlayer({
     )
   }
   return (
-    <audio controls autoPlay preload="metadata" src={src} className="h-8 w-full max-w-sm">
+    // No forced height: the native control is ~54px in Chrome, and squashing it to h-8
+    // clipped the internal layout so the timeline's hit area no longer matched where it
+    // was drawn — clicks on the scrub bar landed nowhere.
+    <audio controls autoPlay preload="metadata" src={src} className="w-full max-w-sm">
       Your browser does not support audio playback.
     </audio>
   )
