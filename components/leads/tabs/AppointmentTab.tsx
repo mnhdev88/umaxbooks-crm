@@ -8,6 +8,8 @@ import { Input, TextArea } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { LogCallModal } from '@/components/leads/LogCallModal'
+import { CallCard } from '@/components/voice/CallCard'
+import { useLeadCalls } from '@/components/voice/useLeadCalls'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { US_TIMEZONES, getTimezoneFromZip, localToUTC, formatDualTime } from '@/lib/timezone'
 import { toast } from 'sonner'
@@ -72,6 +74,9 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
     const value = `${String(h).padStart(2, '0')}:${m}`
     return { value, label }
   })
+
+  // Human calls (dialer + inbound). AI calls stay on the AI Calls tab.
+  const { calls: voiceCalls, loading: loadingCalls } = useLeadCalls(leadId, 'human')
 
   const supabase = createClient()
   const tzFromZip = useMemo(() => zipCode ? getTimezoneFromZip(zipCode) : null, [zipCode])
@@ -231,10 +236,24 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
         </div>
       )}
 
-      {appointments.length === 0 && followUps.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 text-sm">No calls or appointments logged yet.</div>
+      {/* ── Call History (dialer + inbound) ───────────────────── */}
+      {voiceCalls.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Call History</p>
+          <div className="space-y-3">
+            {voiceCalls.map((call) => <CallCard key={call.id} call={call} />)}
+          </div>
+        </div>
+      )}
+
+      {appointments.length === 0 && followUps.length === 0 && voiceCalls.length === 0 ? (
+        <div className="text-center py-12 text-slate-500 text-sm">
+          {loadingCalls ? 'Loading call history…' : 'No calls or appointments logged yet.'}
+        </div>
       ) : appointments.length === 0 ? null : (
-        <div className="space-y-3">
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Appointments &amp; Logged Calls</p>
+          <div className="space-y-3">
           {appointments.map((apt) => (
             <div key={apt.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -287,6 +306,7 @@ export function AppointmentTab({ leadId, userId, userRole, zipCode }: Appointmen
               )}
             </div>
           ))}
+          </div>
         </div>
       )}
 

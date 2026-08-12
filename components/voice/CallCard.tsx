@@ -144,7 +144,7 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
       {/* Lead header (global view only) — links to that lead's Calls tab */}
       {showLead && (lead ? (
         <Link
-          href={`/leads/${lead.id}?tab=calls`}
+          href={`/leads/${lead.id}?tab=${call.provider === 'twilio' ? 'appointments' : 'calls'}`}
           className="group flex items-center gap-2 -m-1 p-1 rounded-lg hover:bg-slate-700/40 transition-colors"
         >
           <Building2 size={14} className="text-orange-400 shrink-0" />
