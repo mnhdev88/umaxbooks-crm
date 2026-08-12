@@ -6,8 +6,9 @@ import { Play } from 'lucide-react'
 /**
  * Inline recording player. Twilio recordings are auth-protected, so they stream through
  * our /api/voice/twilio/recording proxy; Bland recordings are public and play directly.
- * The <audio> element is mounted on demand (preload="none") to avoid fetching every
- * recording when a long list of calls renders.
+ * The <audio> element is mounted on demand to avoid fetching every recording when a long
+ * list of calls renders — hence preload="metadata" rather than "none": by the time it
+ * mounts the user has asked for it, and metadata is what gives the scrub bar its duration.
  */
 export function RecordingPlayer({
   url,
@@ -33,7 +34,7 @@ export function RecordingPlayer({
     )
   }
   return (
-    <audio controls autoPlay preload="none" src={src} className="h-8 w-full max-w-xs">
+    <audio controls autoPlay preload="metadata" src={src} className="h-8 w-full max-w-sm">
       Your browser does not support audio playback.
     </audio>
   )
