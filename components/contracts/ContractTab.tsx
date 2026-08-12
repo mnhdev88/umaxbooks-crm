@@ -16,14 +16,22 @@ interface Props {
 export function ContractTab({ lead, profile, userId }: Props) {
   const [contracts, setContracts] = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
   const [showModal, setShowModal] = useState(false)
 
   async function load() {
     setLoading(true)
-    const res = await fetch(`/api/contracts?lead_id=${lead.id}`)
-    if (res.ok) {
-      const { contracts: data } = await res.json()
-      setContracts(data || [])
+    setError('')
+    try {
+      const res  = await fetch(`/api/contracts?lead_id=${lead.id}`)
+      const json = await res.json().catch(() => ({}))
+      // A failed fetch must not look like an empty list — "No contracts sent yet"
+      // on a lead that has agreements reads as data loss.
+      if (!res.ok) throw new Error(json.error || 'Could not load contracts')
+      setContracts(json.contracts || [])
+    } catch (e: any) {
+      setError(e.message || 'Could not load contracts')
+      setContracts([])
     }
     setLoading(false)
   }
@@ -49,6 +57,17 @@ export function ContractTab({ lead, profile, userId }: Props) {
 
       {loading ? (
         <p className="text-slate-500 text-sm">Loading…</p>
+      ) : error ? (
+        <div className="text-center py-12">
+          <FileSignature className="w-10 h-10 text-red-500/40 mx-auto mb-3" />
+          <p className="text-red-400 text-sm mb-1">{error}</p>
+          <button
+            onClick={load}
+            className="text-orange-400 hover:text-orange-300 text-sm font-medium transition-colors"
+          >
+            Try again
+          </button>
+        </div>
       ) : contracts.length === 0 ? (
         <div className="text-center py-12">
           <FileSignature className="w-10 h-10 text-slate-700 mx-auto mb-3" />

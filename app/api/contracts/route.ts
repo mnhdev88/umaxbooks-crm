@@ -14,11 +14,19 @@ export async function GET(req: NextRequest) {
   if (!leadId) return NextResponse.json({ error: 'Missing lead_id' }, { status: 400 })
 
   const service = createServiceClient()
-  const { data } = await service
+  const { data, error } = await service
     .from('contracts')
     .select('id,status,business_name,client_email,package,total_amount,scope_items,sent_at,signed_at,signed_pdf_url,signing_token')
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false })
+
+  // Don't swallow this: a select that fails (a column the deployed DB is missing,
+  // say) used to fall through to [] and render as "No contracts sent yet" — the
+  // agreements looked deleted rather than unreadable.
+  if (error) {
+    console.error('Contracts fetch error:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ contracts: data || [] })
 }
