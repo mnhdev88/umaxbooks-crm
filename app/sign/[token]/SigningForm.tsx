@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { readSchedule, readScopeItems, prettyDate, usd, round2, type ScheduleRow } from '@/lib/contract-plan'
+import { SIGNATURE_ACCEPT, loadSignatureFile, paintSignature } from '@/lib/signature-image'
 
 /**
  * Dated installment schedule for the PDF. Renders nothing for one-time
@@ -249,10 +250,17 @@ const CSS = `
 #nva .sig-head{font-size:13px;font-weight:600;color:#374151;margin-bottom:8px}
 #nva canvas{display:block;width:100%;height:110px;border:1.5px dashed #d1d5db;border-radius:8px;background:#f9fafb;cursor:crosshair;touch-action:none}
 #nva canvas.signed{border-style:solid;border-color:#1F3A93;background:#fff}
+#nva canvas.upload{pointer-events:none;cursor:default}
+#nva .sig-modes{margin-left:auto;display:flex;border:1px solid #e5e7eb;border-radius:7px;overflow:hidden}
+#nva .sig-mode{padding:5px 11px;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;color:#9ca3af;background:#fff;border:none;cursor:pointer;transition:.15s}
+#nva .sig-mode:hover{color:#1F3A93}
+#nva .sig-mode.on{background:#1F3A93;color:#fff}
 #nva .rep-sig-img{width:100%;height:110px;border:1.5px solid #1F3A93;border-radius:8px;background:#fff;object-fit:contain;padding:4px}
 #nva .rep-sig-text{margin-top:8px;font-size:12px;color:#374151;line-height:1.6}
 #nva .clr{margin-top:6px;padding:5px 12px;font-size:12px;font-family:'DM Sans',sans-serif;border:1px solid #e5e7eb;border-radius:6px;background:#fff;color:#9ca3af;cursor:pointer;transition:.15s}
 #nva .clr:hover{border-color:#e53e3e;color:#e53e3e;background:#fff5f5}
+#nva .clr.pick{margin-right:8px;color:#1F3A93;font-weight:600}
+#nva .clr.pick:hover{border-color:#1F3A93;color:#1F3A93;background:#eef1fb}
 #nva .actions{padding:20px 32px;background:#f8f9fd;border-top:1px solid #eee;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 #nva .btn{display:inline-flex;align-items:center;gap:7px;padding:11px 22px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:.2s}
 #nva .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -329,7 +337,12 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
   const [pdfUrl,   setPdfUrl]   = useState<string | null>(null)
   const [scriptsReady, setScriptsReady] = useState(false)
 
+  // Signing on a desktop with a mouse is awkward, so the client can upload a
+  // picture of their signature instead; it lands on the same canvas.
+  const [sigMode, setSigMode] = useState<'draw' | 'upload'>('draw')
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileRef   = useRef<HTMLInputElement>(null)
   const hasSigRef = useRef(false)
 
   // The rep sets the payment breakdown when sending, so the client confirms it
@@ -456,6 +469,30 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
     ctx.restore()
     setHasSig(false)
     hasSigRef.current = false
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  async function onPickSignature(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const img = await loadSignatureFile(file)
+      const c = canvasRef.current!
+      // The pad is scaled for device pixel ratio, so paint in CSS pixels.
+      paintSignature(c.getContext('2d')!, img, c.offsetWidth, 110)
+      setHasSig(true)
+      hasSigRef.current = true
+      setError('')
+    } catch (err: any) {
+      setError(err.message)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  function switchSigMode(mode: 'draw' | 'upload') {
+    if (mode === sigMode) return
+    setSigMode(mode)
+    clearSig()
   }
 
   function toggleCardType(ct: string) {
@@ -480,7 +517,7 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
     if (!locked && !payment.first_payment) return setError('Please enter the first payment amount.')
     if (!payment.client_full_name) return setError('Please enter your full legal name.')
     if (!acks.every(Boolean))     return setError('Please check all acknowledgment boxes.')
-    if (!hasSig)                  return setError('Please draw your signature.')
+    if (!hasSig)                  return setError('Please draw or upload your signature.')
 
     const client_signature = canvasRef.current!.toDataURL('image/png')
     setSubmitting(true)
@@ -850,20 +887,68 @@ export function SigningForm({ contract, token }: { contract: any; token: string 
             <div className="sig-grid">
               {/* Client signs */}
               <div>
-                <div className="sig-head">Client Signature <span style={{ color: '#e53e3e' }}>*</span></div>
-                <canvas
-                  ref={canvasRef}
-                  height={110}
-                  role="img"
-                  aria-label="Signature pad — draw your signature using your mouse or finger"
-                  className={hasSig ? 'signed' : ''}
-                  onMouseDown={onDown} onMouseMove={onMove}
-                  onMouseUp={() => setDrawing(false)} onMouseLeave={() => setDrawing(false)}
-                  onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={() => setDrawing(false)}
-                />
+                <div className="sig-head" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span>Client Signature <span style={{ color: '#e53e3e' }}>*</span></span>
+                  <div className="sig-modes" role="tablist" aria-label="Signature method">
+                    {(['draw', 'upload'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="tab"
+                        aria-selected={sigMode === mode}
+                        className={`sig-mode${sigMode === mode ? ' on' : ''}`}
+                        onClick={() => switchSigMode(mode)}
+                      >
+                        {mode === 'draw' ? 'Draw' : 'Upload image'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <canvas
+                    ref={canvasRef}
+                    height={110}
+                    role="img"
+                    aria-label={sigMode === 'draw'
+                      ? 'Signature pad — draw your signature using your mouse or finger'
+                      : 'Signature pad — showing your uploaded signature image'}
+                    className={`${hasSig ? 'signed' : ''}${sigMode === 'upload' ? ' upload' : ''}`}
+                    onMouseDown={onDown} onMouseMove={onMove}
+                    onMouseUp={() => setDrawing(false)} onMouseLeave={() => setDrawing(false)}
+                    onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={() => setDrawing(false)}
+                  />
+                  {/* In upload mode the pad itself opens the file picker. */}
+                  {sigMode === 'upload' && (
+                    <button
+                      type="button"
+                      aria-label="Choose a signature image"
+                      onClick={() => fileRef.current?.click()}
+                      style={{ position: 'absolute', inset: 0, background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                    />
+                  )}
+                  {!hasSig && sigMode === 'upload' && (
+                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: '#9ca3af', pointerEvents: 'none' }}>
+                      Choose an image of your signature
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                  Draw your signature in the box above.
+                  {sigMode === 'draw'
+                    ? 'Draw your signature in the box above.'
+                    : 'Upload a photo or scan of your signature (PNG, JPG or WEBP).'}
                 </p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept={SIGNATURE_ACCEPT}
+                  onChange={onPickSignature}
+                  style={{ display: 'none' }}
+                />
+                {sigMode === 'upload' && (
+                  <button type="button" className="clr pick" onClick={() => fileRef.current?.click()}>
+                    {hasSig ? 'Choose a different image' : 'Choose image…'}
+                  </button>
+                )}
                 {hasSig && (
                   <button type="button" className="clr" onClick={clearSig}>✕ Clear</button>
                 )}

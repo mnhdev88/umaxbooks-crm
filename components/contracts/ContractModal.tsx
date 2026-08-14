@@ -10,6 +10,7 @@ import {
   type PackageDefaults,
 } from '@/lib/contract-plan'
 import { ScopeItemsEditor } from './ScopeItemsEditor'
+import { SIGNATURE_ACCEPT, loadSignatureFile, paintSignature } from '@/lib/signature-image'
 
 /** Quick-set chips for the down payment, as a share of the total. */
 const DOWN_PCT_CHIPS = [0, 25, 33, 50, 75]
@@ -54,8 +55,12 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
   const [scopeTouched, setScopeTouched] = useState(false)
 
   const canvasRef  = useRef<HTMLCanvasElement>(null)
+  const fileRef    = useRef<HTMLInputElement>(null)
   const [drawing, setDrawing]   = useState(false)
   const [hasSig, setHasSig]     = useState(false)
+  // Reps who don't sign well with a mouse can upload a picture of their
+  // signature instead; either way it lands on the same canvas.
+  const [sigMode, setSigMode]   = useState<'draw' | 'upload'>('draw')
   const [sending, setSending]   = useState(false)
   const [error, setError]       = useState('')
   const [sent, setSent]         = useState(false)
@@ -164,6 +169,28 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     const c = canvasRef.current!
     c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
     setHasSig(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  async function onPickSignature(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const img = await loadSignatureFile(file)
+      const c = canvasRef.current!
+      paintSignature(c.getContext('2d')!, img, c.width, c.height)
+      setHasSig(true)
+      setError('')
+    } catch (err: any) {
+      setError(err.message)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  function switchSigMode(mode: 'draw' | 'upload') {
+    if (mode === sigMode) return
+    setSigMode(mode)
+    clearSig()
   }
 
   async function handleSend() {
@@ -176,7 +203,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     if (!form.rep_title)         return setError('Please enter your title (e.g. CEO)')
     if (cleanScope.length === 0) return setError('Add at least one line to the scope of services')
     if (isInstallment && plan.error) return setError(plan.error)
-    if (!hasSig)                 return setError('Please draw your signature before sending')
+    if (!hasSig)                 return setError('Please draw or upload your signature before sending')
 
     const rep_signature = canvasRef.current!.toDataURL('image/png')
     setSending(true)
@@ -428,12 +455,32 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
               <Field label="Date Signed"      value={form.rep_sign_date} onChange={set('rep_sign_date')} type="date" className="col-span-2" />
             </div>
             <div>
-              <FieldLabel>Draw Signature *</FieldLabel>
+              <div className="flex items-center gap-3">
+                <FieldLabel>Signature *</FieldLabel>
+                <div className="ml-auto flex rounded-lg border border-slate-700 overflow-hidden text-[11px] font-medium">
+                  {(['draw', 'upload'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => switchSigMode(mode)}
+                      className={`px-3 py-1 transition-colors ${
+                        sigMode === mode
+                          ? 'bg-orange-500 text-white'
+                          : 'text-slate-400 hover:text-orange-400'
+                      }`}
+                    >
+                      {mode === 'draw' ? 'Draw' : 'Upload image'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="relative mt-1.5">
                 <canvas
                   ref={canvasRef}
                   height={110}
-                  className={`w-full rounded-lg cursor-crosshair touch-none border ${
+                  className={`w-full rounded-lg touch-none border ${
+                    sigMode === 'draw' ? 'cursor-crosshair' : 'pointer-events-none'
+                  } ${
                     hasSig ? 'border-orange-500 bg-slate-800' : 'border-dashed border-slate-600 bg-slate-800/50'
                   }`}
                   onMouseDown={onDown} onMouseMove={onMove}
@@ -442,15 +489,42 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                 />
                 {!hasSig && (
                   <span className="absolute inset-0 flex items-center justify-center text-slate-600 text-sm pointer-events-none select-none">
-                    Draw your signature here
+                    {sigMode === 'draw' ? 'Draw your signature here' : 'Choose an image of your signature'}
                   </span>
                 )}
+                {/* In upload mode the pad itself opens the file picker. */}
+                {sigMode === 'upload' && (
+                  <button
+                    type="button"
+                    aria-label="Choose a signature image"
+                    onClick={() => fileRef.current?.click()}
+                    className="absolute inset-0 rounded-lg cursor-pointer"
+                  />
+                )}
               </div>
-              {hasSig && (
-                <button onClick={clearSig} className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors">
-                  ✕ Clear signature
-                </button>
-              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={SIGNATURE_ACCEPT}
+                onChange={onPickSignature}
+                className="hidden"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                {sigMode === 'upload' && (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                  >
+                    {hasSig ? 'Choose a different image' : 'Choose image…'}
+                  </button>
+                )}
+                {hasSig && (
+                  <button onClick={clearSig} className="text-xs text-red-400 hover:text-red-300 transition-colors">
+                    ✕ Clear signature
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 
