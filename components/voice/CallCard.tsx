@@ -266,7 +266,9 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
       {/* Recording + transcript */}
       {(call.recording_url || call.transcript) && (
         <div className="flex items-center gap-4 pt-1 flex-wrap">
-          {call.recording_url && <RecordingPlayer url={call.recording_url} provider={call.provider} />}
+          {call.recording_url && (
+            <RecordingPlayer url={call.recording_url} provider={call.provider} durationSec={call.duration_sec} />
+          )}
           {call.transcript && (
             <button onClick={() => setShowTranscript(v => !v)}
               className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200">
