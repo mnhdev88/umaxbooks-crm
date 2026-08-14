@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
+import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useState } from 'react'
@@ -271,6 +272,11 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-100 truncate leading-tight">{profile.full_name}</p>
             <p className="text-[11px] text-slate-500 leading-tight mt-0.5">{formatRole(profile.role)}</p>
+          </div>
+          {/* Ring volume lives here rather than only on the incoming-call popup —
+              a call gives you ~15 seconds, which is no time to go looking. */}
+          <div className="ml-auto">
+            <RingVolumeControl />
           </div>
         </div>
       </div>

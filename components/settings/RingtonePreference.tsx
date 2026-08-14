@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Volume2, Info } from 'lucide-react'
-import { ringMuted, setRingMuted } from '@/lib/voice/ringtone'
+import { ringMuted, setRingMuted, onRingVolumeChange } from '@/lib/voice/ringtone'
 
 /**
  * Per-agent ringtone preference — the one setting on this page everybody gets.
@@ -34,6 +34,10 @@ export function RingtonePreference() {
       })
       .catch(readLocal)
   }, [])
+
+  // The sidebar slider writes the same value — muting there must show here, since
+  // both are on screen at once on this page.
+  useEffect(() => onRingVolumeChange(v => setMuted(v === 0)), [])
 
   function toggle() {
     const next = !muted
@@ -85,6 +89,7 @@ export function RingtonePreference() {
       {loaded && orgOn && (
         <p className="text-xs text-slate-500 mt-3">
           Saved in this browser only — set it again on any other computer you sign in from.
+          Use the speaker icon beside your name in the sidebar to set how loud it rings.
         </p>
       )}
     </div>
