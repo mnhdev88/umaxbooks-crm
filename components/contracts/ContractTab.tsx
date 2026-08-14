@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { Lead, Profile } from '@/types'
-import { FileSignature, Clock, CheckCircle, Download, Plus, ExternalLink } from 'lucide-react'
+import { FileSignature, Clock, CheckCircle, Download, Plus, ExternalLink, Ban, Hourglass, Loader2 } from 'lucide-react'
 import { ContractModal } from './ContractModal'
 import { formatDate } from '@/lib/utils'
 import { readScopeItems } from '@/lib/contract-plan'
+import { contractLinkExpired, CONTRACT_LINK_DAYS } from '@/lib/contract-expiry'
 
 interface Props {
   lead: Lead
@@ -18,6 +19,7 @@ export function ContractTab({ lead, profile, userId }: Props) {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -37,6 +39,27 @@ export function ContractTab({ lead, profile, userId }: Props) {
   }
 
   useEffect(() => { load() }, [lead.id])
+
+  async function cancelContract(c: any) {
+    // A dead link can't be revived, so make the rep say so out loud.
+    if (!window.confirm(`Cancel the awaiting agreement for ${c.client_email}? The signing link stops working immediately — send a new contract if terms are still wanted.`)) return
+    setCancelling(c.id)
+    try {
+      const res  = await fetch('/api/contracts', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ id: c.id, action: 'cancel' }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Could not cancel the contract')
+      await load()
+    } catch (e: any) {
+      // Not setError — that swaps the whole list for the error screen. The list is
+      // fine; only this action failed.
+      window.alert(e.message || 'Could not cancel the contract')
+    }
+    setCancelling(null)
+  }
 
   // sales_manager works leads alongside their agents (see LeadDetailTabs), so they
   // send agreements too — leaving them out rendered the tab with no way to act on it.
@@ -87,7 +110,10 @@ export function ContractTab({ lead, profile, userId }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {contracts.map(c => (
+          {contracts.map(c => {
+            const expired  = contractLinkExpired(c)
+            const awaiting = c.status === 'sent' && !expired
+            return (
             <div key={c.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -95,6 +121,17 @@ export function ContractTab({ lead, profile, userId }: Props) {
                     {c.status === 'signed' ? (
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full">
                         <CheckCircle size={10} /> Signed
+                      </span>
+                    ) : c.status === 'cancelled' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-400/10 border border-slate-400/20 px-2 py-0.5 rounded-full">
+                        <Ban size={10} /> Cancelled
+                      </span>
+                    ) : expired ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-400/10 border border-slate-400/20 px-2 py-0.5 rounded-full"
+                        title={`Signing links are valid for ${CONTRACT_LINK_DAYS} days`}
+                      >
+                        <Hourglass size={10} /> Expired
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
@@ -145,7 +182,7 @@ export function ContractTab({ lead, profile, userId }: Props) {
                       <Download size={12} /> PDF
                     </a>
                   )}
-                  {c.status === 'sent' && canManage && (
+                  {awaiting && canManage && (
                     <a
                       href={`${origin}/sign/${c.signing_token}`}
                       target="_blank"
@@ -156,10 +193,30 @@ export function ContractTab({ lead, profile, userId }: Props) {
                       <ExternalLink size={12} /> Preview
                     </a>
                   )}
+                  {awaiting && canManage && (
+                    <button
+                      onClick={() => cancelContract(c)}
+                      disabled={cancelling === c.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-red-500/20 text-slate-400 hover:text-red-400 text-xs rounded-lg transition-colors disabled:opacity-50"
+                      title="Cancel this agreement — the signing link stops working"
+                    >
+                      {cancelling === c.id ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />} Cancel
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* The path forward, spelled out where the dead agreement is. */}
+              {(expired || c.status === 'cancelled') && canManage && (
+                <p className="text-xs text-slate-500 border-t border-slate-700/60 pt-2">
+                  {expired
+                    ? `This signing link expired ${CONTRACT_LINK_DAYS} days after sending. `
+                    : 'This agreement was cancelled. '}
+                  Use <span className="text-slate-400 font-medium">New Contract</span> to send a fresh agreement.
+                </p>
+              )}
             </div>
-          ))}
+          )})}
         </div>
       )}
 

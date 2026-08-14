@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildInstallmentPlan, sanitizeScopeItems, DEFAULT_SCOPE_ITEMS } from '@/lib/contract-plan'
+import { CONTRACT_LINK_DAYS } from '@/lib/contract-expiry'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -111,7 +112,8 @@ export async function POST(req: NextRequest) {
               Review &amp; Sign Agreement
             </a>
           </p>
-          <p style="color:#9ca3af;font-size:12px;margin:0">Or copy this link:<br>${signingUrl}</p>
+          <p style="color:#9ca3af;font-size:12px;margin:0 0 16px">Or copy this link:<br>${signingUrl}</p>
+          <p style="color:#9ca3af;font-size:12px;margin:0">This link is valid for ${CONTRACT_LINK_DAYS} days. If it expires, just reply and we&rsquo;ll send a fresh agreement.</p>
           <hr style="border:none;border-top:1px solid #f0f0f0;margin:24px 0">
           <p style="color:#9ca3af;font-size:12px;margin:0">${agencyName} · support@noveliotech.com</p>
         </div>
@@ -149,6 +151,52 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     action: 'Contract Sent',
     details: `Service agreement sent to ${contract.client_email}`,
+  })
+
+  return NextResponse.json({ success: true })
+}
+
+/**
+ * PATCH /api/contracts — cancel an awaiting contract: { id, action: 'cancel' }.
+ *
+ * The record stays (it's an audit trail of what was offered) but the signing link dies
+ * immediately; the client's page shows "Agreement Cancelled". Only `sent` contracts can
+ * be cancelled — a signed agreement is a done deal, and un-cancelling doesn't exist:
+ * stale terms get a fresh contract, not a revived link.
+ */
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  // Same roles that can send one — see POST above and ContractTab's canManage.
+  const CAN_SEND = ['admin', 'sales_agent', 'sales_manager']
+  if (!CAN_SEND.includes(profile?.role ?? '')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id, action } = await req.json().catch(() => ({}))
+  if (action !== 'cancel' || !id) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+
+  const service = createServiceClient()
+  // The status filter makes this a no-op on signed/cancelled rows rather than trusting
+  // the browser's view of the state, which may be minutes old.
+  const { data: cancelled, error } = await service
+    .from('contracts')
+    .update({ status: 'cancelled' })
+    .eq('id', id)
+    .eq('status', 'sent')
+    .select('id,lead_id,client_email,business_name')
+    .single()
+
+  if (error || !cancelled) {
+    return NextResponse.json({ error: 'Contract not found or no longer awaiting signature' }, { status: 409 })
+  }
+
+  await service.from('activity_logs').insert({
+    lead_id: cancelled.lead_id,
+    user_id: user.id,
+    action: 'Contract Cancelled',
+    details: `Awaiting agreement for ${cancelled.client_email} cancelled — signing link deactivated`,
   })
 
   return NextResponse.json({ success: true })

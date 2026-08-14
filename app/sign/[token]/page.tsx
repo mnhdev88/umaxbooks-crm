@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { SigningForm } from './SigningForm'
 import { readSchedule, prettyDate, usd } from '@/lib/contract-plan'
+import { contractLinkExpired, CONTRACT_LINK_DAYS } from '@/lib/contract-expiry'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,24 @@ export default async function SigningPage({ params }: PageProps) {
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚫</div>
           <h2 style={{ color: '#6b7280', marginBottom: '8px' }}>Agreement Cancelled</h2>
           <p style={{ color: '#6b7280', fontSize: '14px' }}>This agreement is no longer active. Please contact us.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // A sent link only lives so long — after that the client must ask for a fresh
+  // agreement rather than sign week-old terms.
+  if (contractLinkExpired(contract)) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f3fa', fontFamily: 'sans-serif' }}>
+        <div style={{ textAlign: 'center', padding: '40px', background: '#fff', borderRadius: '16px', boxShadow: '0 8px 40px rgba(31,58,147,.13)', maxWidth: '380px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <h2 style={{ color: '#6b7280', marginBottom: '8px' }}>Signing Link Expired</h2>
+          <p style={{ color: '#6b7280', fontSize: '14px' }}>
+            This agreement was valid for {CONTRACT_LINK_DAYS} days and has expired.
+            Please contact us at <a href="mailto:support@noveliotech.com" style={{ color: '#1F3A93' }}>support@noveliotech.com</a> and
+            we&apos;ll send you a fresh agreement.
+          </p>
         </div>
       </div>
     )

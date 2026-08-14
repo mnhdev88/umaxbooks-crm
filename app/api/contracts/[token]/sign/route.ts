@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/service'
 import { readSchedule, round2 } from '@/lib/contract-plan'
+import { contractLinkExpired } from '@/lib/contract-expiry'
 
 const IPINFO_TOKEN = 'cc7528fe4ebae3'
 
@@ -63,6 +64,12 @@ export async function POST(
 
   if (!contract) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (contract.status === 'signed') return NextResponse.json({ error: 'Already signed' }, { status: 400 })
+  if (contract.status === 'cancelled') return NextResponse.json({ error: 'This agreement has been cancelled.' }, { status: 410 })
+  // The page shows an expired screen, but a form left open in a tab can outlive the
+  // window — the deadline has to hold here, where the signature is recorded.
+  if (contractLinkExpired(contract)) {
+    return NextResponse.json({ error: 'This signing link has expired. Please ask us for a fresh agreement.' }, { status: 410 })
+  }
 
   const body = await req.json()
   const {
