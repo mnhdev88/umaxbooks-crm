@@ -9,6 +9,7 @@
 // end, so the schedule always sums back to exactly the total.
 
 export const CONTRACT_PACKAGES = [
+  'Website Development',
   'Startup – Basic Website Design',
   'Professional – Advanced Design + SEO',
   'Enterprise – Full Suite + Support',
@@ -53,6 +54,9 @@ export type PackageDefaults = Record<string, PackageDefault>
 
 /** Used when app_settings has no row yet, or holds something unparseable. */
 export const FALLBACK_PACKAGE_DEFAULTS: PackageDefaults = {
+  // Priced per project, so it suggests no figures — the rep types the total and
+  // down payment for the build they actually sold.
+  'Website Development':                  { total: 0,    down_pct: 0,  months: MIN_MONTHS, scope: [...DEFAULT_SCOPE_ITEMS] },
   'Startup – Basic Website Design':       { total: 799,  down_pct: 50, months: 3, scope: [...DEFAULT_SCOPE_ITEMS] },
   'Professional – Advanced Design + SEO': { total: 1499, down_pct: 50, months: 4, scope: [...DEFAULT_SCOPE_ITEMS] },
   'Enterprise – Full Suite + Support':    { total: 2999, down_pct: 50, months: 6, scope: [...DEFAULT_SCOPE_ITEMS] },
