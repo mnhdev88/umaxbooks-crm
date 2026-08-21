@@ -3,9 +3,15 @@ import { redirect } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Profile } from '@/types'
 import { AICallsClient, VoiceCallWithLead } from '@/components/voice/AICallsClient'
+import { resolveReportingRange, DEFAULT_REPORT_TZ } from '@/lib/reporting-day'
 
-export default async function AICallsPage() {
+interface PageProps {
+  searchParams: Promise<{ from?: string; to?: string }>
+}
+
+export default async function AICallsPage({ searchParams }: PageProps) {
   const supabase = await createClient()
+  const { from, to } = await searchParams
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -25,6 +31,28 @@ export default async function AICallsPage() {
   // showed zero calls (worked locally only because those agents had few leads).
   const isSalesAgent = profile.role === 'sales_agent'
 
+  // Date range. The list below is capped at the most recent 500 calls, so a date
+  // filter that only ran in the browser would quietly return nothing for anything
+  // older than that window. When from/to are in the URL the whole query is scoped
+  // to the range instead, and the client offers that as "Search all dates".
+  //
+  // Days are plain calendar days (midnight–midnight) in the business timezone —
+  // NOT the 6am reporting-day boundary the Call Performance report uses. A date
+  // picker that silently starts "Today" at 6am surprises people; reports keep
+  // their own boundary. startHour: 0 is what makes resolveReportingRange do that.
+  // business_timezone (099) is where the office is; report_timezone (074) is the
+  // older reporting anchor it falls back to — same precedence as lib/business-hours.
+  // Both keys are readable by any authenticated user, so this works for every role.
+  const { data: tzRows } = await supabase
+    .from('app_settings')
+    .select('key, value')
+    .in('key', ['business_timezone', 'report_timezone'])
+  const tzMap = new Map(
+    ((tzRows || []) as { key: string; value: string | null }[]).map(r => [r.key, r.value?.trim()])
+  )
+  const tz = tzMap.get('business_timezone') || tzMap.get('report_timezone') || DEFAULT_REPORT_TZ
+  const { fromISO, toISO, label } = resolveReportingRange(from, to, { tz, startHour: 0 })
+
   let query = supabase
     .from('voice_calls')
     .select(
@@ -38,6 +66,10 @@ export default async function AICallsPage() {
   if (isSalesAgent) {
     query = query.eq('lead.assigned_agent_id', user.id)
   }
+  // Half-open window: gte start, lt next-day start, so a call at 23:59:59 counts
+  // for its own day and never leaks into the next one.
+  if (fromISO) query = query.gte('created_at', fromISO)
+  if (toISO)   query = query.lt('created_at', toISO)
 
   const { data: calls, error: callsErr } = await query
   if (callsErr) console.error('[ai-calls] voice_calls query failed:', callsErr)
@@ -49,14 +81,19 @@ export default async function AICallsPage() {
   // head:true + count:'exact' transfers no rows, so this stays cheap and can't be
   // capped. Each count repeats the sales-agent scoping so an agent's tiles match their
   // list. Failures degrade to null and the tile falls back to counting `rows`.
+  // The tiles carry the same date window as the list, so they never describe a
+  // wider set of calls than the one being shown.
   const baseCount = () => {
-    const q = supabase
+    let q = supabase
       .from('voice_calls')
       .select(isSalesAgent ? 'id, leads!inner(assigned_agent_id)' : 'id', {
         count: 'exact',
         head: true,
       })
-    return isSalesAgent ? q.eq('leads.assigned_agent_id', user.id) : q
+    if (isSalesAgent) q = q.eq('leads.assigned_agent_id', user.id)
+    if (fromISO) q = q.gte('created_at', fromISO)
+    if (toISO)   q = q.lt('created_at', toISO)
+    return q
   }
 
   const [total, dialer, inbound, ai, interested, dnc] = await Promise.all([
@@ -103,7 +140,11 @@ export default async function AICallsPage() {
   return (
     <>
       <Header title="Calls" profile={profile as Profile} />
-      <AICallsClient initialCalls={rows} stats={stats} />
+      <AICallsClient
+        initialCalls={rows}
+        stats={stats}
+        dateRange={{ from, to, label, tz, applied: !!(fromISO || toISO) }}
+      />
     </>
   )
 }
