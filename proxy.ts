@@ -23,7 +23,25 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims() over getUser(): this proxy runs on EVERY request that isn't a
+  // static asset — every navigation, every API call, every 5s/15s/30s poll from
+  // an open tab. getUser() is a network round-trip to the auth server per hit,
+  // which put us at ~19,700 /auth/v1/user calls a day, peaking at 522/min. On
+  // 2026-08-21 15:04 the auth server answered 66 of them with a 504, `user` came
+  // back undefined, and the redirect below logged every open tab out at once.
+  //
+  // This project signs JWTs with ES256, so getClaims() verifies the token
+  // locally against a cached JWKS — no auth-server call at all after the first
+  // fetch, and nothing to time out. Claims are cryptographically verified, so
+  // `sub` is as trustworthy for authorization as getUser()'s id was.
+  //
+  // The tradeoff getClaims() makes: a session revoked server-side (user deleted
+  // or signed out elsewhere) stays valid here until its access token expires,
+  // rather than dying on the next request. The role lookup below still hits the
+  // DB, so a role change or a deactivated profile still takes effect at once.
+  const { data: claims } = await supabase.auth.getClaims()
+
+  const userId = claims?.claims?.sub
 
   const path = request.nextUrl.pathname
 
@@ -43,17 +61,27 @@ export async function proxy(request: NextRequest) {
   // Hit by the server crontab (no session); each route verifies Bearer CRON_SECRET itself
   const isCronApi      = path.startsWith('/api/cron')
 
-  if (!user && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi && !isPushDispatch && !isCronApi) {
+  if (!userId && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi && !isPushDispatch && !isCronApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user) {
+  // Every branch below decides where to REDIRECT a page navigation, and each one
+  // already excludes /api/*: the client-portal rule skips it explicitly, and
+  // /portal and the auth pages are page routes. So for an API request the role
+  // is fetched and then never read — which is most of the traffic here, since
+  // the polling in Sidebar/SmsInbox/DashboardShell only ever hits /api/*. That
+  // made `profiles` the single busiest table in the project at ~19,300 selects
+  // a day. API routes authorize themselves against RLS, so skipping it costs
+  // nothing.
+  const needsRole = !path.startsWith('/api/')
+
+  if (userId && needsRole) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     const role = profile?.role

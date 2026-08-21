@@ -6,6 +6,7 @@ import { MessageCircle, ChevronLeft, ExternalLink, RefreshCw } from 'lucide-reac
 import { cn, timeAgo } from '@/lib/utils'
 import { SmsConversation } from './SmsConversation'
 import type { SmsConversationSummary } from '@/lib/sms-conversations'
+import { usePoll } from '@/lib/use-poll'
 
 /**
  * SMS inbox: conversation list on the left, the selected lead's thread on the right
@@ -33,10 +34,8 @@ export function SmsInboxClient({
     }
   }, [])
 
-  useEffect(() => {
-    const t = setInterval(refresh, 15000)
-    return () => clearInterval(t)
-  }, [refresh])
+  // Paused while the tab is hidden, and caught up on refocus — see lib/use-poll.
+  usePoll(refresh, 15_000)
 
   const selected = conversations.find((c) => c.leadId === selectedId) || null
 

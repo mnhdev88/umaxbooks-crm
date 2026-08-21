@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
+import { usePoll } from '@/lib/use-poll'
 import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
@@ -157,14 +158,19 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     profile.role === 'sales_agent'   ? salesAgentSections :
     agentSections
 
+  // Admins act on approvals; sales managers see them read-only. Both get the badge.
+  const showsApprovalBadges = profile.role === 'admin' || profile.role === 'sales_manager'
+
   useEffect(() => {
-    // Admins act on approvals; sales managers see them read-only. Both get the badge.
-    if (profile.role !== 'admin' && profile.role !== 'sales_manager') return
+    if (!showsApprovalBadges) return
     fetchPendingCount()
     fetchPendingNotes()
-    const id = setInterval(() => { fetchPendingCount(); fetchPendingNotes() }, 30000)
-    return () => clearInterval(id)
-  }, [profile.role])
+  }, [showsApprovalBadges])
+
+  // Two requests per tick, and the sidebar is mounted on every dashboard page in
+  // every open tab — so this ran regardless of whether anyone was looking at the
+  // badge. Paused while hidden, caught up on refocus. See lib/use-poll.
+  usePoll(() => { fetchPendingCount(); fetchPendingNotes() }, 30_000, showsApprovalBadges)
 
   useEffect(() => {
     fetchUnreadCount()

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { MessageSquare, Send, Loader2, AlertCircle, Check, CheckCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime, timeAgo } from '@/lib/utils'
+import { usePoll } from '@/lib/use-poll'
 
 /** One row from GET /api/voice/twilio/sms/thread. */
 export interface SmsMessage {
@@ -21,8 +22,9 @@ export interface SmsMessage {
 /**
  * The SMS conversation for one lead: recipient picker, message thread, and composer.
  * Shared by the "Text" quick-modal (SmsThreadModal) and the inline SMS tab (SmsTab).
- * Loads the thread and polls every 5s so inbound replies (from the incoming webhook)
- * appear without a refresh; sends through /api/voice/twilio/sms/send.
+ * Loads the thread and polls every 10s while the tab is visible so inbound replies
+ * (from the incoming webhook) appear without a refresh; sends through
+ * /api/voice/twilio/sms/send.
  *
  * `className` controls the outer box height/layout — the modal passes `flex-1 min-h-0`
  * to fill the remaining panel; the tab passes a fixed height like `h-[560px]`.
@@ -83,9 +85,12 @@ export function SmsConversation({
 
   useEffect(() => {
     queueMicrotask(() => load())
-    const t = setInterval(() => load({ silent: true }), 5000)
-    return () => clearInterval(t)
   }, [load])
+
+  // Was every 5s unconditionally, in every open tab. An SMS reply does not
+  // arrive on a 5-second cadence, and the poll kept running in background tabs
+  // where nobody could see the result — see lib/use-poll.
+  usePoll(() => load({ silent: true }), 10_000)
 
   useEffect(() => {
     if (!loading) scrollToBottom()

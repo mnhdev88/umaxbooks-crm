@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar'
 import { DialerProvider } from '@/components/dialer/DialerProvider'
 import { ChatWidget } from '@/components/messages/ChatWidget'
 import { OnlineContext } from './presence'
+import { usePoll } from '@/lib/use-poll'
 import { Profile } from '@/types'
 
 const ProfileContext = createContext<Profile | null>(null)
@@ -64,11 +65,12 @@ export function DashboardShell({ userId, children }: { userId: string; children:
     // the request unless it's awaited/thened.
     const touch = () => { supabase.rpc('touch_last_seen').then(() => {}, () => {}) }
     touch()
-    const id = setInterval(touch, 60_000)
-    const onVisible = () => { if (document.visibilityState === 'visible') touch() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
   }, [userId])
+
+  // "Last seen" is about an ACTIVE user, so a hidden tab stamping it every 60s
+  // was both wrong and ~9,600 writes a day. usePoll already re-fires on refocus,
+  // which is exactly the moment last_seen should move.
+  usePoll(() => { supabase.rpc('touch_last_seen').then(() => {}, () => {}) }, 60_000)
 
   // Mark all my conversations delivered on load — clears the receipt backlog for
   // messages that arrived while I was offline (powers WhatsApp-style ✓✓).
