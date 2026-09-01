@@ -85,35 +85,69 @@ COMMENT ON FUNCTION voice_call_outcome(TEXT, TEXT, TIMESTAMPTZ) IS
 GRANT EXECUTE ON FUNCTION voice_call_outcome(TEXT, TEXT, TIMESTAMPTZ) TO authenticated, service_role;
 
 -- ── Per-number health, on the corrected definition ──────────────────────────
--- Signature unchanged (CREATE OR REPLACE cannot alter the return type, and the two
--- consumers read conversations/short_calls anyway) but `answered` now means connected,
--- so the Settings → Calls health table stops crediting numbers for reaching voicemail.
+-- `answered` now means outcome = 'connected', so the Settings → Calls health table stops
+-- crediting a number for reaching voicemail.
+--
+-- CAREFUL: the deployed function had drifted well past what migration 091 defines — it is
+-- outbound-scoped and FULL OUTER JOINs inbound calls by to_number to return a 7th column,
+-- `callbacks`, which appears in no migration file. That shape is reproduced verbatim below
+-- and only the two outcome filters are changed; rebuilding from 091 would silently drop
+-- the callbacks column and the inbound join. DROP first because the return type changes
+-- (CREATE OR REPLACE cannot alter it), which is also why the grants are re-issued.
 --
 -- short_calls deliberately keeps counting voicemail greetings: it is a carrier-reputation
 -- signal, not a performance one, and a number whose calls keep landing in voicemail is
 -- exactly what a "Spam Likely" label looks like from this side.
-CREATE OR REPLACE FUNCTION caller_number_health(p_days INTEGER DEFAULT 30)
+DROP FUNCTION IF EXISTS caller_number_health(INTEGER);
+
+CREATE FUNCTION caller_number_health(p_days INTEGER DEFAULT 30)
 RETURNS TABLE (
   from_number   TEXT,
   calls         BIGINT,
   answered      BIGINT,   -- outcome = 'connected': a human was reached (see 109)
   conversations BIGINT,   -- >= 120s, the closest proxy for a substantive conversation
   short_calls   BIGINT,   -- line answered but < 30s: hang-ups + voicemail greetings
-  avg_sec       NUMERIC
+  avg_sec       NUMERIC,
+  callbacks     BIGINT    -- inbound calls TO this number in the window
 )
 LANGUAGE SQL STABLE AS $$
+  WITH out AS (
+    SELECT
+      vc.from_number AS num,
+      count(*) AS calls,
+      count(*) FILTER (
+        WHERE voice_call_outcome(vc.status, vc.answered_by, vc.disposition_at) = 'connected'
+      ) AS answered,
+      count(*) FILTER (WHERE vc.duration_sec >= 120) AS conversations,
+      count(*) FILTER (WHERE vc.status = 'completed' AND vc.duration_sec < 30) AS short_calls,
+      round(avg(vc.duration_sec) FILTER (
+        WHERE voice_call_outcome(vc.status, vc.answered_by, vc.disposition_at) = 'connected'
+      ), 0) AS avg_sec
+    FROM voice_calls vc
+    WHERE vc.provider = 'twilio'
+      AND vc.direction = 'outbound'
+      AND vc.from_number IS NOT NULL
+      AND vc.created_at > now() - make_interval(days => p_days)
+    GROUP BY vc.from_number
+  ),
+  inb AS (
+    SELECT vc.to_number AS num, count(*) AS callbacks
+    FROM voice_calls vc
+    WHERE vc.provider = 'twilio'
+      AND vc.direction = 'inbound'
+      AND vc.to_number IS NOT NULL
+      AND vc.created_at > now() - make_interval(days => p_days)
+    GROUP BY vc.to_number
+  )
   SELECT
-    vc.from_number,
-    count(*),
-    count(*) FILTER (WHERE voice_call_outcome(vc.status, vc.answered_by, vc.disposition_at) = 'connected'),
-    count(*) FILTER (WHERE vc.duration_sec >= 120),
-    count(*) FILTER (WHERE vc.status = 'completed' AND vc.duration_sec < 30),
-    round(avg(vc.duration_sec) FILTER (WHERE voice_call_outcome(vc.status, vc.answered_by, vc.disposition_at) = 'connected'), 0)
-  FROM voice_calls vc
-  WHERE vc.provider = 'twilio'
-    AND vc.from_number IS NOT NULL
-    AND vc.created_at > now() - make_interval(days => p_days)
-  GROUP BY vc.from_number
+    coalesce(out.num, inb.num),
+    coalesce(out.calls, 0),
+    coalesce(out.answered, 0),
+    coalesce(out.conversations, 0),
+    coalesce(out.short_calls, 0),
+    out.avg_sec,
+    coalesce(inb.callbacks, 0)
+  FROM out FULL OUTER JOIN inb ON out.num = inb.num
 $$;
 
 REVOKE EXECUTE ON FUNCTION caller_number_health(INTEGER) FROM PUBLIC, anon, authenticated;
