@@ -9,9 +9,11 @@ interface AgentRow {
   connected: number
   voicemail: number
   no_answer: number
+  unknown: number
   interested: number
   appointments: number
   talk_sec: number
+  connected_talk_sec: number
   connect_rate: number
   avg_talk_sec: number
   conversion_rate: number
@@ -24,8 +26,10 @@ interface NumberRow {
   connected: number
   voicemail: number
   no_answer: number
+  unknown: number
   appointments: number
   talk_sec: number
+  connected_talk_sec: number
   connect_rate: number
   avg_talk_sec: number
 }
@@ -87,14 +91,16 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
   const totals = rows.reduce(
     (t, r) => {
       t.calls += r.calls; t.connected += r.connected; t.voicemail += r.voicemail
-      t.no_answer += r.no_answer; t.appointments += r.appointments; t.talk_sec += r.talk_sec
+      t.no_answer += r.no_answer; t.unknown += r.unknown
+      t.appointments += r.appointments; t.talk_sec += r.talk_sec
+      t.connected_talk_sec += r.connected_talk_sec
       return t
     },
-    { calls: 0, connected: 0, voicemail: 0, no_answer: 0, appointments: 0, talk_sec: 0 },
+    { calls: 0, connected: 0, voicemail: 0, no_answer: 0, unknown: 0, appointments: 0, talk_sec: 0, connected_talk_sec: 0 },
   )
   const totalConnectRate = totals.calls ? Math.round((totals.connected / totals.calls) * 100) : 0
   const totalConvRate = totals.calls ? Math.round((totals.appointments / totals.calls) * 100) : 0
-  const totalAvgTalk = totals.connected ? Math.round(totals.talk_sec / totals.connected) : 0
+  const totalAvgTalk = totals.connected ? Math.round(totals.connected_talk_sec / totals.connected) : 0
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -122,7 +128,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
         <p className="text-center text-slate-500 text-sm py-8">No call data for this period</p>
       ) : (
         <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-sm border-collapse min-w-[760px]">
+          <table className="w-full text-sm border-collapse min-w-[820px]">
             <thead>
               <tr className="text-xs text-slate-500 uppercase tracking-wide">
                 <th className="text-left font-medium py-2 px-2">Agent</th>
@@ -131,6 +137,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
                 <th className="text-right font-medium py-2 px-2">Conn %</th>
                 <th className="text-right font-medium py-2 px-2">VM</th>
                 <th className="text-right font-medium py-2 px-2">No ans.</th>
+                <th className="text-right font-medium py-2 px-2" title="Answered, but the agent skipped the wrap-up — we cannot tell whether a human was reached, so these are not counted as connected.">Unmarked</th>
                 <th className="text-right font-medium py-2 px-2">Appts</th>
                 <th className="text-right font-medium py-2 px-2">Conv %</th>
                 <th className="text-right font-medium py-2 px-2">Avg talk</th>
@@ -156,6 +163,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
                     <td className="text-right px-2 tabular-nums text-slate-400">{r.connect_rate}%</td>
                     <td className="text-right px-2 tabular-nums text-slate-400">{r.voicemail}</td>
                     <td className="text-right px-2 tabular-nums text-slate-400">{r.no_answer}</td>
+                    <td className={`text-right px-2 tabular-nums ${r.unknown > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{r.unknown}</td>
                     <td className="text-right px-2 tabular-nums text-green-400 font-medium">{r.appointments}</td>
                     <td className="text-right px-2 tabular-nums text-slate-400">{r.conversion_rate}%</td>
                     <td className="text-right px-2 tabular-nums text-slate-400">{fmtDuration(r.avg_talk_sec)}</td>
@@ -185,6 +193,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
                 <td className="text-right px-2 tabular-nums text-slate-400">{totalConnectRate}%</td>
                 <td className="text-right px-2 tabular-nums text-slate-400">{totals.voicemail}</td>
                 <td className="text-right px-2 tabular-nums text-slate-400">{totals.no_answer}</td>
+                <td className={`text-right px-2 tabular-nums ${totals.unknown > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{totals.unknown}</td>
                 <td className="text-right px-2 tabular-nums text-green-400">{totals.appointments}</td>
                 <td className="text-right px-2 tabular-nums text-slate-400">{totalConvRate}%</td>
                 <td className="text-right px-2 tabular-nums text-slate-400">{fmtDuration(totalAvgTalk)}</td>
@@ -212,7 +221,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
             of the pool in Settings → Calls.
           </p>
           <div className="-mx-1 overflow-x-auto">
-            <table className="w-full min-w-[680px] border-collapse text-sm">
+            <table className="w-full min-w-[740px] border-collapse text-sm">
               <thead>
                 <tr className="text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2 text-left font-medium">Number</th>
@@ -221,6 +230,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
                   <th className="px-2 py-2 text-right font-medium">Conn %</th>
                   <th className="px-2 py-2 text-right font-medium">VM</th>
                   <th className="px-2 py-2 text-right font-medium">No ans.</th>
+                  <th className="px-2 py-2 text-right font-medium">Unmarked</th>
                   <th className="px-2 py-2 text-right font-medium">Appts</th>
                   <th className="px-2 py-2 text-right font-medium">Avg talk</th>
                   <th className="px-2 py-2 text-right font-medium">Talk time</th>
@@ -238,6 +248,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
                     <td className="px-2 text-right tabular-nums text-slate-400">{n.connect_rate}%</td>
                     <td className="px-2 text-right tabular-nums text-slate-400">{n.voicemail}</td>
                     <td className="px-2 text-right tabular-nums text-slate-400">{n.no_answer}</td>
+                    <td className={`px-2 text-right tabular-nums ${n.unknown > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{n.unknown}</td>
                     <td className="px-2 text-right font-medium tabular-nums text-green-400">{n.appointments}</td>
                     <td className="px-2 text-right tabular-nums text-slate-400">{fmtDuration(n.avg_talk_sec)}</td>
                     <td className="px-2 text-right tabular-nums text-slate-300">{fmtDuration(n.talk_sec)}</td>

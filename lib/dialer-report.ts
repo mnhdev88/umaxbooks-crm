@@ -13,15 +13,19 @@ export interface AgentSummary {
   agent_id: string | null
   agent_name: string
   calls: number
-  connected: number   // status = 'completed'
-  voicemail: number   // answered_by = 'voicemail'
-  no_answer: number   // status in busy/no-answer/failed/canceled
+  // The four outcome buckets are exclusive and sum to `calls` — see classifyCall.
+  connected: number   // line answered AND the agent filed a wrap-up: a human was reached
+  voicemail: number   // agent marked voicemail
+  no_answer: number   // never bridged, or the agent marked an instant hangup
+  unknown: number     // answered but never dispositioned (a skipped wrap-up)
   interested: number  // interested = 'yes'
   appointments: number
-  talk_sec: number    // Σ duration_sec
+  talk_sec: number    // Σ duration_sec over ALL calls — total time on the line
+  /** Σ duration_sec over connected calls only. Backs avg_talk_sec; not displayed. */
+  connected_talk_sec: number
   // Derived (computed after aggregation) so the dashboard and CSV/email share them.
   connect_rate: number    // connected / calls, 0–100 (%)
-  avg_talk_sec: number    // talk_sec / connected (avg seconds per connected call)
+  avg_talk_sec: number    // connected_talk_sec / connected — seconds per conversation
   conversion_rate: number // appointments / calls, 0–100 (%)
 }
 
@@ -42,8 +46,10 @@ export interface NumberSummary {
   connected: number
   voicemail: number
   no_answer: number
+  unknown: number
   appointments: number
   talk_sec: number
+  connected_talk_sec: number
   connect_rate: number   // connected / calls, 0–100 (%)
   avg_talk_sec: number
 }
@@ -54,6 +60,8 @@ export interface CallDetail {
   lead: string
   direction: string
   status: string
+  /** The classified outcome — what the summary counted this call as. */
+  outcome: CallOutcome
   duration_sec: number
   answered_by: string
   interested: string
@@ -74,6 +82,39 @@ export interface DialerReport {
 }
 
 const NO_ANSWER_STATUSES = new Set(['busy', 'no-answer', 'failed', 'canceled'])
+
+export type CallOutcome = 'connected' | 'voicemail' | 'no_answer' | 'unknown'
+
+/**
+ * The one place a call becomes a number. Every call resolves to exactly one outcome,
+ * so the buckets sum to the call count instead of overlapping.
+ *
+ * WHY THIS EXISTS: "connected" used to be Twilio's status = 'completed', which only means
+ * the line was picked up by *something*. A voicemail box picks up the line, so voicemails
+ * counted as connected — and since voicemail was tallied in its own separate branch, an
+ * agent-marked voicemail was counted twice over. A third of the old connect number was
+ * voicemail.
+ *
+ * The agent's wrap-up outranks Twilio's status, because Twilio cannot tell a conversation
+ * from a lead who answered and hung up on the first syllable — both are 'completed'.
+ *
+ * Mirrored in SQL by voice_call_outcome() (migration 109), which backs the per-number
+ * health table. Change one, change the other.
+ */
+export function classifyCall(c: {
+  status: string | null
+  answered_by: string | null
+  disposition_at: string | null
+}): CallOutcome {
+  if (c.answered_by === 'voicemail') return 'voicemail'
+  if (c.answered_by === 'hangup') return 'no_answer'
+  if (c.status && NO_ANSWER_STATUSES.has(c.status)) return 'no_answer'
+  // The line answered — but only a filed wrap-up makes that a conversation. Without one
+  // we genuinely do not know who or what picked up, and claiming a human did is the
+  // very thing that inflated these numbers.
+  if (c.status === 'completed' && c.disposition_at) return 'connected'
+  return 'unknown'
+}
 
 // Format seconds as H:MM:SS (or M:SS under an hour).
 export function fmtDuration(sec: number): string {
@@ -130,6 +171,7 @@ export async function buildDialerReport(
     status: string | null
     duration_sec: number | null
     answered_by: string | null
+    disposition_at: string | null
     interested: string | null
     appointment_booked: boolean | null
     do_not_call: boolean | null
@@ -141,7 +183,7 @@ export async function buildDialerReport(
   for (let offset = 0; ; offset += PAGE) {
     let q = service
       .from('voice_calls')
-      .select('created_at, agent_user_id, direction, status, duration_sec, answered_by, interested, appointment_booked, do_not_call, from_number, leads(name, company_name)')
+      .select('created_at, agent_user_id, direction, status, duration_sec, answered_by, disposition_at, interested, appointment_booked, do_not_call, from_number, leads(name, company_name)')
       .eq('provider', 'twilio')
       // Outbound only. Inbound callbacks (092) also carry an agent_user_id, and
       // counting them here would credit agents against their daily call target for
@@ -167,8 +209,8 @@ export async function buildDialerReport(
   for (const [id, name] of agentName) {
     summaries.set(id, {
       agent_id: id, agent_name: name,
-      calls: 0, connected: 0, voicemail: 0, no_answer: 0,
-      interested: 0, appointments: 0, talk_sec: 0,
+      calls: 0, connected: 0, voicemail: 0, no_answer: 0, unknown: 0,
+      interested: 0, appointments: 0, talk_sec: 0, connected_talk_sec: 0,
       connect_rate: 0, avg_talk_sec: 0, conversion_rate: 0,
     })
   }
@@ -194,13 +236,19 @@ export async function buildDialerReport(
     const s = id ? summaries.get(id) : undefined
     if (!s) continue
     const name = s.agent_name
+    const outcome = classifyCall(r)
     s.calls++
-    if (r.status === 'completed') s.connected++
-    if (r.answered_by === 'voicemail') s.voicemail++
-    if (r.status && NO_ANSWER_STATUSES.has(r.status)) s.no_answer++
+    // Exclusive by construction, so calls = connected + voicemail + no_answer + unknown.
+    if (outcome === 'connected') s.connected++
+    else if (outcome === 'voicemail') s.voicemail++
+    else if (outcome === 'no_answer') s.no_answer++
+    else s.unknown++
     if (r.interested === 'yes') s.interested++
     if (r.appointment_booked) s.appointments++
     s.talk_sec += r.duration_sec ?? 0
+    // Kept apart so "avg talk" means seconds per CONVERSATION. Dividing total talk time
+    // (which now includes every voicemail greeting) by the connected count would inflate it.
+    if (outcome === 'connected') s.connected_talk_sec += r.duration_sec ?? 0
 
     // Calls placed before the pool recorded a from_number (everything up to Jul 2026)
     // are skipped here rather than bucketed as "unknown": a phantom row carrying a
@@ -211,17 +259,19 @@ export async function buildDialerReport(
         ns = {
           from_number: r.from_number,
           label: numberLabel.get(r.from_number) ?? null,
-          calls: 0, connected: 0, voicemail: 0, no_answer: 0, appointments: 0,
-          talk_sec: 0, connect_rate: 0, avg_talk_sec: 0,
+          calls: 0, connected: 0, voicemail: 0, no_answer: 0, unknown: 0, appointments: 0,
+          talk_sec: 0, connected_talk_sec: 0, connect_rate: 0, avg_talk_sec: 0,
         }
         byNumber.set(r.from_number, ns)
       }
       ns.calls++
-      if (r.status === 'completed') ns.connected++
-      if (r.answered_by === 'voicemail') ns.voicemail++
-      if (r.status && NO_ANSWER_STATUSES.has(r.status)) ns.no_answer++
+      if (outcome === 'connected') ns.connected++
+      else if (outcome === 'voicemail') ns.voicemail++
+      else if (outcome === 'no_answer') ns.no_answer++
+      else ns.unknown++
       if (r.appointment_booked) ns.appointments++
       ns.talk_sec += r.duration_sec ?? 0
+      if (outcome === 'connected') ns.connected_talk_sec += r.duration_sec ?? 0
     }
 
     const leadLabel = r.leads?.name || r.leads?.company_name || '—'
@@ -231,6 +281,7 @@ export async function buildDialerReport(
       lead: leadLabel,
       direction: r.direction ?? '',
       status: r.status ?? '',
+      outcome,
       duration_sec: r.duration_sec ?? 0,
       answered_by: r.answered_by ?? '',
       interested: r.interested ?? '',
@@ -245,13 +296,13 @@ export async function buildDialerReport(
   // Derive rate metrics now that the raw counts are final.
   for (const s of summaries.values()) {
     s.connect_rate = s.calls ? Math.round((s.connected / s.calls) * 100) : 0
-    s.avg_talk_sec = s.connected ? Math.round(s.talk_sec / s.connected) : 0
+    s.avg_talk_sec = s.connected ? Math.round(s.connected_talk_sec / s.connected) : 0
     s.conversion_rate = s.calls ? Math.round((s.appointments / s.calls) * 100) : 0
   }
 
   for (const n of byNumber.values()) {
     n.connect_rate = n.calls ? Math.round((n.connected / n.calls) * 100) : 0
-    n.avg_talk_sec = n.connected ? Math.round(n.talk_sec / n.connected) : 0
+    n.avg_talk_sec = n.connected ? Math.round(n.connected_talk_sec / n.connected) : 0
   }
 
   const summary = [...summaries.values()].sort((a, b) => b.calls - a.calls || a.agent_name.localeCompare(b.agent_name))
@@ -279,9 +330,9 @@ export function dialerReportToCSV(report: DialerReport): string {
   lines.push('')
 
   lines.push('PER-AGENT SUMMARY')
-  lines.push(csvRow(['Agent', 'Calls', 'Connected', 'Connect %', 'Voicemail', 'No answer', 'Interested', 'Appointments', 'Conversion %', 'Talk time', 'Avg talk/call']))
+  lines.push(csvRow(['Agent', 'Calls', 'Connected', 'Connect %', 'Voicemail', 'No answer', 'Unmarked', 'Interested', 'Appointments', 'Conversion %', 'Talk time', 'Avg talk/call']))
   for (const s of report.summary) {
-    lines.push(csvRow([s.agent_name, s.calls, s.connected, `${s.connect_rate}%`, s.voicemail, s.no_answer, s.interested, s.appointments, `${s.conversion_rate}%`, fmtDuration(s.talk_sec), fmtDuration(s.avg_talk_sec)]))
+    lines.push(csvRow([s.agent_name, s.calls, s.connected, `${s.connect_rate}%`, s.voicemail, s.no_answer, s.unknown, s.interested, s.appointments, `${s.conversion_rate}%`, fmtDuration(s.talk_sec), fmtDuration(s.avg_talk_sec)]))
   }
   lines.push('')
 
@@ -289,17 +340,17 @@ export function dialerReportToCSV(report: DialerReport): string {
   // calls has no from_number on any row, and an empty headed block reads like a bug.
   if (report.by_number.length > 0) {
     lines.push('PER-NUMBER SUMMARY')
-    lines.push(csvRow(['Called from', 'Number', 'Calls', 'Connected', 'Connect %', 'Voicemail', 'No answer', 'Appointments', 'Talk time', 'Avg talk/call']))
+    lines.push(csvRow(['Called from', 'Number', 'Calls', 'Connected', 'Connect %', 'Voicemail', 'No answer', 'Unmarked', 'Appointments', 'Talk time', 'Avg talk/call']))
     for (const n of report.by_number) {
-      lines.push(csvRow([n.label ?? '—', n.from_number, n.calls, n.connected, `${n.connect_rate}%`, n.voicemail, n.no_answer, n.appointments, fmtDuration(n.talk_sec), fmtDuration(n.avg_talk_sec)]))
+      lines.push(csvRow([n.label ?? '—', n.from_number, n.calls, n.connected, `${n.connect_rate}%`, n.voicemail, n.no_answer, n.unknown, n.appointments, fmtDuration(n.talk_sec), fmtDuration(n.avg_talk_sec)]))
     }
     lines.push('')
   }
 
   lines.push('CALL DETAIL')
-  lines.push(csvRow(['Time', 'Agent', 'Lead', 'Called from', 'Direction', 'Status', 'Duration', 'Answered by', 'Interested', 'Appointment', 'Do not call']))
+  lines.push(csvRow(['Time', 'Agent', 'Lead', 'Called from', 'Direction', 'Outcome', 'Twilio status', 'Duration', 'Answered by', 'Interested', 'Appointment', 'Do not call']))
   for (const d of report.detail) {
-    lines.push(csvRow([d.created_at, d.agent_name, d.lead, d.from_number, d.direction, d.status, fmtDuration(d.duration_sec), d.answered_by, d.interested, d.appointment, d.do_not_call]))
+    lines.push(csvRow([d.created_at, d.agent_name, d.lead, d.from_number, d.direction, d.outcome, d.status, fmtDuration(d.duration_sec), d.answered_by, d.interested, d.appointment, d.do_not_call]))
   }
 
   return lines.join('\r\n')
@@ -320,6 +371,7 @@ export function dialerSummaryHtml(report: DialerReport): string {
       <td ${tdNum}>${s.connect_rate}%</td>
       <td ${tdNum}>${s.voicemail}</td>
       <td ${tdNum}>${s.no_answer}</td>
+      <td ${tdNum}>${s.unknown}</td>
       <td ${tdNum}>${s.appointments}</td>
       <td ${tdNum}>${s.conversion_rate}%</td>
       <td ${tdNum}>${fmtDuration(s.talk_sec)}</td>
@@ -338,6 +390,7 @@ export function dialerSummaryHtml(report: DialerReport): string {
           <th ${th} style="text-align:right">Connect %</th>
           <th ${th} style="text-align:right">Voicemail</th>
           <th ${th} style="text-align:right">No answer</th>
+          <th ${th} style="text-align:right">Unmarked</th>
           <th ${th} style="text-align:right">Appts</th>
           <th ${th} style="text-align:right">Conv %</th>
           <th ${th} style="text-align:right">Talk time</th>
@@ -345,7 +398,13 @@ export function dialerSummaryHtml(report: DialerReport): string {
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="color:#94a3b8;font-size:12px;margin-top:16px">Full per-call detail is attached as a CSV.</p>
+    <p style="color:#94a3b8;font-size:12px;margin-top:16px">
+      <strong>Connected</strong> means a human was reached — the line answered and the agent filed a wrap-up.
+      Calls that rolled to voicemail are counted under Voicemail only, never as connected.
+      <strong>Unmarked</strong> is answered calls where the wrap-up was skipped, so we cannot tell:
+      they are excluded from Connected, and the number should be close to zero.
+    </p>
+    <p style="color:#94a3b8;font-size:12px;margin-top:8px">Full per-call detail is attached as a CSV.</p>
   </div>`
 }
 

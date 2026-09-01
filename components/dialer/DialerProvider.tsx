@@ -473,10 +473,24 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
 
   // Skip the wrap-up chips but still offer the full Log Call form (empty notes are
   // fine) — the agent can Cancel it if there's truly nothing to log.
+  //
+  // The skip is still POSTed. An answered call nobody marked used to be indistinguishable
+  // from a real conversation and counted as connected; recording it explicitly lands it in
+  // the report's Unmarked column instead (see migration 109). Fire-and-forget: a failed
+  // save must not block the agent from moving to the next call.
   const skipWrapup = useCallback(() => {
     const leadId = leadIdRef.current
+    const callSid = callSidRef.current
     cleanupCall()
     if (leadId) setLogCall({ leadId, notes: '' })
+
+    if (callSid || leadId) {
+      fetch('/api/voice/twilio/disposition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callSid, leadId, skipped: true }),
+      }).catch(() => {})
+    }
   }, [cleanupCall])
 
   const toggleMute = useCallback(() => {

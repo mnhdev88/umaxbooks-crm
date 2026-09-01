@@ -77,6 +77,10 @@ export async function POST(req: NextRequest) {
     // dial action callback
     const status = params.DialCallStatus || params.CallStatus || null
     row.status = status
+    // NB: this is Twilio's status renamed, not detection — 'completed' only means the
+    // line was picked up by something, and a voicemail box picks up the line too. The
+    // report no longer trusts it on its own: only the agent's wrap-up promotes a call to
+    // 'connected' (classifyCall in lib/dialer-report.ts). Twilio AMD is not enabled.
     row.answered_by = status === 'completed' ? 'human' : status
     row.completed = status === 'completed'
     if (params.DialCallDuration) {
@@ -89,6 +93,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = createServiceClient()
+
+    // Never overwrite an outcome the agent already filed. Twilio retries the dial
+    // callback, and a retry (or a callback that simply lost the race to a fast wrap-up)
+    // would otherwise reset an agent-marked voicemail back to the default 'human' and
+    // hand it straight back into the connected bucket.
+    if (kind === 'dial') {
+      const { data: existing } = await supabase
+        .from('voice_calls')
+        .select('disposition_at, answered_by')
+        .eq('call_id', callSid)
+        .maybeSingle()
+      if (existing?.disposition_at || ['voicemail', 'hangup', 'unknown'].includes(existing?.answered_by ?? '')) {
+        delete row.answered_by
+        delete row.status
+        delete row.completed
+      }
+    }
 
     await supabase
       .from('voice_calls')

@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     leadId?: string
     interested?: 'yes' | 'no' | 'maybe' | null
     voicemail?: boolean
+    skipped?: boolean
     hangup?: boolean
     doNotCall?: boolean
     notes?: string
@@ -37,8 +38,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Need callSid or leadId' }, { status: 400 })
   }
 
-  const voicemail = !!body.voicemail
-  const hangup = !!body.hangup
+  // A skipped wrap-up still posts here. Recording it as 'unknown' is the point: an
+  // answered call nobody marked is a reporting gap, and it now shows in its own Unmarked
+  // column rather than silently inflating the connect rate (see migration 109).
+  const skipped = !!body.skipped
+  const voicemail = !skipped && !!body.voicemail
+  const hangup = !skipped && !!body.hangup
   // Hangup/voicemail means no conversation happened, so no interest could be gauged.
   const interested = voicemail || hangup ? null : body.interested ?? null
   const doNotCall = !!body.doNotCall
@@ -57,11 +62,15 @@ export async function POST(req: NextRequest) {
         interested,
         do_not_call: doNotCall,
         notes,
+        // The signal that makes an answered call 'connected' in the report. A skip
+        // deliberately leaves it NULL — the agent told us nothing, so we claim nothing.
+        disposition_at: skipped ? null : new Date().toISOString(),
       }
-      // Only stamp answered_by when the agent marks voicemail, so it overrides the status
-      // webhook's default of 'human'. Omitting it otherwise preserves the webhook value
-      // (upsert only touches provided columns).
+      // Only stamp answered_by when the agent tells us something the webhook could not
+      // know. Omitting it otherwise preserves the webhook value (upsert only touches
+      // provided columns).
       if (voicemail) callRow.answered_by = 'voicemail'
+      if (skipped) callRow.answered_by = 'unknown'
       // Agent-marked hangup: the lead never picked up or cut the call immediately. Twilio
       // reports such calls as 'completed' (the line WAS answered), which would count as
       // connected in the dialer report — override status so it lands in the no-answer
@@ -79,7 +88,9 @@ export async function POST(req: NextRequest) {
 
     if (body.leadId) {
       const leadUpdate: Record<string, unknown> = {
-        last_call_outcome: voicemail ? 'voicemail' : hangup ? 'no-answer' : interested ?? 'completed',
+        last_call_outcome: skipped
+          ? 'unknown'
+          : voicemail ? 'voicemail' : hangup ? 'no-answer' : interested ?? 'completed',
         last_call_at: new Date().toISOString(),
       }
       if (doNotCall) leadUpdate.do_not_call = true
