@@ -7,6 +7,10 @@
  * prefers a number whose area code matches the lead's ("local presence"), which
  * lifts pickup independently of the spam label.
  *
+ * Numbers flagged auto_rotate = FALSE (108) are skipped by this ranking entirely —
+ * they stay in the agent's "Call from" dropdown for deliberate use, but the picker
+ * never assigns them volume.
+ *
  * Selection order, most to least important:
  *   1. Registered numbers beat unregistered ones — an unregistered number gets
  *      labelled no matter how light its volume, so we spend it last.
@@ -18,7 +22,7 @@
  * the least-used one anyway and log it, and if the pool is empty we fall back to
  * the TWILIO_CALLER_ID env var (the pre-pool behaviour).
  *
- * See supabase/migrations/091_caller_number_pool.sql.
+ * See supabase/migrations/091_caller_number_pool.sql and 108_caller_number_auto_rotate.sql.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -33,6 +37,8 @@ export interface CallerNumber {
   daily_cap: number
   is_active: boolean
   registered: boolean
+  /** Whether the automatic ranking may spend this number (108). Manual picks ignore it. */
+  auto_rotate: boolean
 }
 
 export interface CallerSelection {
@@ -73,7 +79,7 @@ export async function selectCallerNumber(
   try {
     const { data, error } = await supabase
       .from('caller_numbers')
-      .select('id, phone_number, label, area_code, daily_cap, is_active, registered')
+      .select('id, phone_number, label, area_code, daily_cap, is_active, registered, auto_rotate')
       .eq('is_active', true)
 
     if (error) throw error
@@ -115,7 +121,17 @@ export async function selectCallerNumber(
     const wantArea = areaCodeOf(toE164)
 
     // Rank ascending — the first entry after sorting is the pick.
-    const ranked = pool
+    // Numbers flagged manual-only (auto_rotate = FALSE, 108) stay in `pool` so an agent's
+    // explicit pick above still resolves, but the automatic ranking never reaches for
+    // them. If that leaves nothing — every number manual-only — fall back to the whole
+    // pool rather than the env number: a rotation-excluded number of ours still beats
+    // dropping every call onto the single TWILIO_CALLER_ID this file exists to retire.
+    const rotatable = pool.filter((n) => n.auto_rotate)
+    if (rotatable.length === 0) {
+      console.warn('[caller-numbers] every active number is manual-only — ranking the full pool instead')
+    }
+
+    const ranked = (rotatable.length > 0 ? rotatable : pool)
       .map((n) => {
         const count = used.get(n.phone_number) || 0
         return {

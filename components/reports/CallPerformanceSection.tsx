@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Loader2, Phone, Target, Check, X } from 'lucide-react'
+import { Loader2, Phone, Target, Check, X, PhoneOutgoing } from 'lucide-react'
 
 interface AgentRow {
   agent_id: string | null
@@ -17,12 +17,32 @@ interface AgentRow {
   conversion_rate: number
 }
 
+interface NumberRow {
+  from_number: string
+  label: string | null
+  calls: number
+  connected: number
+  voicemail: number
+  no_answer: number
+  appointments: number
+  talk_sec: number
+  connect_rate: number
+  avg_talk_sec: number
+}
+
 interface ApiResponse {
   label: string
   summary: AgentRow[]
+  byNumber?: NumberRow[]
   dailyTarget: number
   days: number | null
   effectiveTarget: number | null
+}
+
+/** +19086395666 → "+1 908 639 5666". Mirrors prettyNumber in lib/voice/format. */
+function prettyNumber(e164: string): string {
+  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164.trim())
+  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
 }
 
 // M:SS (or H:MM:SS over an hour) — mirrors fmtDuration in lib/dialer-report.
@@ -60,6 +80,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
   }, [from, to])
 
   const rows = data?.summary ?? []
+  const numberRows = data?.byNumber ?? []
   const target = data?.effectiveTarget ?? null
 
   // Totals footer.
@@ -172,6 +193,59 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {/* Per caller ID. Same calls, sliced by the number they went out on: a connect
+          rate that collapses on one number while every agent's own figures hold steady
+          is the carrier-reputation signal, not a performance one. Hidden entirely when
+          no row in range recorded a from_number (true of anything before Aug 2026). */}
+      {!loading && numberRows.length > 0 && (
+        <div className="mt-8">
+          <div className="mb-2 flex items-center gap-2">
+            <PhoneOutgoing className="h-4 w-4 text-orange-400" />
+            <h3 className="text-sm font-semibold text-slate-200">By caller ID</h3>
+          </div>
+          <p className="mb-3 text-xs text-slate-500">
+            Which of our numbers placed the calls. A number whose connect rate drops well
+            below the others is likely being labelled by carriers — rest it or take it out
+            of the pool in Settings → Calls.
+          </p>
+          <div className="-mx-1 overflow-x-auto">
+            <table className="w-full min-w-[680px] border-collapse text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-slate-500">
+                  <th className="px-2 py-2 text-left font-medium">Number</th>
+                  <th className="px-2 py-2 text-right font-medium">Calls</th>
+                  <th className="px-2 py-2 text-right font-medium">Conn.</th>
+                  <th className="px-2 py-2 text-right font-medium">Conn %</th>
+                  <th className="px-2 py-2 text-right font-medium">VM</th>
+                  <th className="px-2 py-2 text-right font-medium">No ans.</th>
+                  <th className="px-2 py-2 text-right font-medium">Appts</th>
+                  <th className="px-2 py-2 text-right font-medium">Avg talk</th>
+                  <th className="px-2 py-2 text-right font-medium">Talk time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {numberRows.map(n => (
+                  <tr key={n.from_number} className="border-t border-slate-800 hover:bg-slate-800/40">
+                    <td className="px-2 py-2">
+                      {n.label && <div className="truncate text-slate-200">{n.label}</div>}
+                      <div className="text-xs tabular-nums text-slate-500">{prettyNumber(n.from_number)}</div>
+                    </td>
+                    <td className="px-2 text-right font-semibold tabular-nums text-slate-100">{n.calls}</td>
+                    <td className="px-2 text-right tabular-nums text-slate-300">{n.connected}</td>
+                    <td className="px-2 text-right tabular-nums text-slate-400">{n.connect_rate}%</td>
+                    <td className="px-2 text-right tabular-nums text-slate-400">{n.voicemail}</td>
+                    <td className="px-2 text-right tabular-nums text-slate-400">{n.no_answer}</td>
+                    <td className="px-2 text-right font-medium tabular-nums text-green-400">{n.appointments}</td>
+                    <td className="px-2 text-right tabular-nums text-slate-400">{fmtDuration(n.avg_talk_sec)}</td>
+                    <td className="px-2 text-right tabular-nums text-slate-300">{fmtDuration(n.talk_sec)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

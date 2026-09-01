@@ -60,6 +60,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       label,
       summary: report.summary,
+      // Scoped exactly like `summary` — a sales_agent sees the numbers their own calls
+      // went out on, not the pool's overall reputation.
+      byNumber: report.by_number,
       dailyTarget,
       days,
       effectiveTarget,

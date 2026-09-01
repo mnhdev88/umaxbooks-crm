@@ -2,9 +2,18 @@
 import { useState, useEffect } from 'react'
 import { PhoneOutgoing, PhoneIncoming, PhoneForwarded, Plus, Trash2, ShieldCheck, ShieldAlert, AlertCircle, CheckCircle, X } from 'lucide-react'
 
-// Admin management of the outbound caller-ID pool (caller_numbers). Volume spreads
-// across these numbers under per-number daily caps so no single one trips the
-// carrier spam filters. Reads/writes via /api/settings/caller-numbers.
+// Management of the outbound caller-ID pool (caller_numbers). Volume spreads across
+// these numbers under per-number daily caps so no single one trips the carrier spam
+// filters. Reads/writes via /api/settings/caller-numbers.
+//
+// Open to sales staff, not just admins (lib/settings-access.ts). Every control here is
+// team-wide: a cap, a toggle or a delete changes the pool for EVERY dialer user, not
+// just the person editing.
+//
+// Two independent switches per row, easy to confuse:
+//   Active  — is the number offered to agents at all (dropdown + pool).
+//   In pool — may the dialer spend it automatically. Off leaves it in the agent's
+//             "Call from" dropdown for deliberate picks only (108).
 
 interface CallerNumber {
   id: string
@@ -13,6 +22,8 @@ interface CallerNumber {
   area_code: string | null
   daily_cap: number
   is_active: boolean
+  /** "In pool". FALSE = still in the agent's dropdown, but the picker skips it (108). */
+  auto_rotate: boolean
   registered: boolean
   /** What a callback does: ring the team, or speak a redirect and hang up (093). */
   inbound_mode: 'full' | 'deflect'
@@ -109,15 +120,20 @@ export function CallerNumbers() {
   }
 
   async function remove(n: CallerNumber) {
-    if (!confirm(`Remove ${fmt(n.phone_number)} from the pool?\n\nPast calls keep their record — this only stops new calls using it.`)) return
+    // Spelled out because this is no longer an admin-only action: anyone on the sales
+    // team can reach it, and it removes the number for the whole team.
+    if (!confirm(`Remove ${fmt(n.phone_number)} from the pool?\n\nThis affects everyone — no one on the team will be able to call from it.\n\nPast calls keep their record; this only stops new calls using it.`)) return
     const res = await fetch(`/api/settings/caller-numbers?id=${n.id}`, { method: 'DELETE' })
     if (res.ok) { setResult({ ok: true, msg: `Removed ${fmt(n.phone_number)}.` }); load() }
     else setResult({ ok: false, msg: 'Delete failed.' })
   }
 
   const activeCount = numbers.filter(n => n.is_active).length
-  const totalCap = numbers.filter(n => n.is_active).reduce((s, n) => s + n.daily_cap, 0)
+  // Capacity counts only in-pool numbers: an out-of-pool number's cap is not headroom
+  // the picker can spend, so including it would overstate what the pool absorbs.
+  const totalCap = numbers.filter(n => n.is_active && n.auto_rotate).reduce((s, n) => s + n.daily_cap, 0)
   const unregistered = numbers.filter(n => n.is_active && !n.registered).length
+  const manualOnly = numbers.filter(n => n.is_active && !n.auto_rotate).length
 
   return (
     <div className="bg-[#160E32] border border-white/10 rounded-xl p-6">
@@ -129,7 +145,9 @@ export function CallerNumbers() {
         Outbound caller IDs for the dialer. Each call picks the number with the fewest
         calls today, preferring one whose area code matches the lead. Keeping every
         number under its daily cap is what stops carriers labelling them
-        &quot;Spam Likely&quot;. With none configured, the dialer falls back to
+        &quot;Spam Likely&quot;. Switch <span className="text-slate-300">In pool</span> off to
+        take a number out of that rotation while leaving it in the agent&rsquo;s
+        &quot;Call from&quot; dropdown to pick by hand. With none configured, the dialer falls back to
         the <code className="text-slate-300">TWILIO_CALLER_ID</code> env var
         {envFallback ? <> (<span className="text-slate-300">{fmt(envFallback)}</span>)</> : null}.
       </p>
@@ -151,6 +169,11 @@ export function CallerNumbers() {
           <span className="text-slate-400">
             <span className="text-slate-100 font-medium">{totalCap}</span> calls/day capacity
           </span>
+          {manualOnly > 0 && (
+            <span className="text-slate-400">
+              <span className="text-slate-100 font-medium">{manualOnly}</span> out of pool
+            </span>
+          )}
           {unregistered > 0 && (
             <span className="flex items-center gap-1.5 text-amber-400">
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -178,6 +201,7 @@ export function CallerNumbers() {
                 <th className="pb-2 font-medium" title="Inbound calls received on this number over 30 days. Leads calling back is the strongest sign a number is trusted.">Callbacks</th>
                 <th className="pb-2 font-medium">Registered</th>
                 <th className="pb-2 font-medium" title="What happens when a lead calls this number back. Rings = the owning agent, then the hunt group, then voicemail. Redirect = a spoken message pointing them at the main line.">Inbound</th>
+                <th className="pb-2 font-medium" title="Whether this number is in the automatic rotation pool. Off = it still appears in the agent's Call from dropdown and can be picked by hand, but the dialer never spends it on its own.">In pool</th>
                 <th className="pb-2 font-medium">Active</th>
                 <th className="pb-2"></th>
               </tr>
@@ -244,6 +268,24 @@ export function CallerNumbers() {
                           ? <PhoneIncoming className="w-3 h-3" />
                           : <PhoneForwarded className="w-3 h-3" />}
                         {n.inbound_mode === 'full' ? 'Rings' : 'Redirect'}
+                      </button>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <button
+                        onClick={() => patch(n.id, { auto_rotate: !n.auto_rotate })}
+                        disabled={!n.is_active}
+                        title={
+                          n.auto_rotate
+                            ? 'In the pool — the dialer may pick this number on its own.'
+                            : 'Out of the pool — still selectable by hand in the Call from dropdown, but never picked automatically.'
+                        }
+                        className={`text-xs px-2 py-1 rounded border transition-colors disabled:opacity-40 ${
+                          n.auto_rotate
+                            ? 'text-green-400 bg-green-400/10 border-green-400/20'
+                            : 'text-slate-500 bg-white/5 border-white/10'
+                        }`}
+                      >
+                        {n.auto_rotate ? 'In pool' : 'Off'}
                       </button>
                     </td>
                     <td className="py-3 pr-4">

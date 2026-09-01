@@ -28,7 +28,10 @@ export async function GET() {
 
   const { data: numbers, error } = await service
     .from('caller_numbers')
-    .select('id, phone_number, label, daily_cap, inbound_mode')
+    .select('id, phone_number, label, daily_cap, inbound_mode, auto_rotate')
+    // is_active, not auto_rotate: a manual-only number (108) belongs in this list —
+    // being excluded from the automatic rotation is exactly why an agent has to pick
+    // it by hand. The modal labels it so the choice is informed.
     .eq('is_active', true)
     .order('created_at')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

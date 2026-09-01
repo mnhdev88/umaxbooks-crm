@@ -20,6 +20,8 @@ interface CallerOption {
   label: string | null
   daily_cap: number
   inbound_mode: 'full' | 'deflect'
+  /** FALSE = offered here but never chosen by "Auto" (108). */
+  auto_rotate: boolean
 }
 
 /** +19086395666 → +1 908 639 5666. Left as-is for anything not US E.164. */
@@ -225,6 +227,7 @@ export function PreCallModal({
                     {o.label ? `${o.label} · ` : ''}
                     {prettyNumber(o.phone_number)}
                     {` · ${used}/${o.daily_cap} today`}
+                    {o.auto_rotate ? '' : ' · manual only'}
                     {atCap ? ' ⚠ at cap' : ''}
                   </option>
                 )
@@ -248,6 +251,12 @@ export function PreCallModal({
                     <p className="text-[10px] text-amber-400/80">
                       This number is at its daily cap ({used}/{picked.daily_cap}). Calling anyway
                       raises the risk it gets flagged as spam.
+                    </p>
+                  )}
+                  {!picked.auto_rotate && (
+                    <p className="text-[10px] text-slate-500">
+                      Kept out of the automatic rotation — it only carries calls an agent
+                      picks it for.
                     </p>
                   )}
                   {picked.inbound_mode === 'deflect' && (

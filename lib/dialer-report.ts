@@ -25,6 +25,29 @@ export interface AgentSummary {
   conversion_rate: number // appointments / calls, 0–100 (%)
 }
 
+/**
+ * The same call volume sliced by the caller ID it went out on rather than by agent.
+ *
+ * WHY: connect rate per agent measures the agent; connect rate per number measures the
+ * number's carrier reputation. A number that has been labelled "Spam Likely" shows up
+ * here as a collapsing connect rate while every agent's own figures look normal, which
+ * is the signal that decides whether to rest it (see caller_numbers.is_active) or take
+ * it out of the rotation (auto_rotate, migration 108).
+ */
+export interface NumberSummary {
+  from_number: string
+  /** caller_numbers.label, or null once a number has been deleted from the pool. */
+  label: string | null
+  calls: number
+  connected: number
+  voicemail: number
+  no_answer: number
+  appointments: number
+  talk_sec: number
+  connect_rate: number   // connected / calls, 0–100 (%)
+  avg_talk_sec: number
+}
+
 export interface CallDetail {
   created_at: string
   agent_name: string
@@ -36,6 +59,8 @@ export interface CallDetail {
   interested: string
   appointment: string
   do_not_call: string
+  /** The caller ID it was placed from — labelled where the number is still in the pool. */
+  from_number: string
 }
 
 export interface DialerReport {
@@ -43,6 +68,8 @@ export interface DialerReport {
   toISO: string | null
   label: string
   summary: AgentSummary[]
+  /** Per caller ID, busiest first. Excludes rows with no from_number (pre-Aug 2026). */
+  by_number: NumberSummary[]
   detail: CallDetail[]
 }
 
@@ -106,6 +133,7 @@ export async function buildDialerReport(
     interested: string | null
     appointment_booked: boolean | null
     do_not_call: boolean | null
+    from_number: string | null
     leads: { name: string | null; company_name: string | null } | null
   }
   const rows: Row[] = []
@@ -113,7 +141,7 @@ export async function buildDialerReport(
   for (let offset = 0; ; offset += PAGE) {
     let q = service
       .from('voice_calls')
-      .select('created_at, agent_user_id, direction, status, duration_sec, answered_by, interested, appointment_booked, do_not_call, leads(name, company_name)')
+      .select('created_at, agent_user_id, direction, status, duration_sec, answered_by, interested, appointment_booked, do_not_call, from_number, leads(name, company_name)')
       .eq('provider', 'twilio')
       // Outbound only. Inbound callbacks (092) also carry an agent_user_id, and
       // counting them here would credit agents against their daily call target for
@@ -145,6 +173,18 @@ export async function buildDialerReport(
     })
   }
 
+  // Labels for our own numbers, so the per-number block reads like the dialer dropdown.
+  // Every row is fetched, not just active ones: a report over a past range covers calls
+  // placed on numbers that have since been rested or retired.
+  const numberLabel = new Map<string, string | null>()
+  {
+    const { data: pool } = await service.from('caller_numbers').select('phone_number, label')
+    for (const n of (pool ?? []) as { phone_number: string; label: string | null }[]) {
+      numberLabel.set(n.phone_number, n.label)
+    }
+  }
+
+  const byNumber = new Map<string, NumberSummary>()
   const detail: CallDetail[] = []
 
   for (const r of rows) {
@@ -162,6 +202,28 @@ export async function buildDialerReport(
     if (r.appointment_booked) s.appointments++
     s.talk_sec += r.duration_sec ?? 0
 
+    // Calls placed before the pool recorded a from_number (everything up to Jul 2026)
+    // are skipped here rather than bucketed as "unknown": a phantom row carrying a
+    // quarter of all historical calls would dominate the table and mean nothing.
+    if (r.from_number) {
+      let ns = byNumber.get(r.from_number)
+      if (!ns) {
+        ns = {
+          from_number: r.from_number,
+          label: numberLabel.get(r.from_number) ?? null,
+          calls: 0, connected: 0, voicemail: 0, no_answer: 0, appointments: 0,
+          talk_sec: 0, connect_rate: 0, avg_talk_sec: 0,
+        }
+        byNumber.set(r.from_number, ns)
+      }
+      ns.calls++
+      if (r.status === 'completed') ns.connected++
+      if (r.answered_by === 'voicemail') ns.voicemail++
+      if (r.status && NO_ANSWER_STATUSES.has(r.status)) ns.no_answer++
+      if (r.appointment_booked) ns.appointments++
+      ns.talk_sec += r.duration_sec ?? 0
+    }
+
     const leadLabel = r.leads?.name || r.leads?.company_name || '—'
     detail.push({
       created_at: r.created_at,
@@ -174,6 +236,9 @@ export async function buildDialerReport(
       interested: r.interested ?? '',
       appointment: r.appointment_booked ? 'yes' : '',
       do_not_call: r.do_not_call ? 'yes' : '',
+      from_number: r.from_number
+        ? (numberLabel.get(r.from_number) ? `${numberLabel.get(r.from_number)} (${r.from_number})` : r.from_number)
+        : '',
     })
   }
 
@@ -184,9 +249,15 @@ export async function buildDialerReport(
     s.conversion_rate = s.calls ? Math.round((s.appointments / s.calls) * 100) : 0
   }
 
-  const summary = [...summaries.values()].sort((a, b) => b.calls - a.calls || a.agent_name.localeCompare(b.agent_name))
+  for (const n of byNumber.values()) {
+    n.connect_rate = n.calls ? Math.round((n.connected / n.calls) * 100) : 0
+    n.avg_talk_sec = n.connected ? Math.round(n.talk_sec / n.connected) : 0
+  }
 
-  return { fromISO, toISO, label, summary, detail }
+  const summary = [...summaries.values()].sort((a, b) => b.calls - a.calls || a.agent_name.localeCompare(b.agent_name))
+  const by_number = [...byNumber.values()].sort((a, b) => b.calls - a.calls || a.from_number.localeCompare(b.from_number))
+
+  return { fromISO, toISO, label, summary, by_number, detail }
 }
 
 // ── CSV serialisation ────────────────────────────────────────────────────────
@@ -200,7 +271,7 @@ function csvRow(cells: (string | number)[]): string {
   return cells.map(csvCell).join(',')
 }
 
-/** Two blocks: per-agent summary, then per-call detail. */
+/** Three blocks: per-agent summary, per-caller-ID summary, then per-call detail. */
 export function dialerReportToCSV(report: DialerReport): string {
   const lines: string[] = []
 
@@ -214,10 +285,21 @@ export function dialerReportToCSV(report: DialerReport): string {
   }
   lines.push('')
 
+  // Only when there is something to show: a range made up entirely of pre-Aug-2026
+  // calls has no from_number on any row, and an empty headed block reads like a bug.
+  if (report.by_number.length > 0) {
+    lines.push('PER-NUMBER SUMMARY')
+    lines.push(csvRow(['Called from', 'Number', 'Calls', 'Connected', 'Connect %', 'Voicemail', 'No answer', 'Appointments', 'Talk time', 'Avg talk/call']))
+    for (const n of report.by_number) {
+      lines.push(csvRow([n.label ?? '—', n.from_number, n.calls, n.connected, `${n.connect_rate}%`, n.voicemail, n.no_answer, n.appointments, fmtDuration(n.talk_sec), fmtDuration(n.avg_talk_sec)]))
+    }
+    lines.push('')
+  }
+
   lines.push('CALL DETAIL')
-  lines.push(csvRow(['Time', 'Agent', 'Lead', 'Direction', 'Status', 'Duration', 'Answered by', 'Interested', 'Appointment', 'Do not call']))
+  lines.push(csvRow(['Time', 'Agent', 'Lead', 'Called from', 'Direction', 'Status', 'Duration', 'Answered by', 'Interested', 'Appointment', 'Do not call']))
   for (const d of report.detail) {
-    lines.push(csvRow([d.created_at, d.agent_name, d.lead, d.direction, d.status, fmtDuration(d.duration_sec), d.answered_by, d.interested, d.appointment, d.do_not_call]))
+    lines.push(csvRow([d.created_at, d.agent_name, d.lead, d.from_number, d.direction, d.status, fmtDuration(d.duration_sec), d.answered_by, d.interested, d.appointment, d.do_not_call]))
   }
 
   return lines.join('\r\n')

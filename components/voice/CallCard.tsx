@@ -7,9 +7,11 @@ import { formatDateTime, timeAgo } from '@/lib/utils'
 import {
   Phone, PhoneOff, Voicemail, Calendar, PhoneCall, Globe, DollarSign,
   UserCheck, MessageSquare, FileText, ChevronDown, ChevronRight, Ban,
-  Building2, ExternalLink, User, PhoneIncoming,
+  Building2, ExternalLink, User, PhoneIncoming, PhoneOutgoing,
 } from 'lucide-react'
 import { RecordingPlayer } from './RecordingPlayer'
+import { useCallerLabels } from './useCallerLabels'
+import { prettyNumber } from '@/lib/voice/format'
 
 /** voice_calls row plus the optional joined lead used by the global Calls view. */
 export interface VoiceCallWithLead extends VoiceCall {
@@ -138,6 +140,8 @@ function InboundBadge({ outcome, agent }: { outcome: string | null; agent?: stri
  */
 export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; showLead?: boolean }) {
   const [showTranscript, setShowTranscript] = useState(false)
+  // Module-cached across every card in the list — see the hook.
+  const { byNumber: callerLabels } = useCallerLabels()
   // Inbound is checked first: those rows are provider='twilio' too, so testing the
   // provider alone would render a callback as an outbound "Dialer Call".
   const isInbound = call.direction === 'inbound'
@@ -226,13 +230,50 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
       {isDialer && call.agent?.full_name && (
         <Fact icon={User} label="Called by:" iconCls="text-emerald-400" value={call.agent.full_name} />
       )}
+      {/* Which of our numbers the lead saw. Absent on calls placed before the pool
+          started recording it (everything up to Jul 2026), so Fact hides the row
+          rather than showing a blank. */}
+      {isDialer && call.from_number && (
+        <Fact
+          icon={PhoneOutgoing}
+          label="Called from:"
+          iconCls="text-emerald-400"
+          value={
+            <>
+              {callerLabels[call.from_number] && (
+                <span className="text-slate-200">{callerLabels[call.from_number]}</span>
+              )}
+              <span className={callerLabels[call.from_number] ? 'ml-1.5 text-slate-500' : ''}>
+                {prettyNumber(call.from_number)}
+              </span>
+            </>
+          }
+        />
+      )}
       {isInbound && (
         <>
           {call.from_number && (
-            <Fact icon={PhoneIncoming} label="From:" iconCls="text-sky-400" value={call.from_number} />
+            <Fact icon={PhoneIncoming} label="From:" iconCls="text-sky-400" value={prettyNumber(call.from_number)} />
           )}
+          {/* to_number on an inbound row is OUR line, so it gets the same labelling
+              treatment as "Called from" above. from_number above is the lead's, and
+              deliberately stays a bare number. */}
           {call.to_number && (
-            <Fact icon={Phone} label="Rang:" iconCls="text-slate-500" value={call.to_number} />
+            <Fact
+              icon={Phone}
+              label="Rang:"
+              iconCls="text-slate-500"
+              value={
+                <>
+                  {callerLabels[call.to_number] && (
+                    <span className="text-slate-200">{callerLabels[call.to_number]}</span>
+                  )}
+                  <span className={callerLabels[call.to_number] ? 'ml-1.5 text-slate-500' : ''}>
+                    {prettyNumber(call.to_number)}
+                  </span>
+                </>
+              }
+            />
           )}
           {ownerName && ownerName !== answerer && (
             <Fact icon={User} label="Lead owner:" iconCls="text-sky-400" value={ownerName} />

@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { requireCallSettingsAccess } from '@/lib/settings-access'
 import { getReportDayConfig } from '@/lib/report-config'
 import { reportingDate, reportingDayWindow } from '@/lib/reporting-day'
 import { toE164US } from '@/lib/voice/twilio'
 
-// Admin-only CRUD for the outbound caller-ID pool (caller_numbers), plus the
-// per-number health figures the Settings card renders. Writes go through the
-// service client behind an explicit admin check, matching the other settings
-// routes. See supabase/migrations/091_caller_number_pool.sql.
+// CRUD for the outbound caller-ID pool (caller_numbers), plus the per-number health
+// figures the Settings card renders. Open to sales staff, not just admins — see
+// lib/settings-access.ts. Writes go through the service client behind that role check,
+// which is the only gate on this table: the "Admins can manage caller numbers" RLS
+// policy does not apply to the service key.
+// See supabase/migrations/091_caller_number_pool.sql.
 
-async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
-  return { error: null }
-}
 
 /** Validate + normalise a submitted number to E.164, or return null if unusable. */
 function normalizeNumber(raw: unknown): string | null {
@@ -33,7 +27,7 @@ function parseCap(raw: unknown, fallback = 50): number | null {
 }
 
 export async function GET() {
-  const { error } = await requireAdmin()
+  const { error } = await requireCallSettingsAccess()
   if (error) return error
 
   const service = createServiceClient()
@@ -79,7 +73,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireCallSettingsAccess()
   if (error) return error
 
   const body = await req.json().catch(() => ({}))
@@ -115,7 +109,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireCallSettingsAccess()
   if (error) return error
 
   const body = await req.json().catch(() => ({}))
@@ -126,6 +120,9 @@ export async function PATCH(req: NextRequest) {
   if ('label' in body)      patch.label = typeof body.label === 'string' ? body.label.trim() || null : null
   if ('notes' in body)      patch.notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
   if ('is_active' in body)  patch.is_active = body.is_active === true
+  // Independent of is_active (108): FALSE keeps the number in the agent's dropdown
+  // but out of the automatic rotation.
+  if ('auto_rotate' in body) patch.auto_rotate = body.auto_rotate === true
   if ('registered' in body) patch.registered = body.registered === true
   // Validated rather than coerced: the column has a CHECK constraint (093), so a bad
   // value would come back as a raw Postgres error instead of something an admin can act on.
@@ -159,7 +156,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireCallSettingsAccess()
   if (error) return error
 
   const id = req.nextUrl.searchParams.get('id') || ''

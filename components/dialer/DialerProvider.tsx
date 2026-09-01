@@ -20,10 +20,12 @@ import {
   useState,
 } from 'react'
 import { Call, Device } from '@twilio/voice-sdk'
-import { Mic, MicOff, Phone, PhoneOff, PhoneIncoming, PhoneMissed, Loader2, Ban, Check, Grid3x3, Voicemail, Volume2, VolumeX } from 'lucide-react'
+import { Mic, MicOff, Phone, PhoneOff, PhoneIncoming, PhoneMissed, PhoneOutgoing, Loader2, Ban, Check, Grid3x3, Voicemail, Volume2, VolumeX } from 'lucide-react'
 import { toast } from 'sonner'
 import { LogCallModal } from '@/components/leads/LogCallModal'
 import { createRingtone, ringMuted, setRingMuted } from '@/lib/voice/ringtone'
+import { useCallerLabels } from '@/components/voice/useCallerLabels'
+import { prettyNumber } from '@/lib/voice/format'
 
 export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'wrapup' | 'incoming'
 
@@ -114,6 +116,9 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<CallState>('idle')
   const [muted, setMuted] = useState(false)
   const [callee, setCallee] = useState<{ name?: string; phone: string } | null>(null)
+  // The agent's explicit "Call from" pick, kept for the life of the call so the widget
+  // can name the line they are on. Null on an auto-selected call — see CallWidget.
+  const [callerNumberId, setCallerNumberId] = useState<string | null>(null)
   const [seconds, setSeconds] = useState(0)
   // When set, the shared Log Call modal opens after the wrap-up (same form as the
   // lead's Calls & Apps tab) so the agent can log the call + schedule a callback.
@@ -158,6 +163,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
     incomingRef.current = null
     setMuted(false)
     setCallee(null)
+    setCallerNumberId(null)
     setIncoming(null)
     setState('idle')
     setSeconds(0)
@@ -188,6 +194,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
       leadIdRef.current = leadId || null
       callSidRef.current = null
       setCallee({ name, phone })
+      setCallerNumberId(callerNumberId || null)
       setState('connecting')
       try {
         const device = await ensureDevice()
@@ -529,6 +536,7 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
           state={state}
           muted={muted}
           callee={callee}
+          callerNumberId={callerNumberId}
           seconds={seconds}
           onMute={toggleMute}
           onHangup={hangup}
@@ -590,6 +598,7 @@ function CallWidget({
   state,
   muted,
   callee,
+  callerNumberId,
   seconds,
   onMute,
   onHangup,
@@ -598,12 +607,18 @@ function CallWidget({
   state: CallState
   muted: boolean
   callee: { name?: string; phone: string } | null
+  callerNumberId: string | null
   seconds: number
   onMute: () => void
   onHangup: () => void
   onDigit: (digit: string) => void
 }) {
   const connecting = state === 'connecting' || state === 'ringing'
+  // Only an explicit pick can be named here. On an auto-selected call the number is
+  // chosen server-side in the TwiML route, and the voice_calls row that records it is
+  // not written until /status fires at the end of the dial — so there is nothing to
+  // read mid-call, and the line stays hidden rather than guessing.
+  const callerLine = useCallerLabels().byId[callerNumberId || '']
   const [keypadOpen, setKeypadOpen] = useState(false)
   const [sent, setSent] = useState('')
 
@@ -634,6 +649,15 @@ function CallWidget({
           {state === 'active' ? fmt(seconds) : statusLabel(state)}
         </span>
       </div>
+
+      {callerLine && (
+        <p className="mt-2 flex items-center gap-1.5 truncate text-[11px] text-slate-500">
+          <PhoneOutgoing size={11} className="shrink-0 text-slate-500" />
+          <span className="truncate">
+            via {callerLine.label || prettyNumber(callerLine.phone_number)}
+          </span>
+        </p>
+      )}
 
       <div className="mt-4 flex items-center justify-center gap-3">
         <button

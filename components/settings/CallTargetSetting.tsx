@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react'
 import { Phone, CheckCircle, AlertCircle } from 'lucide-react'
 
-// Admin control for the daily call target used by the Reports → Call Performance
+// Team-wide daily call target, editable by sales staff as well as admins
+// (lib/settings-access.ts). Used by the Reports → Call Performance
 // dashboard. Reads/writes app_settings.daily_call_target via /api/settings/call-target.
 export function CallTargetSetting() {
   const [value, setValue]     = useState('')
