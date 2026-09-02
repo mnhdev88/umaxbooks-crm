@@ -41,9 +41,10 @@ export default async function SettingsPage({
   // is no use to an agent behind an admin-only redirect. The rest is gated per tab
   // rather than by turning the whole page away.
   const isAdmin = profile.role === 'admin'
-  // Sales staff get the Calls tab too — the pool, calling window and daily target are
-  // what the people doing the dialling need. They can edit, not just read: the matching
-  // API routes use the same list. See lib/settings-access.ts.
+  // Sales managers get the Calls tab as well as admins — the pool, calling window and
+  // daily target are team-wide controls, so they sit with the people who supervise the
+  // dialling rather than everyone who does it. Edit, not just read: the matching API
+  // routes gate on the same list. See lib/settings-access.ts.
   const canSeeCallSettings = (CALL_SETTINGS_ROLES as readonly string[]).includes(profile.role)
 
   // Only fetched for the admin block that needs it; agents have no business listing staff.
@@ -116,7 +117,7 @@ export default async function SettingsPage({
     },
   ]
 
-  // A non-admin with call access gets their own preference alongside the Calls tab —
+  // A sales manager gets their own preference alongside the Calls tab — the rest of
   // General is admin-only, and the ringtone preference is the one card everybody has.
   const salesTabs: SettingsTab[] = [
     { id: 'general', label: 'General', content: <RingtonePreference /> },

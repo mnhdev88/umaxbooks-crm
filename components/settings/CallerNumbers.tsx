@@ -6,8 +6,8 @@ import { PhoneOutgoing, PhoneIncoming, PhoneForwarded, Plus, Trash2, ShieldCheck
 // these numbers under per-number daily caps so no single one trips the carrier spam
 // filters. Reads/writes via /api/settings/caller-numbers.
 //
-// Open to sales staff, not just admins (lib/settings-access.ts). Every control here is
-// team-wide: a cap, a toggle or a delete changes the pool for EVERY dialer user, not
+// Open to sales managers as well as admins (lib/settings-access.ts). Every control here
+// is team-wide: a cap, a toggle or a delete changes the pool for EVERY dialer user, not
 // just the person editing.
 //
 // Two independent switches per row, easy to confuse:
@@ -120,8 +120,8 @@ export function CallerNumbers() {
   }
 
   async function remove(n: CallerNumber) {
-    // Spelled out because this is no longer an admin-only action: anyone on the sales
-    // team can reach it, and it removes the number for the whole team.
+    // Spelled out because this is no longer an admin-only action — a sales manager can
+    // reach it too, and it removes the number for the whole team.
     if (!confirm(`Remove ${fmt(n.phone_number)} from the pool?\n\nThis affects everyone — no one on the team will be able to call from it.\n\nPast calls keep their record; this only stops new calls using it.`)) return
     const res = await fetch(`/api/settings/caller-numbers?id=${n.id}`, { method: 'DELETE' })
     if (res.ok) { setResult({ ok: true, msg: `Removed ${fmt(n.phone_number)}.` }); load() }

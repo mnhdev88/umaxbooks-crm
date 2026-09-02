@@ -38,7 +38,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  // Sales staff, not just admins — see lib/settings-access.ts.
+  // Sales managers as well as admins — see lib/settings-access.ts.
   const { error: denied } = await requireCallSettingsAccess()
   if (denied) return denied
 

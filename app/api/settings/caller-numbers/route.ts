@@ -6,7 +6,7 @@ import { reportingDate, reportingDayWindow } from '@/lib/reporting-day'
 import { toE164US } from '@/lib/voice/twilio'
 
 // CRUD for the outbound caller-ID pool (caller_numbers), plus the per-number health
-// figures the Settings card renders. Open to sales staff, not just admins — see
+// figures the Settings card renders. Open to sales managers as well as admins — see
 // lib/settings-access.ts. Writes go through the service client behind that role check,
 // which is the only gate on this table: the "Admins can manage caller numbers" RLS
 // policy does not apply to the service key.

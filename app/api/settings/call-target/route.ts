@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { requireCallSettingsAccess } from '@/lib/settings-access'
 
-// Read/write of the daily call target (app_settings.daily_call_target), open to sales
-// staff — see lib/settings-access.ts. app_settings holds secrets and has no client
+// Read/write of the daily call target (app_settings.daily_call_target), open to admins
+// and sales managers — see lib/settings-access.ts. app_settings holds secrets and has no client
 // write policy, so writes go through the service client behind that role check.
 
 export async function GET() {

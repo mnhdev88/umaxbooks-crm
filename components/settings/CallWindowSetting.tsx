@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Clock, CheckCircle, AlertCircle } from 'lucide-react'
 
 // Team-wide control for the leads calling window (app_settings.call_window_start /
-// call_window_end), editable by sales staff as well as admins — see
+// call_window_end), editable by sales managers as well as admins — see
 // lib/settings-access.ts. Drives the Leads "Call-ready first" sort and the per-row
 // call-window badge. Reads/writes via /api/settings/call-window.
 export function CallWindowSetting() {
