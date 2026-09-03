@@ -16,6 +16,7 @@ import { SendContentTab } from './tabs/SendContentTab'
 import { BeforeAfterTab } from './tabs/BeforeAfterTab'
 import { ContractTab } from '@/components/contracts/ContractTab'
 import { WebsiteDetailsTab } from './tabs/WebsiteDetailsTab'
+import { ShareTab } from './tabs/ShareTab'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -30,6 +31,7 @@ const ALL_TABS = [
   { id: 'appointments',    label: 'Calls & Appts',   roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'deal',            label: 'Deal',            roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'share',           label: 'Client Link',     roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'revisions',       label: 'Revisions',       roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'live',            label: 'Live',            roles: ['admin', 'sales_agent', 'sales_manager'] },
   { id: 'before-after',    label: 'Before / After',  roles: ['admin', 'sales_agent', 'sales_manager'] },
@@ -193,6 +195,9 @@ export function LeadDetailTabs({ lead, profile, agents, developers, userId, init
         )}
         {activeTab === 'contract' && (
           <ContractTab lead={lead} profile={profile} userId={userId} />
+        )}
+        {activeTab === 'share' && (
+          <ShareTab lead={lead} profile={profile} userId={userId} />
         )}
         {activeTab === 'revisions' && (
           <RevisionTab leadId={lead.id} leadSlug={lead.slug} userId={userId} userRole={profile.role} />

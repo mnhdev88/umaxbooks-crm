@@ -50,6 +50,10 @@ export async function proxy(request: NextRequest) {
   const isPortal      = path.startsWith('/portal')
   const isPublicApi      = path.startsWith('/api/public')
   const isSigningPage    = path.startsWith('/sign/')
+  // /share/<token> — the no-login client page (proposal / agreement / SEO
+  // audit). Its own last-4 gate and signed cookie decide who sees what; the
+  // API side is under /api/public and already covered above.
+  const isSharePage      = path.startsWith('/share/')
   const isNewsletterApi  = path.startsWith('/api/newsletter')
   // Voice: /api/voice/webhook is hit by Vapi (no session); /api/voice/call is
   // bearer-protected internally. Both are whitelisted from the auth redirect.
@@ -61,7 +65,7 @@ export async function proxy(request: NextRequest) {
   // Hit by the server crontab (no session); each route verifies Bearer CRON_SECRET itself
   const isCronApi      = path.startsWith('/api/cron')
 
-  if (!userId && !isAuthPage && !isPublicApi && !isSigningPage && !isSigningApi && !isNewsletterApi && !isVoiceApi && !isPushDispatch && !isCronApi) {
+  if (!userId && !isAuthPage && !isPublicApi && !isSigningPage && !isSharePage && !isSigningApi && !isNewsletterApi && !isVoiceApi && !isPushDispatch && !isCronApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -89,7 +93,10 @@ export async function proxy(request: NextRequest) {
     const hasPreviewCookie = !!request.cookies.get(PREVIEW_COOKIE)?.value
 
     // Client users must stay inside /portal (allow API routes so portal can make API calls)
-    if (role === 'client' && !isPortal && !isAuthPage && !path.startsWith('/api/')) {
+    // isSharePage is excluded too: a lead who later got a portal account
+    // still opens the same /share link from an old text message, and
+    // bouncing them to /portal would look like the link had died.
+    if (role === 'client' && !isPortal && !isAuthPage && !isSharePage && !path.startsWith('/api/')) {
       const url = request.nextUrl.clone()
       url.pathname = '/portal'
       return NextResponse.redirect(url)
