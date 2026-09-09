@@ -788,8 +788,14 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
           <label className={L}>Assign to Agent</label>
           <select {...register('assigned_agent_id')} className={cn(F, 'cursor-pointer')}>
             <option value="">— Unassigned —</option>
-            {assignableAgents(agents, userRole, userId)
-              .map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+            {/* On a new lead the creator may keep it for themselves; when editing an
+                existing one the self option is off, so reassignment stays the same. */}
+            {assignableAgents(agents, userRole, userId, { allowSelf: !lead })
+              .map(a => (
+                <option key={a.id} value={a.id}>
+                  {a.id === userId ? `${a.full_name} (me)` : a.full_name}
+                </option>
+              ))}
           </select>
         </div>
         <div>
