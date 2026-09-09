@@ -13,7 +13,7 @@ import {
  * a one-time handoff on the CRM's own domain which sets the access cookie and
  * redirects onward.
  *
- * The indirection exists because the front door is on data123.pages.dev and the
+ * The indirection exists because the front door is on nda123.pages.dev and the
  * documents are on crm.noveliotech.com. A cookie set by a cross-origin fetch is
  * a third-party cookie, which Safari and iOS block outright — the client would
  * verify successfully and land on a page telling them they aren't verified. A

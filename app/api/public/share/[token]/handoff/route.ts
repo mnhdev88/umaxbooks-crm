@@ -8,7 +8,7 @@ import { issueShareCookie, shareCookieName } from '@/lib/share-cookie'
  * front door into the first-party access cookie, then redirect to the
  * documents.
  *
- * This is reached by a top-level NAVIGATION from data123.pages.dev, never by
+ * This is reached by a top-level NAVIGATION from nda123.pages.dev, never by
  * fetch: that is the whole point. The cookie is written by crm.noveliotech.com
  * for crm.noveliotech.com, so no third-party cookie policy applies and the key
  * never has to travel back to the Pages origin.

@@ -10,7 +10,7 @@ import {
 /**
  * POST /api/public/client/request-code — step 1 of the common front door.
  *
- * The client types their phone number OR their email on data123.pages.dev; we
+ * The client types their phone number OR their email on nda123.pages.dev; we
  * resolve either to a lead, mint a 6-digit code, and send it to EVERY contact
  * detail we hold for them — the email address and the phone number both, not
  * just the one they typed. A client who remembers their email but reads texts

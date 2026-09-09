@@ -1,6 +1,6 @@
 -- 111_client_portal_access.sql
 --
--- The common front door: one URL every client can be given (data123.pages.dev),
+-- The common front door: one URL every client can be given (nda123.pages.dev),
 -- where they type their phone number, receive a short code, and land on their
 -- own /share/<token> page from migration 110.
 --

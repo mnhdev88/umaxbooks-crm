@@ -13,7 +13,7 @@ import { Shell, Notice } from '../[token]/Shell'
  */
 export const dynamic = 'force-dynamic'
 
-const FRONT_DOOR = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || 'https://data123.pages.dev'
+const FRONT_DOOR = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || 'https://nda123.pages.dev'
 
 const REASONS: Record<string, string> = {
   missing:     'That link is incomplete.',

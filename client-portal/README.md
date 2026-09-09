@@ -1,4 +1,4 @@
-# Client front door (data123.pages.dev)
+# Client front door (nda123.pages.dev)
 
 One static page. A client types their phone number **or** email address, gets a
 6-digit code sent to every contact detail we hold for them (email first — SMS is
@@ -10,7 +10,7 @@ the access cookie and every PDF stay on `crm.noveliotech.com`.
 
 ## Deploy
 
-Cloudflare Pages, project `data123`, serving this folder as the site root.
+Cloudflare Pages, project `nda123`, serving this folder as the site root.
 
 **Dashboard:** Workers & Pages → Create → Pages → *Upload assets* → drag this
 folder in. Re-uploading replaces it.
@@ -18,7 +18,7 @@ folder in. Re-uploading replaces it.
 **CLI:**
 
 ```bash
-npx wrangler pages deploy client-portal --project-name data123
+npx wrangler pages deploy client-portal --project-name nda123
 ```
 
 No build step, no framework preset — it is one HTML file.
@@ -32,12 +32,12 @@ const API = 'https://crm.noveliotech.com';
 ```
 
 And the CRM must allow this page's origin. `lib/client-portal.ts` ships with
-`https://data123.pages.dev` allowlisted; anything else goes in the
+`https://nda123.pages.dev` allowlisted; anything else goes in the
 `CLIENT_PORTAL_ORIGINS` env var on the VPS (comma-separated), e.g. when you
 later point a real domain at the same Pages project:
 
 ```
-CLIENT_PORTAL_ORIGINS=https://data123.pages.dev,https://docs.noveliotech.com
+CLIENT_PORTAL_ORIGINS=https://nda123.pages.dev,https://docs.noveliotech.com
 ```
 
 Also set `NEXT_PUBLIC_CLIENT_PORTAL_URL` on the CRM so the "Start again" button

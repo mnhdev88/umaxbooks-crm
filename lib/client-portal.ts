@@ -35,7 +35,7 @@ export function allowedOrigins(): string[] {
   // The deployed front door, plus local dev of the same static page. Kept as a
   // default so a missing env var can't silently lock every client out.
   const builtIn = [
-    'https://data123.pages.dev',
+    'https://nda123.pages.dev',
     'http://localhost:3000',
     'http://localhost:8788',
   ]
@@ -48,7 +48,7 @@ export function allowedOrigins(): string[] {
  *
  * Exact matches from allowedOrigins(), plus any SUBDOMAIN of an allowlisted
  * pages.dev host. Cloudflare gives every deployment its own preview URL
- * (`<hash>.data123.pages.dev`, `<branch>.data123.pages.dev`), and that is the
+ * (`<hash>.nda123.pages.dev`, `<branch>.nda123.pages.dev`), and that is the
  * link the dashboard shows you after an upload — allowlisting only the
  * production hostname means testing a fresh deployment fails with an opaque
  * "Failed to fetch" that looks like the API is down.
@@ -64,7 +64,7 @@ export function originAllowed(origin: string | null): boolean {
     if (candidate === allowed) return true
     if (!allowed.endsWith('.pages.dev')) return false
 
-    // https://data123.pages.dev → also allow https://<label>.data123.pages.dev.
+    // https://nda123.pages.dev → also allow https://<label>.nda123.pages.dev.
     // Done with string comparison rather than a built regex: the host has to
     // match exactly, and an unescaped dot in a generated pattern would quietly
     // widen this to match hosts we never meant to allow.
@@ -76,7 +76,7 @@ export function originAllowed(origin: string | null): boolean {
     if (dot <= 0) return false
 
     const label = candidateHost.slice(0, dot)
-    // Exactly one extra label, and a legal one — so a.b.data123.pages.dev and
+    // Exactly one extra label, and a legal one — so a.b.nda123.pages.dev and
     // anything with a path or port is refused.
     return candidateHost.slice(dot + 1) === host && /^[a-z0-9-]+$/i.test(label)
   })
