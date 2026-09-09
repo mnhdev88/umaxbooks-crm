@@ -15,6 +15,8 @@ import { issueShareCookie, shareCookieName } from '@/lib/share-cookie'
  *
  * The key is single-use and lives 60 seconds, so a URL left in browser history,
  * a screenshot, or a shared screen is worthless a minute later.
+ *
+ * Minted by /api/public/client/open.
  */
 export const dynamic = 'force-dynamic'
 

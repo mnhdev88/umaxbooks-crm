@@ -1,9 +1,8 @@
 # Client front door (nda123.pages.dev)
 
-One static page. A client types their phone number **or** email address, gets a
-6-digit code sent to every contact detail we hold for them (email first — SMS is
-attempted too but is unreliable until A2P 10DLC clears), and is handed off to
-their own documents on the CRM.
+One static page. A client types their phone number **or** email address and is
+handed straight to their own documents on the CRM. There is no code step — see
+migration 113 for what that trades away and why it is deliberate.
 
 It holds no data and talks to nothing but the CRM's public API. The documents,
 the access cookie and every PDF stay on `crm.noveliotech.com`.
@@ -51,8 +50,8 @@ domain that reads it, and a cookie set from this origin would be a third-party
 cookie — Safari and iOS block those outright, so the client would verify
 successfully and then be told they aren't verified.
 
-`/api/public/client/verify-code` therefore returns a single-use key that lives
-60 seconds, and the browser navigates to it. See
+`/api/public/client/open` therefore returns a single-use key that lives 60
+seconds, and the browser navigates to it. See
 `app/api/public/share/[token]/handoff/route.ts`.
 
 ## Testing locally

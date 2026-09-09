@@ -47,12 +47,6 @@
     text-align: center;
   }
   input:focus { border-color: var(--navy); }
-  input.code {
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: 10px;
-    text-indent: 10px;
-  }
   input.bad { border-color: #ef4444; }
   button {
     display: block;
@@ -71,20 +65,6 @@
   button[disabled] { background: #9ca3af; cursor: not-allowed; }
   .msg { font-size: 13px; margin: 12px 0 0; line-height: 1.5; }
   .msg.err { color: #dc2626; }
-  .msg.ok  { color: #065f46; }
-  .link {
-    display: inline-block;
-    margin-top: 16px;
-    background: none;
-    border: none;
-    padding: 0;
-    width: auto;
-    color: var(--navy);
-    font-size: 13px;
-    font-weight: 600;
-    text-decoration: underline;
-    cursor: pointer;
-  }
   .foot { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.7; }
   .foot a { color: var(--navy); font-weight: 600; }
   [hidden] { display: none !important; }
@@ -96,34 +76,20 @@
   <div class="card">
     <div class="bar"></div>
 
-    <!-- Step 1 — phone -->
-    <div class="pad" id="step-phone">
+    <div class="pad">
       <div class="icon">📄</div>
       <h1>Your documents</h1>
       <p class="lede">
-        Enter your phone number or email address and we'll send you a code to open
-        your proposal, agreement and website report.
+        Enter the phone number or email address you gave us to open your
+        proposal, agreement and website report.
       </p>
-      <form id="form-phone">
+      <form id="form">
         <input id="identifier" type="text" inputmode="email" autocomplete="email"
-               placeholder="Phone number or email" aria-label="Your phone number or email address" required>
-        <p class="msg err" id="phone-error" hidden></p>
-        <button type="submit" id="phone-submit">Send me a code</button>
+               placeholder="Phone number or email" aria-label="Your phone number or email address"
+               autofocus required>
+        <p class="msg err" id="error" hidden></p>
+        <button type="submit" id="submit">Open my documents</button>
       </form>
-    </div>
-
-    <!-- Step 2 — code -->
-    <div class="pad" id="step-code" hidden>
-      <div class="icon">🔑</div>
-      <h1>Enter your code</h1>
-      <p class="lede" id="code-lede">We sent a 6-digit code.</p>
-      <form id="form-code">
-        <input id="code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code"
-               maxlength="6" placeholder="000000" aria-label="6-digit code" required>
-        <p class="msg err" id="code-error" hidden></p>
-        <button type="submit" id="code-submit" disabled>Open my documents</button>
-      </form>
-      <button class="link" id="restart" type="button">Use a different phone or email</button>
     </div>
   </div>
 
@@ -134,19 +100,14 @@
 </div>
 
 <script>
-// The CRM serves the API and the documents. Everything below is a thin front
-// door: it never sees a document, only a one-time URL to navigate to.
+// The CRM serves the API and the documents. This page is a thin front door: it
+// never sees a document, only a one-time URL to navigate to.
 const API = 'https://crm.noveliotech.com';
 
 const $ = (id) => document.getElementById(id);
 
-// Whatever the client typed in step 1 — a phone number or an email. Sent back
-// with the code in step 2 so the server looks the code up the same way.
-let identifier = '';
-
-function show(el, text, cls) {
+function show(el, text) {
   el.textContent = text;
-  el.className = 'msg ' + cls;
   el.hidden = !text;
 }
 
@@ -158,38 +119,37 @@ function show(el, text, cls) {
 function failureMessage(e) {
   if (e instanceof TypeError) {
     console.error('[front door] request blocked or unreachable:', e,
-                  '
-  page origin:', window.location.origin,
-                  '
-  API:', API,
-                  '
-  If this is a CORS refusal, add the origin above to CLIENT_PORTAL_ORIGINS on the CRM.');
+                  '\n  page origin:', window.location.origin,
+                  '\n  API:', API,
+                  '\n  If this is a CORS refusal, add the origin above to CLIENT_PORTAL_ORIGINS on the CRM.');
     return "We couldn't reach our server. Check your connection and try again — if it keeps happening, email support@noveliotech.com.";
   }
   return e.message || 'Something went wrong. Please try again.';
 }
 
-// ── Step 1: request a code ───────────────────────────────────────────────────
-$('form-phone').addEventListener('submit', async (e) => {
+$('form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const btn = $('phone-submit');
-  const err = $('phone-error');
-  identifier = $('identifier').value.trim();
+  const btn = $('submit');
+  const err = $('error');
+  const field = $('identifier');
+  const identifier = field.value.trim();
 
   const looksEmail = identifier.includes('@');
   const looksPhone = identifier.replace(/\D/g, '').length >= 10;
 
   if (!looksEmail && !looksPhone) {
-    show(err, 'Enter your full phone number (with area code) or your email address.', 'err');
+    show(err, 'Enter your full phone number (with area code) or your email address.');
+    field.classList.add('bad');
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Sending…';
-  show(err, '', 'err');
+  btn.textContent = 'Opening…';
+  show(err, '');
+  field.classList.remove('bad');
 
   try {
-    const res = await fetch(API + '/api/public/client/request-code', {
+    const res = await fetch(API + '/api/public/client/open', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier }),
@@ -199,78 +159,26 @@ $('form-phone').addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
 
     if (!data.found) {
-      show(err, "We don't have those details on file. Please check them, or contact us at support@noveliotech.com.", 'err');
+      show(err, "We don't have those details on file. Please check them, or contact us at support@noveliotech.com.");
+      field.classList.add('bad');
+    } else {
+      // A top-level navigation, deliberately — the CRM sets its own cookie on
+      // arrival. A fetch here would make it a third-party cookie and Safari
+      // would drop it. The button stays disabled: the page is on its way out.
+      window.location.href = data.url;
       return;
     }
-
-    // The code goes to every detail we hold, so name them all — a client who
-    // typed their email may well read the text first.
-    const where = (data.sent || []).map(function (s) {
-      return (s.channel === 'email' ? 'emailed it to ' : 'texted it to ') + s.destination;
-    });
-    $('code-lede').textContent = where.length
-      ? 'We ' + where.join(' and ') + '. The code expires in 10 minutes.'
-      : 'We sent you a 6-digit code. It expires in 10 minutes.';
-
-    $('step-phone').hidden = true;
-    $('step-code').hidden = false;
-    $('code').focus();
   } catch (e) {
-    show(err, failureMessage(e), 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send me a code';
+    show(err, failureMessage(e));
   }
+
+  btn.disabled = false;
+  btn.textContent = 'Open my documents';
 });
 
-// ── Step 2: verify and hand off ──────────────────────────────────────────────
-$('code').addEventListener('input', (e) => {
-  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
-  $('code-submit').disabled = e.target.value.length !== 6;
-  e.target.classList.remove('bad');
-});
-
-$('form-code').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = $('code-submit');
-  const err = $('code-error');
-  const code = $('code').value;
-
-  btn.disabled = true;
-  btn.textContent = 'Checking…';
-  show(err, '', 'err');
-
-  try {
-    const res = await fetch(API + '/api/public/client/verify-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, code }),
-    });
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.url) throw new Error(data.error || 'That code did not work.');
-
-    // A top-level navigation, deliberately — the CRM sets its own cookie on
-    // arrival. A fetch here would make it a third-party cookie and Safari
-    // would drop it.
-    show(err, '', 'err');
-    window.location.href = data.url;
-  } catch (e) {
-    show(err, failureMessage(e), 'err');
-    $('code').classList.add('bad');
-    $('code').value = '';
-    btn.disabled = true;
-    btn.textContent = 'Open my documents';
-  }
-});
-
-$('restart').addEventListener('click', () => {
-  $('step-code').hidden = true;
-  $('step-phone').hidden = false;
-  $('code').value = '';
-  $('code-submit').disabled = true;
-  show($('code-error'), '', 'err');
-  $('identifier').focus();
+$('identifier').addEventListener('input', () => {
+  $('identifier').classList.remove('bad');
+  show($('error'), '');
 });
 </script>
 

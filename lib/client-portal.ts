@@ -1,31 +1,31 @@
 /**
- * The common client front door — the rules shared by the request-code and
- * verify-code routes.
+ * The common client front door — the rules the open route relies on.
  *
- * Server-only (node crypto). The front door itself is a static page on
- * Cloudflare Pages; everything below runs here, on the CRM.
+ * A client types their phone number or email at nda123.pages.dev and is taken
+ * straight to their documents. There is no code step: see migration 113 for
+ * what that trades away and why it is deliberate.
+ *
+ * Server-only. The front door itself is a static page on Cloudflare Pages;
+ * everything below runs here, on the CRM.
  */
-import { createHash, randomInt, timingSafeEqual } from 'crypto'
 
-/** How long an issued code stays usable. */
-export const CODE_TTL_MINUTES = 10
+/**
+ * Lookups one IP may make in the window below.
+ *
+ * With the code step gone this is the only brake on someone walking a list of
+ * business emails, so it matters more than a rate limit usually would. Set high
+ * enough that a shared office or phone network never notices, low enough that
+ * bulk scraping is pointless.
+ */
+export const MAX_LOOKUPS_PER_IP = 20
 
-/** Wrong guesses allowed against one issued code before it is burned. */
-export const MAX_CODE_ATTEMPTS = 5
-
-/** Codes one phone number may request in the window below. */
-export const MAX_CODES_PER_PHONE = 3
-
-/** Codes one IP may request in the window below. Blunt anti-enumeration brake. */
-export const MAX_CODES_PER_IP = 5
-
-/** The rate-limit window for both caps above. */
+/** The rate-limit window. */
 export const RATE_WINDOW_MINUTES = 15
 
-/** How long the handoff key that carries a verified visitor to the CRM lives. */
+/** How long the handoff key that carries a visitor to the CRM lives. */
 export const HANDOFF_TTL_SECONDS = 60
 
-/** Origins allowed to call the front-door routes from a browser. */
+/** Origins allowed to call the front-door route from a browser. */
 export function allowedOrigins(): string[] {
   const configured = (process.env.CLIENT_PORTAL_ORIGINS || '')
     .split(',')
@@ -44,7 +44,7 @@ export function allowedOrigins(): string[] {
 }
 
 /**
- * True when this Origin may call the front-door routes.
+ * True when this Origin may call the front-door route.
  *
  * Exact matches from allowedOrigins(), plus any SUBDOMAIN of an allowlisted
  * pages.dev host. Cloudflare gives every deployment its own preview URL
@@ -54,7 +54,7 @@ export function allowedOrigins(): string[] {
  * "Failed to fetch" that looks like the API is down.
  *
  * Scoped to the project's own pages.dev host, never `*.pages.dev`: that would
- * let anybody's Cloudflare Pages site call these routes.
+ * let anybody's Cloudflare Pages site call this route.
  */
 export function originAllowed(origin: string | null): boolean {
   if (!origin) return false
@@ -83,9 +83,8 @@ export function originAllowed(origin: string | null): boolean {
 }
 
 /**
- * CORS headers for a front-door route. Echoes the origin only when it is
- * allowlisted — never `*`, because these responses are read with credentials
- * and carry a masked destination.
+ * CORS headers for the front-door route. Echoes the origin only when it is
+ * allowlisted — never `*`.
  */
 export function corsHeaders(origin: string | null): Record<string, string> {
   const allowed = originAllowed(origin)
@@ -132,43 +131,4 @@ export function parseIdentifier(raw: unknown): Identifier {
 
   const digits = phoneDigits(text)
   return digits ? { kind: 'phone', value: digits } : null
-}
-
-/** A 6-digit code, uniformly random. Leading zeros are kept. */
-export function generateCode(): string {
-  return String(randomInt(0, 1_000_000)).padStart(6, '0')
-}
-
-function secret(): string {
-  const s = process.env.SHARE_LINK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!s) throw new Error('SHARE_LINK_SECRET / SUPABASE_SERVICE_ROLE_KEY is not set')
-  return s
-}
-
-/** Salted hash of a code. The code itself is never stored. */
-export function hashCode(code: string): string {
-  return createHash('sha256').update(`${code}.${secret()}`).digest('hex')
-}
-
-/** Constant-time comparison of a submitted code against a stored hash. */
-export function codeMatches(submitted: string, storedHash: string): boolean {
-  const a = Buffer.from(hashCode(submitted))
-  const b = Buffer.from(storedHash)
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
-}
-
-/** "najeeb@gmail.com" → "n••••b@gmail.com" — enough to recognise, not to read. */
-export function maskEmail(email: string): string {
-  const [user, domain] = String(email || '').split('@')
-  if (!user || !domain) return ''
-  if (user.length <= 2) return `${user[0]}•@${domain}`
-  return `${user[0]}${'•'.repeat(Math.min(user.length - 2, 5))}${user[user.length - 1]}@${domain}`
-}
-
-/** "+18135551234" → "(•••) •••-1234". */
-export function maskPhone(phone: string): string {
-  const d = String(phone || '').replace(/\D/g, '')
-  if (d.length < 4) return ''
-  return `(•••) •••-${d.slice(-4)}`
 }
