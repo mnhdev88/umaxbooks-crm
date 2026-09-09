@@ -44,14 +44,53 @@ export function allowedOrigins(): string[] {
 }
 
 /**
+ * True when this Origin may call the front-door routes.
+ *
+ * Exact matches from allowedOrigins(), plus any SUBDOMAIN of an allowlisted
+ * pages.dev host. Cloudflare gives every deployment its own preview URL
+ * (`<hash>.data123.pages.dev`, `<branch>.data123.pages.dev`), and that is the
+ * link the dashboard shows you after an upload — allowlisting only the
+ * production hostname means testing a fresh deployment fails with an opaque
+ * "Failed to fetch" that looks like the API is down.
+ *
+ * Scoped to the project's own pages.dev host, never `*.pages.dev`: that would
+ * let anybody's Cloudflare Pages site call these routes.
+ */
+export function originAllowed(origin: string | null): boolean {
+  if (!origin) return false
+  const candidate = origin.replace(/\/$/, '')
+
+  return allowedOrigins().some(allowed => {
+    if (candidate === allowed) return true
+    if (!allowed.endsWith('.pages.dev')) return false
+
+    // https://data123.pages.dev → also allow https://<label>.data123.pages.dev.
+    // Done with string comparison rather than a built regex: the host has to
+    // match exactly, and an unescaped dot in a generated pattern would quietly
+    // widen this to match hosts we never meant to allow.
+    const host = allowed.replace(/^https?:\/\//, '')
+    if (!candidate.startsWith('https://')) return false
+
+    const candidateHost = candidate.slice('https://'.length)
+    const dot = candidateHost.indexOf('.')
+    if (dot <= 0) return false
+
+    const label = candidateHost.slice(0, dot)
+    // Exactly one extra label, and a legal one — so a.b.data123.pages.dev and
+    // anything with a path or port is refused.
+    return candidateHost.slice(dot + 1) === host && /^[a-z0-9-]+$/i.test(label)
+  })
+}
+
+/**
  * CORS headers for a front-door route. Echoes the origin only when it is
  * allowlisted — never `*`, because these responses are read with credentials
  * and carry a masked destination.
  */
 export function corsHeaders(origin: string | null): Record<string, string> {
-  const allowed = origin && allowedOrigins().includes(origin.replace(/\/$/, ''))
+  const allowed = originAllowed(origin)
   return {
-    ...(allowed ? { 'Access-Control-Allow-Origin': origin } : {}),
+    ...(allowed && origin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',

@@ -150,6 +150,25 @@ function show(el, text, cls) {
   el.hidden = !text;
 }
 
+// fetch() rejects with a bare TypeError ("Failed to fetch") for anything that
+// stops the request before a response is read: no network, the CRM down, or a
+// CORS refusal. The browser deliberately hides which. That message tells a
+// client nothing, so show something they can act on and put the detail — with
+// the origin, the usual culprit — in the console for whoever is debugging.
+function failureMessage(e) {
+  if (e instanceof TypeError) {
+    console.error('[front door] request blocked or unreachable:', e,
+                  '
+  page origin:', window.location.origin,
+                  '
+  API:', API,
+                  '
+  If this is a CORS refusal, add the origin above to CLIENT_PORTAL_ORIGINS on the CRM.');
+    return "We couldn't reach our server. Check your connection and try again — if it keeps happening, email support@noveliotech.com.";
+  }
+  return e.message || 'Something went wrong. Please try again.';
+}
+
 // ── Step 1: request a code ───────────────────────────────────────────────────
 $('form-phone').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -197,7 +216,7 @@ $('form-phone').addEventListener('submit', async (e) => {
     $('step-code').hidden = false;
     $('code').focus();
   } catch (e) {
-    show(err, e.message || 'Something went wrong. Please try again.', 'err');
+    show(err, failureMessage(e), 'err');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Send me a code';
@@ -237,7 +256,7 @@ $('form-code').addEventListener('submit', async (e) => {
     show(err, '', 'err');
     window.location.href = data.url;
   } catch (e) {
-    show(err, e.message || 'That code did not work.', 'err');
+    show(err, failureMessage(e), 'err');
     $('code').classList.add('bad');
     $('code').value = '';
     btn.disabled = true;
