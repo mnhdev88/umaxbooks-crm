@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Your Documents · Noveliotech</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1F3A93;
+    --ink: #111827;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #f1f3fa;
+    color: var(--ink);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    padding: 32px 14px 56px;
+  }
+  .wrap { max-width: 420px; margin: 0 auto; }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(31,58,147,.13);
+    overflow: hidden;
+  }
+  .bar { height: 5px; background: linear-gradient(90deg,#1F3A93,#4a6cf7,#b8902a); }
+  .pad { padding: 38px 30px 34px; text-align: center; }
+  .icon { font-size: 40px; margin-bottom: 10px; }
+  h1 { color: var(--navy); font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+  p.lede { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 24px; }
+  input {
+    width: 100%;
+    padding: 13px 14px;
+    font-size: 17px;
+    font-family: inherit;
+    color: var(--ink);
+    background: #f9fafb;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    outline: none;
+    text-align: center;
+  }
+  input:focus { border-color: var(--navy); }
+  input.code {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    text-indent: 10px;
+  }
+  input.bad { border-color: #ef4444; }
+  button {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+    background: var(--navy);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button[disabled] { background: #9ca3af; cursor: not-allowed; }
+  .msg { font-size: 13px; margin: 12px 0 0; line-height: 1.5; }
+  .msg.err { color: #dc2626; }
+  .msg.ok  { color: #065f46; }
+  .link {
+    display: inline-block;
+    margin-top: 16px;
+    background: none;
+    border: none;
+    padding: 0;
+    width: auto;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .foot { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.7; }
+  .foot a { color: var(--navy); font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <div class="bar"></div>
+
+    <!-- Step 1 — phone -->
+    <div class="pad" id="step-phone">
+      <div class="icon">📄</div>
+      <h1>Your documents</h1>
+      <p class="lede">
+        Enter your phone number or email address and we'll send you a code to open
+        your proposal, agreement and website report.
+      </p>
+      <form id="form-phone">
+        <input id="identifier" type="text" inputmode="email" autocomplete="email"
+               placeholder="Phone number or email" aria-label="Your phone number or email address" required>
+        <p class="msg err" id="phone-error" hidden></p>
+        <button type="submit" id="phone-submit">Send me a code</button>
+      </form>
+    </div>
+
+    <!-- Step 2 — code -->
+    <div class="pad" id="step-code" hidden>
+      <div class="icon">🔑</div>
+      <h1>Enter your code</h1>
+      <p class="lede" id="code-lede">We sent a 6-digit code.</p>
+      <form id="form-code">
+        <input id="code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" placeholder="000000" aria-label="6-digit code" required>
+        <p class="msg err" id="code-error" hidden></p>
+        <button type="submit" id="code-submit" disabled>Open my documents</button>
+      </form>
+      <button class="link" id="restart" type="button">Use a different phone or email</button>
+    </div>
+  </div>
+
+  <p class="foot">
+    Trouble getting in? <a href="mailto:support@noveliotech.com">support@noveliotech.com</a><br>
+    Noveliotech
+  </p>
+</div>
+
+<script>
+// The CRM serves the API and the documents. Everything below is a thin front
+// door: it never sees a document, only a one-time URL to navigate to.
+const API = 'https://crm.noveliotech.com';
+
+const $ = (id) => document.getElementById(id);
+
+// Whatever the client typed in step 1 — a phone number or an email. Sent back
+// with the code in step 2 so the server looks the code up the same way.
+let identifier = '';
+
+function show(el, text, cls) {
+  el.textContent = text;
+  el.className = 'msg ' + cls;
+  el.hidden = !text;
+}
+
+// ── Step 1: request a code ───────────────────────────────────────────────────
+$('form-phone').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('phone-submit');
+  const err = $('phone-error');
+  identifier = $('identifier').value.trim();
+
+  const looksEmail = identifier.includes('@');
+  const looksPhone = identifier.replace(/\D/g, '').length >= 10;
+
+  if (!looksEmail && !looksPhone) {
+    show(err, 'Enter your full phone number (with area code) or your email address.', 'err');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  show(err, '', 'err');
+
+  try {
+    const res = await fetch(API + '/api/public/client/request-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+
+    if (!data.found) {
+      show(err, "We don't have those details on file. Please check them, or contact us at support@noveliotech.com.", 'err');
+      return;
+    }
+
+    // The code goes to every detail we hold, so name them all — a client who
+    // typed their email may well read the text first.
+    const where = (data.sent || []).map(function (s) {
+      return (s.channel === 'email' ? 'emailed it to ' : 'texted it to ') + s.destination;
+    });
+    $('code-lede').textContent = where.length
+      ? 'We ' + where.join(' and ') + '. The code expires in 10 minutes.'
+      : 'We sent you a 6-digit code. It expires in 10 minutes.';
+
+    $('step-phone').hidden = true;
+    $('step-code').hidden = false;
+    $('code').focus();
+  } catch (e) {
+    show(err, e.message || 'Something went wrong. Please try again.', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send me a code';
+  }
+});
+
+// ── Step 2: verify and hand off ──────────────────────────────────────────────
+$('code').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  $('code-submit').disabled = e.target.value.length !== 6;
+  e.target.classList.remove('bad');
+});
+
+$('form-code').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('code-submit');
+  const err = $('code-error');
+  const code = $('code').value;
+
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  show(err, '', 'err');
+
+  try {
+    const res = await fetch(API + '/api/public/client/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, code }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.url) throw new Error(data.error || 'That code did not work.');
+
+    // A top-level navigation, deliberately — the CRM sets its own cookie on
+    // arrival. A fetch here would make it a third-party cookie and Safari
+    // would drop it.
+    show(err, '', 'err');
+    window.location.href = data.url;
+  } catch (e) {
+    show(err, e.message || 'That code did not work.', 'err');
+    $('code').classList.add('bad');
+    $('code').value = '';
+    btn.disabled = true;
+    btn.textContent = 'Open my documents';
+  }
+});
+
+$('restart').addEventListener('click', () => {
+  $('step-code').hidden = true;
+  $('step-phone').hidden = false;
+  $('code').value = '';
+  $('code-submit').disabled = true;
+  show($('code-error'), '', 'err');
+  $('identifier').focus();
+});
+</script>
+
+</body>
+</html>
