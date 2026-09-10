@@ -13,6 +13,9 @@ export const CONTRACT_PACKAGES = [
   'Startup – Basic Website Design',
   'Professional – Advanced Design + SEO',
   'Enterprise – Full Suite + Support',
+  'Website Maintenance',
+  'Website Maintenance + Basic SEO',
+  'Website Maintenance + Advanced SEO',
 ]
 
 export const MIN_MONTHS = 2
@@ -39,6 +42,38 @@ export const DEFAULT_SCOPE_ITEMS: readonly string[] = [
   'Minor Content / Layout Adjustments',
 ]
 
+/**
+ * Scope lines for the maintenance packages. Ongoing upkeep promises something
+ * quite different from a build, so these replace the build scope rather than
+ * extending it. The two SEO tiers start from the same upkeep lines and add
+ * their own work on top.
+ */
+export const MAINTENANCE_SCOPE_ITEMS: readonly string[] = [
+  'Monthly Plugin / Theme / Core Updates',
+  'Security Monitoring & Patching',
+  'Weekly Backups & Restore on Request',
+  'Uptime Monitoring',
+  'Minor Content / Layout Adjustments',
+  'Monthly Maintenance Report',
+]
+
+export const MAINTENANCE_BASIC_SEO_SCOPE_ITEMS: readonly string[] = [
+  ...MAINTENANCE_SCOPE_ITEMS,
+  'On-Page SEO Optimization',
+  'Google Business Profile Optimization',
+  'Monthly Keyword Ranking Report',
+]
+
+export const MAINTENANCE_ADVANCED_SEO_SCOPE_ITEMS: readonly string[] = [
+  ...MAINTENANCE_SCOPE_ITEMS,
+  'On-Page SEO Optimization',
+  'Technical SEO Audits & Fixes',
+  'Keyword Research & Content Strategy',
+  'Backlink Building & Outreach',
+  'Google Business Profile Management',
+  'Monthly Ranking & Traffic Report',
+]
+
 export interface PackageDefault {
   /** Suggested total contract value in USD. */
   total: number
@@ -60,6 +95,11 @@ export const FALLBACK_PACKAGE_DEFAULTS: PackageDefaults = {
   'Startup – Basic Website Design':       { total: 799,  down_pct: 50, months: 3, scope: [...DEFAULT_SCOPE_ITEMS] },
   'Professional – Advanced Design + SEO': { total: 1499, down_pct: 50, months: 4, scope: [...DEFAULT_SCOPE_ITEMS] },
   'Enterprise – Full Suite + Support':    { total: 2999, down_pct: 50, months: 6, scope: [...DEFAULT_SCOPE_ITEMS] },
+  // Maintenance is retained per client, so like 'Website Development' these
+  // suggest no figures — the rep types the total and down payment they sold.
+  'Website Maintenance':                  { total: 0, down_pct: 0, months: MIN_MONTHS, scope: [...MAINTENANCE_SCOPE_ITEMS] },
+  'Website Maintenance + Basic SEO':      { total: 0, down_pct: 0, months: MIN_MONTHS, scope: [...MAINTENANCE_BASIC_SEO_SCOPE_ITEMS] },
+  'Website Maintenance + Advanced SEO':   { total: 0, down_pct: 0, months: MIN_MONTHS, scope: [...MAINTENANCE_ADVANCED_SEO_SCOPE_ITEMS] },
 }
 
 export interface ScheduleRow {
