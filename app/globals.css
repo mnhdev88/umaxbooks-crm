@@ -452,3 +452,10 @@ html.light .to-orange-900\/5 { --tw-gradient-to: #FBFAFF var(--tw-gradient-to-po
     animation-duration: 10s !important;
   }
 }
+
+/* SEO agent (migration 111) — colours introduced by the Site Health board,
+   the issue queue and the SEO Agent role pill. Light mode is per-class here,
+   so anything new is invisible-on-white until it is listed. */
+html.light .text-cyan-400 { color: #0891B2 !important; }
+html.light .bg-cyan-900\/30 { background-color: #ECFEFF !important; }
+html.light .hover\:bg-green-900\/50:hover { background-color: #a7f3d0 !important; }

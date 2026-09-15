@@ -60,6 +60,19 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
+    // SEO agents are scoped to their own workspace. The sidebar already hides
+    // everything else, but hiding a link is not access control — a typed URL
+    // would otherwise render a pipeline they have no business seeing.
+    if (role === 'seo_agent') {
+      const allowed = ['/seo', '/messages', '/notifications', '/settings', '/profile', '/api']
+      const permitted = allowed.some(p => pathname === p || pathname.startsWith(p + '/'))
+      if (!permitted && !isAuthPage) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/seo'
+        return NextResponse.redirect(url)
+      }
+    }
+
     // Staff users can access /portal ONLY when admin preview cookie is present
     if (role !== 'client' && isPortal && !hasPreviewCookie) {
       const url = request.nextUrl.clone()
@@ -72,7 +85,7 @@ export async function updateSession(request: NextRequest) {
     // we must let them stay to set their password.
     if (isAuthPage && pathname !== '/auth/set-password') {
       const url = request.nextUrl.clone()
-      url.pathname = role === 'client' ? '/portal' : '/'
+      url.pathname = role === 'client' ? '/portal' : role === 'seo_agent' ? '/seo' : '/'
       return NextResponse.redirect(url)
     }
   }

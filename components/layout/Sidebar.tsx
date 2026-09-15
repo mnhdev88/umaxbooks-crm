@@ -71,6 +71,19 @@ const developerSections: NavSection[] = [
   ]},
 ]
 
+// The SEO agent works post-sale only: live client sites, their issue queue, and
+// the monthly report. Deliberately no Pipeline / Calls / Approvals / revenue
+// Reports — none of it is theirs, and hiding it keeps the role honest.
+const seoAgentSections: NavSection[] = [
+  { items: [
+    { href: '/seo',           label: 'Site Health',   icon: Gauge },
+    { href: '/seo/reports',   label: 'Client Reports', icon: BarChart3 },
+    { href: '/messages',      label: 'Messages',      icon: MessageSquare },
+    { href: '/notifications', label: 'Notifications', icon: Bell },
+    { href: '/settings',      label: 'Settings',      icon: Settings },
+  ]},
+]
+
 const salesManagerSections: NavSection[] = [
   { items: [
     { href: '/',                label: 'Pipeline',           icon: LayoutDashboard },
@@ -121,6 +134,7 @@ const adminSections: NavSection[] = [
     { href: '/team',    label: 'Team',    icon: UsersRound },
     { href: '/team-activity', label: 'Team Activity', icon: Activity },
     { href: '/clients', label: 'Clients', icon: Globe },
+    { href: '/seo',     label: 'SEO Health', icon: Gauge },
     { href: '/careers', label: 'Careers', icon: Briefcase },
   ]},
   { label: 'System', items: [
@@ -154,6 +168,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const sections =
     profile.role === 'admin'         ? adminSections :
     profile.role === 'developer'     ? developerSections :
+    profile.role === 'seo_agent'     ? seoAgentSections :
     profile.role === 'sales_manager' ? salesManagerSections :
     profile.role === 'sales_agent'   ? salesAgentSections :
     agentSections

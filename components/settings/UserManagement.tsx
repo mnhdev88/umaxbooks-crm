@@ -14,6 +14,7 @@ const ROLE_OPTIONS = [
   { value: 'sales_agent',   label: 'Sales Agent' },
   { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'developer',     label: 'Developer' },
+  { value: 'seo_agent',     label: 'SEO Agent' },
   { value: 'admin',         label: 'Admin' },
   { value: 'client',        label: 'Client' },
 ]
@@ -24,6 +25,7 @@ const ROLE_COLORS: Record<string, string> = {
   sales_agent:   'text-green-400 bg-green-900/30',
   sales_manager: 'text-amber-400 bg-amber-900/30',
   developer:     'text-purple-400 bg-purple-900/30',
+  seo_agent:     'text-cyan-400 bg-cyan-900/30',
   client:        'text-green-400 bg-green-900/30',
 }
 

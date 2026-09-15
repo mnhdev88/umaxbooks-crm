@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'sales_manager' | 'developer' | 'client'
+export type UserRole = 'admin' | 'agent' | 'sales_agent' | 'sales_manager' | 'developer' | 'seo_agent' | 'client'
 
 export type LeadSource =
   | 'GMB'
@@ -504,4 +504,98 @@ export interface DemoApproval {
   reviewed_at?: string
   created_at: string
   updated_at: string
+}
+
+// ── SEO agent (migration 111) ────────────────────────────────────────────────
+
+export type SeoPlan = 'none' | 'basic' | 'pro'
+export type SeoIssueStatus = 'open' | 'fixed' | 'ignored'
+export type SeoTaskCategory = 'technical' | 'content' | 'gbp' | 'backlinks' | 'other'
+export type SeoTaskStatus = 'todo' | 'doing' | 'done'
+
+/** live_sites row as the SEO board reads it, with its lead joined. */
+export interface SeoSite {
+  id: string
+  lead_id: string
+  final_url: string | null
+  go_live_date: string | null
+  domain_expiry: string | null
+  ssl_expiry: string | null
+  hosting_expiry: string | null
+  assigned_seo_agent_id: string | null
+  seo_plan: SeoPlan
+  seo_check_frequency: 'weekly' | 'monthly'
+  seo_started_at: string | null
+  seo_auto_report: boolean
+  seo_report_email: string | null
+  target_keywords: string[] | null
+  gsc_property: string | null
+  gbp_url: string | null
+  last_seo_check_at: string | null
+  leads?: { id: string; name: string | null; company_name: string | null; email: string | null } | null
+  seo_agent?: Pick<Profile, 'id' | 'full_name'> | null
+}
+
+export interface SeoCheck {
+  id: string
+  site_id: string
+  lead_id: string
+  url: string
+  ran_at: string
+  source: 'manual' | 'auto'
+  ran_by: string | null
+  onpage_score: number | null
+  psi_seo: number | null
+  psi_perf: number | null
+  psi_a11y: number | null
+  cms: string | null
+  onpage: any
+  psi: any
+  error: string | null
+}
+
+export interface SeoIssue {
+  id: string
+  site_id: string
+  lead_id: string
+  check_key: string
+  label: string
+  severity: 'warn' | 'fail'
+  detail: string | null
+  impact: string | null
+  status: SeoIssueStatus
+  first_seen_at: string
+  fixed_at: string | null
+  auto_fixed: boolean
+  notes: string | null
+}
+
+export interface SeoTask {
+  id: string
+  site_id: string
+  lead_id: string
+  title: string
+  category: SeoTaskCategory
+  status: SeoTaskStatus
+  due_date: string | null
+  completed_at: string | null
+  assigned_to: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface SeoReport {
+  id: string
+  site_id: string
+  lead_id: string
+  period_start: string
+  period_end: string
+  data: any
+  commentary: string | null
+  status: 'draft' | 'sent'
+  sent_at: string | null
+  sent_to: string | null
+  generated_by: 'auto' | 'manual'
+  created_at: string
+  live_sites?: { final_url: string | null; leads?: { company_name: string | null; name: string | null; email: string | null } | null } | null
 }
