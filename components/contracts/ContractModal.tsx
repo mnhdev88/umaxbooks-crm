@@ -6,8 +6,8 @@ import { X, FileSignature, Loader2, CheckCircle, CalendarClock, ListChecks, Rota
 import {
   CONTRACT_PACKAGES as PACKAGES, MIN_MONTHS, MAX_MONTHS,
   FALLBACK_PACKAGE_DEFAULTS, DEFAULT_SCOPE_ITEMS, buildInstallmentPlan,
-  sanitizeScopeItems, prettyDate, usd, round2,
-  type PackageDefaults,
+  sanitizeScopeItems, dueDateKey, usd, round2,
+  type PackageDefaults, type DueDateOverrides,
 } from '@/lib/contract-plan'
 import { ScopeItemsEditor } from './ScopeItemsEditor'
 import { SIGNATURE_ACCEPT, loadSignatureFile, paintSignature } from '@/lib/signature-image'
@@ -47,6 +47,11 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
   })
 
   const [pkgDefaults, setPkgDefaults] = useState<PackageDefaults>(FALLBACK_PACKAGE_DEFAULTS)
+
+  // Due dates the rep moved off the generated monthly cadence, keyed by row
+  // ('down', '1', '2', …). Only the rows actually changed are held here, so
+  // everything else keeps following the Service Start Date.
+  const [dueDates, setDueDates] = useState<DueDateOverrides>({})
 
   // Scope of Services (section 4 of the agreement the client signs). Starts from
   // the package default and follows a package change until the rep edits it —
@@ -92,7 +97,23 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
     down:      Number(form.down_payment) || 0,
     months:    Number(form.installment_count),
     startDate: form.start_date,
-  }), [form.total_amount, form.down_payment, form.installment_count, form.start_date])
+    dueDates,
+  }), [form.total_amount, form.down_payment, form.installment_count, form.start_date, dueDates])
+
+  const datesEdited = Object.keys(dueDates).length > 0
+
+  function setDueDate(key: string, value: string) {
+    setDueDates(d => {
+      const next = { ...d }
+      if (value) next[key] = value
+      else delete next[key]   // cleared field falls back to the generated date
+      return next
+    })
+  }
+
+  function resetDueDates() {
+    setDueDates({})
+  }
 
   /**
    * Picking a package pre-fills the suggested numbers, but never overwrites a
@@ -218,6 +239,7 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
           // inputs are sent — never the derived monthly figure or the rows.
           down_payment:      isInstallment ? plan.down   : null,
           installment_count: isInstallment ? plan.months : null,
+          due_dates:         isInstallment ? dueDates    : null,
           scope_items:       cleanScope,
           rep_signature,
           lead_id: lead.id,
@@ -361,18 +383,20 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                         className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500 placeholder-slate-600"
                       />
                       <p className="text-[11px] text-slate-500 mt-2">
-                        {plan.error
+                        {plan.schedule.length === 0
                           ? `How many months to spread the balance over (${MIN_MONTHS}–${MAX_MONTHS}).`
                           : <>Balance of <strong className="text-slate-300">{usd(plan.financed)}</strong> over {plan.months} months.</>}
                       </p>
                     </div>
                   </div>
 
-                  {plan.error ? (
+                  {plan.error && (
                     <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
                       {plan.error}
                     </p>
-                  ) : (
+                  )}
+
+                  {plan.schedule.length > 0 && (
                     <>
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-2xl font-bold text-orange-400">{usd(plan.monthly)}</span>
@@ -389,16 +413,48 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                         )}
                       </div>
 
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[11px] font-semibold text-slate-400">Payment schedule</p>
+                        <span className="text-[11px] text-slate-500">Edit any due date to fit the client.</span>
+                        {datesEdited && (
+                          <button
+                            type="button"
+                            onClick={resetDueDates}
+                            className="ml-auto flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-orange-400 transition-colors"
+                          >
+                            <RotateCcw size={11} /> Reset dates
+                          </button>
+                        )}
+                      </div>
+
                       <div className="rounded-lg border border-slate-700 overflow-hidden">
                         <table className="w-full text-xs">
                           <tbody>
-                            {plan.schedule.map((row, i) => (
-                              <tr key={i} className={i % 2 ? 'bg-slate-900/40' : ''}>
-                                <td className="px-3 py-1.5 text-slate-400">{row.label}</td>
-                                <td className="px-3 py-1.5 text-slate-500 whitespace-nowrap">{prettyDate(row.due_date)}</td>
-                                <td className="px-3 py-1.5 text-right text-slate-200 font-medium whitespace-nowrap">{usd(row.amount)}</td>
-                              </tr>
-                            ))}
+                            {plan.schedule.map((row, i) => {
+                              // 'down' for the down payment, then '1'…'n'. The monthly
+                              // rows are numbered among themselves, so the key survives
+                              // a down payment appearing or disappearing above them.
+                              const key = dueDateKey(row, plan.down > 0 ? i : i + 1)
+                              return (
+                                <tr key={key} className={i % 2 ? 'bg-slate-900/40' : ''}>
+                                  <td className="px-3 py-1.5 text-slate-400">{row.label}</td>
+                                  <td className="px-2 py-1">
+                                    <input
+                                      type="date"
+                                      value={row.due_date}
+                                      onChange={e => setDueDate(key, e.target.value)}
+                                      aria-label={`Due date — ${row.label}`}
+                                      className={`w-full bg-slate-800 border rounded-md px-2 py-1 text-xs focus:outline-none focus:border-orange-500 ${
+                                        dueDates[key]
+                                          ? 'border-orange-500/60 text-orange-300'
+                                          : 'border-slate-700 text-slate-300'
+                                      }`}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right text-slate-200 font-medium whitespace-nowrap">{usd(row.amount)}</td>
+                                </tr>
+                              )
+                            })}
                             <tr className="border-t border-slate-700 bg-slate-900/60">
                               <td className="px-3 py-1.5 text-slate-400 font-semibold" colSpan={2}>Total</td>
                               <td className="px-3 py-1.5 text-right text-orange-400 font-bold whitespace-nowrap">{usd(plan.total)}</td>
@@ -408,7 +464,8 @@ export function ContractModal({ lead, profile, onClose, onSent }: Props) {
                       </div>
 
                       <p className="text-[11px] text-slate-600">
-                        Dates are generated from the Service Start Date. The client sees this exact
+                        Dates start from the Service Start Date; any you change here are kept
+                        {datesEdited ? ' (highlighted above)' : ''}. The client sees this exact
                         schedule and cannot change it.
                       </p>
                     </>

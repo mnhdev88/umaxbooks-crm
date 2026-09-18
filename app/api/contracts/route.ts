@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { buildInstallmentPlan, sanitizeScopeItems, DEFAULT_SCOPE_ITEMS } from '@/lib/contract-plan'
+import { buildInstallmentPlan, sanitizeScopeItems, sanitizeDueDates, DEFAULT_SCOPE_ITEMS } from '@/lib/contract-plan'
 import { CONTRACT_LINK_DAYS } from '@/lib/contract-expiry'
 
 export async function GET(req: NextRequest) {
@@ -56,31 +56,37 @@ export async function POST(req: NextRequest) {
   // derived numbers are never trusted — this is the amount the client will be
   // asked to agree to, and it's frozen into payment_schedule so a later change to
   // the maths can't retroactively alter a signed agreement.
-  if (fields.payment_type === 'Installment') {
+  // Due dates the rep moved off the generated cadence. Not a column of its own —
+  // it only steers the schedule below, so it never reaches the insert.
+  const { due_dates, ...rest } = fields as Record<string, unknown>
+  const fieldsToInsert = rest as Record<string, any>
+
+  if (fieldsToInsert.payment_type === 'Installment') {
     const plan = buildInstallmentPlan({
-      total:     Number(fields.total_amount),
-      down:      Number(fields.down_payment) || 0,
-      months:    Number(fields.installment_count),
-      startDate: fields.start_date,
+      total:     Number(fieldsToInsert.total_amount),
+      down:      Number(fieldsToInsert.down_payment) || 0,
+      months:    Number(fieldsToInsert.installment_count),
+      startDate: fieldsToInsert.start_date,
+      dueDates:  sanitizeDueDates(due_dates, Number(fieldsToInsert.installment_count)),
     })
     if (plan.error) return NextResponse.json({ error: plan.error }, { status: 400 })
-    fields.down_payment             = plan.down
-    fields.installment_count        = plan.months
-    fields.installment_amount       = plan.monthly
-    fields.final_installment_amount = plan.finalMonthly
-    fields.payment_schedule         = plan.schedule
+    fieldsToInsert.down_payment             = plan.down
+    fieldsToInsert.installment_count        = plan.months
+    fieldsToInsert.installment_amount       = plan.monthly
+    fieldsToInsert.final_installment_amount = plan.finalMonthly
+    fieldsToInsert.payment_schedule         = plan.schedule
   } else {
-    fields.down_payment             = null
-    fields.installment_count        = null
-    fields.installment_amount       = null
-    fields.final_installment_amount = null
-    fields.payment_schedule         = null
+    fieldsToInsert.down_payment             = null
+    fieldsToInsert.installment_count        = null
+    fieldsToInsert.installment_amount       = null
+    fieldsToInsert.final_installment_amount = null
+    fieldsToInsert.payment_schedule         = null
   }
 
   const service = createServiceClient()
   const { data: contract, error } = await service
     .from('contracts')
-    .insert({ lead_id, created_by: user.id, ...fields })
+    .insert({ lead_id, created_by: user.id, ...fieldsToInsert })
     .select('id,signing_token,client_email,business_name')
     .single()
 

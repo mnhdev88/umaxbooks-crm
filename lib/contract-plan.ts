@@ -18,7 +18,7 @@ export const CONTRACT_PACKAGES = [
   'Website Maintenance + Advanced SEO',
 ]
 
-export const MIN_MONTHS = 2
+export const MIN_MONTHS = 1
 export const MAX_MONTHS = 24
 
 export const MAX_SCOPE_ITEMS    = 25
@@ -158,19 +158,59 @@ export function round2(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100
 }
 
+/**
+ * Rep-chosen due dates that replace the generated ones, keyed by row:
+ * `'down'` for the down payment and `'1'`…`'n'` for the monthly payments.
+ * Rows with no entry keep the date the start date implies, so a plan only
+ * carries the dates someone deliberately moved.
+ */
+export type DueDateOverrides = Record<string, string>
+
+export const DUE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Key a schedule row uses in {@link DueDateOverrides}. */
+export function dueDateKey(row: Pick<ScheduleRow, 'kind'>, installmentIndex: number): string {
+  return row.kind === 'down' ? 'down' : String(installmentIndex)
+}
+
+/**
+ * Narrow an untrusted value into date overrides: keeps only `down` / `1`…`months`
+ * keys holding a yyyy-mm-dd string. Anything else is dropped rather than rejected,
+ * so a stale key (from lowering the month count, say) can't block a send.
+ */
+export function sanitizeDueDates(value: unknown, months: number): DueDateOverrides {
+  let raw: any = value
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw) } catch { return {} }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+
+  const n = Math.trunc(Number(months))
+  const out: DueDateOverrides = {}
+  for (const [key, date] of Object.entries(raw)) {
+    if (typeof date !== 'string' || !DUE_DATE_RE.test(date)) continue
+    if (key === 'down') { out.down = date; continue }
+    const i = Number(key)
+    if (Number.isInteger(i) && i >= 1 && i <= n) out[String(i)] = date
+  }
+  return out
+}
+
 export interface InstallmentPlanInput {
   total: number
   down: number
   months: number
   /** Service start date, yyyy-mm-dd. The down payment falls on this date. */
   startDate: string
+  /** Optional per-row due dates replacing the generated monthly cadence. */
+  dueDates?: DueDateOverrides
 }
 
 /**
  * Build a down-payment + N-equal-months plan. Always returns a plan object;
  * check `.error` before trusting the numbers.
  */
-export function buildInstallmentPlan({ total, down, months, startDate }: InstallmentPlanInput): InstallmentPlan {
+export function buildInstallmentPlan({ total, down, months, startDate, dueDates }: InstallmentPlanInput): InstallmentPlan {
   const t = round2(total)
   const d = round2(down)
   const n = Math.trunc(Number(months))
@@ -196,9 +236,21 @@ export function buildInstallmentPlan({ total, down, months, startDate }: Install
   const monthly      = baseCents / 100
   const finalMonthly = finalCents / 100
 
+  // A rep may move any due date off the generated cadence — a client who pays on
+  // the 1st, a build that starts before the first invoice. An override only
+  // counts when it parses; anything else falls back to the generated date.
+  const overrides = sanitizeDueDates(dueDates, n)
+  const pick = (key: string, generated: string) =>
+    DUE_DATE_RE.test(overrides[key] || '') ? overrides[key] : generated
+
   const schedule: ScheduleRow[] = []
   if (d > 0) {
-    schedule.push({ kind: 'down', label: 'Down payment (due at signing)', amount: d, due_date: startDate })
+    schedule.push({
+      kind: 'down',
+      label: 'Down payment (due at signing)',
+      amount: d,
+      due_date: pick('down', startDate),
+    })
   }
   // With a down payment the monthly run starts a month later; without one the
   // first monthly payment is itself due on the start date.
@@ -208,11 +260,26 @@ export function buildInstallmentPlan({ total, down, months, startDate }: Install
       kind: 'installment',
       label: `Payment ${i} of ${n}`,
       amount: i === n ? finalMonthly : monthly,
-      due_date: addMonths(startDate, i - 1 + offset),
+      due_date: pick(String(i), addMonths(startDate, i - 1 + offset)),
     })
   }
 
-  return { total: t, down: d, months: n, monthly, finalMonthly, financed: financedCents / 100, schedule, error: null }
+  // Dates the client would read as a mistake — a payment landing before the one
+  // before it — are rejected rather than sent. Equal dates are allowed: two
+  // payments on the same day is unusual but not wrong. Unlike the failures
+  // above this keeps the schedule, so the editor can show the rows being fixed.
+  let order: string | null = null
+  for (let i = 1; i < schedule.length; i++) {
+    if (schedule[i].due_date < schedule[i - 1].due_date) {
+      order = `${schedule[i].label} is due before ${schedule[i - 1].label.toLowerCase()}. Put the due dates in order.`
+      break
+    }
+  }
+
+  return {
+    total: t, down: d, months: n, monthly, finalMonthly,
+    financed: financedCents / 100, schedule, error: order,
+  }
 }
 
 /** Narrow an untrusted jsonb value into a schedule, or [] if it isn't one. */
