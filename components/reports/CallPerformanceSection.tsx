@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Loader2, Phone, Target, Check, X, PhoneOutgoing } from 'lucide-react'
+import { Loader2, Phone, Target, Check, X, PhoneOutgoing, PhoneIncoming } from 'lucide-react'
 
 interface AgentRow {
   agent_id: string | null
@@ -34,10 +34,48 @@ interface NumberRow {
   avg_talk_sec: number
 }
 
+interface InboundAgentRow {
+  agent_id: string | null
+  agent_name: string
+  answered: number
+  answered_owner: number
+  answered_hunt: number
+  talk_sec: number
+  avg_talk_sec: number
+}
+
+interface InboundLineRow {
+  to_number: string
+  label: string | null
+  received: number
+  answered: number
+  voicemail: number
+  abandoned: number
+  after_hours: number
+  answer_rate: number
+  talk_sec: number
+}
+
+interface Inbound {
+  received: number
+  answered: number
+  answered_owner: number
+  answered_hunt: number
+  voicemail: number
+  abandoned: number
+  after_hours: number
+  answer_rate: number
+  talk_sec: number
+  avg_talk_sec: number
+  by_agent: InboundAgentRow[]
+  by_line: InboundLineRow[]
+}
+
 interface ApiResponse {
   label: string
   summary: AgentRow[]
   byNumber?: NumberRow[]
+  inbound?: Inbound
   dailyTarget: number
   days: number | null
   effectiveTarget: number | null
@@ -85,6 +123,7 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
 
   const rows = data?.summary ?? []
   const numberRows = data?.byNumber ?? []
+  const inbound = data?.inbound ?? null
   const target = data?.effectiveTarget ?? null
 
   // Totals footer.
@@ -125,7 +164,11 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
       ) : rows.length === 0 ? (
-        <p className="text-center text-slate-500 text-sm py-8">No call data for this period</p>
+        // Only when there is nothing at all. A range with callbacks but no outbound dials
+        // still has a story to tell, and the inbound block below tells it.
+        <p className="text-center text-slate-500 text-sm py-8">
+          {inbound && inbound.received > 0 ? 'No outbound calls in this period' : 'No call data for this period'}
+        </p>
       ) : (
         <div className="overflow-x-auto -mx-1">
           <table className="w-full text-sm border-collapse min-w-[820px]">
@@ -257,6 +300,125 @@ export function CallPerformanceSection({ title = 'Call Performance', from, to }:
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Inbound callbacks. Kept apart from the outbound tables rather than merged in:
+          a callback is traffic the team received, not dialling effort, and its outcomes
+          come from the routing chain (inbound_outcome) rather than from a wrap-up. The
+          headline figure is Missed — the warmest leads there are, ringing out. Hidden
+          when no callbacks arrived in range. */}
+      {!loading && inbound && inbound.received > 0 && (
+        <div className="mt-8">
+          <div className="mb-2 flex items-center gap-2">
+            <PhoneIncoming className="h-4 w-4 text-orange-400" />
+            <h3 className="text-sm font-semibold text-slate-200">Inbound — callbacks received</h3>
+          </div>
+          <p className="mb-3 text-xs text-slate-500">
+            Leads calling one of our numbers back. Missed calls are counted for the team, not
+            against an individual — on a hunt-group call everyone&apos;s phone rings at once.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2">
+              <div className="text-xs text-slate-500">Received</div>
+              <div className="text-lg font-semibold tabular-nums text-slate-100">{inbound.received}</div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2">
+              <div className="text-xs text-slate-500">Answered</div>
+              <div className="text-lg font-semibold tabular-nums text-green-400">
+                {inbound.answered} <span className="text-sm font-normal text-slate-400">({inbound.answer_rate}%)</span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2">
+              <div className="text-xs text-slate-500" title="Nobody picked up and no message was left.">Missed</div>
+              <div className={`text-lg font-semibold tabular-nums ${inbound.abandoned > 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                {inbound.abandoned}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2">
+              <div className="text-xs text-slate-500">Voicemail</div>
+              <div className="text-lg font-semibold tabular-nums text-slate-300">
+                {inbound.voicemail}
+                {inbound.after_hours > 0 && (
+                  <span className="ml-1.5 text-xs font-normal text-slate-500">{inbound.after_hours} after hours</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {inbound.by_agent.length > 0 && (
+            <div className="-mx-1 mt-5 overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-2 py-2 text-left font-medium">Answered by</th>
+                    <th className="px-2 py-2 text-right font-medium">Calls</th>
+                    <th className="px-2 py-2 text-right font-medium" title="They were the agent this lead had spoken to before.">As owner</th>
+                    <th className="px-2 py-2 text-right font-medium" title="They picked the call out of the team-wide hunt group.">From hunt</th>
+                    <th className="px-2 py-2 text-right font-medium">Avg talk</th>
+                    <th className="px-2 py-2 text-right font-medium">Talk time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inbound.by_agent.map(a => (
+                    <tr key={a.agent_id ?? a.agent_name} className="border-t border-slate-800 hover:bg-slate-800/40">
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-700 text-xs font-bold text-white">
+                            {(a.agent_name ?? '?').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="max-w-[160px] truncate text-slate-200">{a.agent_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 text-right font-semibold tabular-nums text-slate-100">{a.answered}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{a.answered_owner}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{a.answered_hunt}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{fmtDuration(a.avg_talk_sec)}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-300">{fmtDuration(a.talk_sec)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {inbound.by_line.length > 0 && (
+            <div className="-mx-1 mt-6 overflow-x-auto">
+              <div className="mb-2 px-1 text-xs uppercase tracking-wide text-slate-500">By line called</div>
+              <table className="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-2 py-2 text-left font-medium">Number</th>
+                    <th className="px-2 py-2 text-right font-medium">Received</th>
+                    <th className="px-2 py-2 text-right font-medium">Answered</th>
+                    <th className="px-2 py-2 text-right font-medium">Ans %</th>
+                    <th className="px-2 py-2 text-right font-medium">VM</th>
+                    <th className="px-2 py-2 text-right font-medium">Missed</th>
+                    <th className="px-2 py-2 text-right font-medium">After hrs</th>
+                    <th className="px-2 py-2 text-right font-medium">Talk time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inbound.by_line.map(l => (
+                    <tr key={l.to_number} className="border-t border-slate-800 hover:bg-slate-800/40">
+                      <td className="px-2 py-2">
+                        {l.label && <div className="truncate text-slate-200">{l.label}</div>}
+                        <div className="text-xs tabular-nums text-slate-500">{prettyNumber(l.to_number)}</div>
+                      </td>
+                      <td className="px-2 text-right font-semibold tabular-nums text-slate-100">{l.received}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-300">{l.answered}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{l.answer_rate}%</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{l.voicemail}</td>
+                      <td className={`px-2 text-right tabular-nums ${l.abandoned > 0 ? 'text-red-400' : 'text-slate-400'}`}>{l.abandoned}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-400">{l.after_hours}</td>
+                      <td className="px-2 text-right tabular-nums text-slate-300">{fmtDuration(l.talk_sec)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

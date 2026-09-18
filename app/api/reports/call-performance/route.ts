@@ -63,6 +63,11 @@ export async function GET(req: NextRequest) {
       // Scoped exactly like `summary` — a sales_agent sees the numbers their own calls
       // went out on, not the pool's overall reputation.
       byNumber: report.by_number,
+      // Callbacks received over the same range. Scoped the same way, so a sales_agent
+      // sees the calls they personally took rather than the team's whole inbound
+      // traffic. The daily call target deliberately does NOT cover these — it measures
+      // dialling effort, and a received call is not effort the agent chose to spend.
+      inbound: report.inbound,
       dailyTarget,
       days,
       effectiveTarget,

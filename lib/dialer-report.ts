@@ -54,6 +54,70 @@ export interface NumberSummary {
   avg_talk_sec: number
 }
 
+/**
+ * Inbound callbacks, counted per agent who ANSWERED them.
+ *
+ * WHY answered-only: on an answered row `agent_user_id` is whoever picked up, but on an
+ * abandoned one it is the owner whose phone rang and who did not — and a third of
+ * abandoned calls have no agent recorded at all (an unknown number outside anyone's
+ * history). Mixing the two would read as "calls handled" while quietly counting misses,
+ * so missed calls live in the totals and the per-line table only, never against a name.
+ */
+export interface InboundAgentSummary {
+  agent_id: string | null
+  agent_name: string
+  answered: number       // answered-owner + answered-hunt, by the agent who took it
+  answered_owner: number // they were the one the caller had spoken to before
+  answered_hunt: number  // they picked it out of the hunt group
+  talk_sec: number       // Σ recording length over their answered calls
+  avg_talk_sec: number   // talk_sec / answered
+}
+
+/**
+ * The same callbacks sliced by which of our pool numbers the lead rang back on.
+ *
+ * WHY: a line with a healthy outbound connect rate but no callbacks at all is being
+ * screened; one with a high abandoned share is ringing out while nobody is at a desk.
+ * Neither shows up in the per-agent view.
+ */
+export interface InboundLineSummary {
+  to_number: string
+  label: string | null
+  received: number
+  answered: number
+  voicemail: number
+  abandoned: number
+  after_hours: number
+  answer_rate: number // answered / received, 0–100 (%)
+  talk_sec: number
+}
+
+export interface InboundSummary {
+  received: number
+  answered: number
+  answered_owner: number
+  answered_hunt: number
+  voicemail: number
+  abandoned: number
+  /** Subset of the above that arrived outside business hours (the '-closed' outcomes). */
+  after_hours: number
+  answer_rate: number // answered / received, 0–100 (%)
+  talk_sec: number
+  avg_talk_sec: number
+  by_agent: InboundAgentSummary[]
+  by_line: InboundLineSummary[]
+}
+
+export interface InboundDetail {
+  created_at: string
+  lead: string
+  from_number: string  // the lead's number
+  line: string         // the pool number they rang, labelled
+  outcome: string      // inbound_outcome, verbatim
+  handled_by: string   // the agent who answered, blank when nobody did
+  duration_sec: number
+}
+
 export interface CallDetail {
   created_at: string
   agent_name: string
@@ -79,6 +143,9 @@ export interface DialerReport {
   /** Per caller ID, busiest first. Excludes rows with no from_number (pre-Aug 2026). */
   by_number: NumberSummary[]
   detail: CallDetail[]
+  /** Callbacks received in the same range. Counted from inbound_outcome — see buildInbound. */
+  inbound: InboundSummary
+  inbound_detail: InboundDetail[]
 }
 
 const NO_ANSWER_STATUSES = new Set(['busy', 'no-answer', 'failed', 'canceled'])
@@ -114,6 +181,33 @@ export function classifyCall(c: {
   // very thing that inflated these numbers.
   if (c.status === 'completed' && c.disposition_at) return 'connected'
   return 'unknown'
+}
+
+/**
+ * The inbound equivalent of classifyCall.
+ *
+ * WHY IT IS SEPARATE: classifyCall leans on the agent's wrap-up, and no inbound call has
+ * one — the disposition screen only opens on outbound dials. Run through classifyCall,
+ * every single callback would land in 'unknown'. Inbound calls instead carry
+ * `inbound_outcome`, written by the routing chain in /api/voice/twilio/incoming as it
+ * decides the call's fate, which is a better record than Twilio's status anyway.
+ *
+ * The '-closed' suffix marks a call that arrived outside business hours, when the chain
+ * skips ringing entirely and goes straight to the recorder. It is a flag on top of the
+ * outcome, not an outcome of its own, so it is stripped here and counted separately.
+ */
+export type InboundOutcome = 'answered' | 'voicemail' | 'abandoned'
+
+export function classifyInbound(outcome: string | null): { outcome: InboundOutcome; afterHours: boolean } {
+  const raw = (outcome ?? '').trim()
+  const afterHours = raw.endsWith('-closed')
+  const base = afterHours ? raw.slice(0, -'-closed'.length) : raw
+  if (base.startsWith('answered')) return { outcome: 'answered', afterHours }
+  if (base === 'voicemail') return { outcome: 'voicemail', afterHours }
+  // 'abandoned' is also the value the row is inserted with before routing resolves, so a
+  // call still in progress reads as abandoned until it finishes. Anything unrecognised
+  // belongs here too: whatever it was, nobody spoke to the caller.
+  return { outcome: 'abandoned', afterHours }
 }
 
 // Format seconds as H:MM:SS (or M:SS under an hour).
@@ -226,6 +320,10 @@ export async function buildDialerReport(
     }
   }
 
+  // The inbound half is built from the same range, and answered on the same pool
+  // numbers, so it reuses both maps rather than re-reading them.
+  const inbound = await buildInbound(service, { fromISO, toISO, agentIds, agentName, numberLabel })
+
   const byNumber = new Map<string, NumberSummary>()
   const detail: CallDetail[] = []
 
@@ -308,7 +406,168 @@ export async function buildDialerReport(
   const summary = [...summaries.values()].sort((a, b) => b.calls - a.calls || a.agent_name.localeCompare(b.agent_name))
   const by_number = [...byNumber.values()].sort((a, b) => b.calls - a.calls || a.from_number.localeCompare(b.from_number))
 
-  return { fromISO, toISO, label, summary, by_number, detail }
+  return { fromISO, toISO, label, summary, by_number, detail, inbound: inbound.summary, inbound_detail: inbound.detail }
+}
+
+/**
+ * Build the inbound half of the report over the same range.
+ *
+ * Split out from buildDialerReport's main loop because inbound rows are a different
+ * shape, not a different filter: they carry no wrap-up, no appointment and no
+ * duration_sec, and their from_number is the lead rather than one of ours.
+ *
+ * TALK TIME comes from `call_length_min` (the recording's length), because duration_sec
+ * is NULL on every inbound row ever written — the <Dial action> callback on an inbound
+ * call goes back to /incoming to drive the next routing stage, not to /status, so
+ * nothing records the dial duration. The recording covers the conversation itself, so
+ * it is a close proxy; it is absent on abandoned calls, which have no conversation to
+ * measure anyway.
+ *
+ * SCOPE: when `agentIds` is given (a manager's team, or an agent seeing themselves)
+ * only calls involving those people are included, since the caller's role decides what
+ * they may see exactly as it does outbound. Unscoped, every callback counts — including
+ * the ones from numbers nobody recognised, which have no agent at all and which are
+ * precisely the ones worth noticing.
+ */
+async function buildInbound(
+  service: SupabaseClient,
+  opts: {
+    fromISO: string | null
+    toISO: string | null
+    agentIds?: string[] | null
+    agentName: Map<string, string>
+    numberLabel: Map<string, string | null>
+  },
+): Promise<{ summary: InboundSummary; detail: InboundDetail[] }> {
+  const { fromISO, toISO, agentIds, agentName, numberLabel } = opts
+  const scoped = Array.isArray(agentIds)
+
+  type Row = {
+    created_at: string
+    agent_user_id: string | null
+    inbound_outcome: string | null
+    call_length_min: number | null
+    from_number: string | null
+    to_number: string | null
+    leads: { name: string | null; company_name: string | null } | null
+  }
+
+  const rows: Row[] = []
+  const PAGE = 1000
+  for (let offset = 0; ; offset += PAGE) {
+    let q = service
+      .from('voice_calls')
+      .select('created_at, agent_user_id, inbound_outcome, call_length_min, from_number, to_number, leads(name, company_name)')
+      .eq('provider', 'twilio')
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: true })
+      .range(offset, offset + PAGE - 1)
+    if (fromISO) q = q.gte('created_at', fromISO)
+    if (toISO) q = q.lt('created_at', toISO)
+    if (scoped) {
+      const ids = agentIds!.length ? agentIds! : ['00000000-0000-0000-0000-000000000000']
+      q = q.in('agent_user_id', ids)
+    }
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    const batch = (data ?? []) as unknown as Row[]
+    rows.push(...batch)
+    if (batch.length < PAGE) break
+  }
+
+  const summary: InboundSummary = {
+    received: 0, answered: 0, answered_owner: 0, answered_hunt: 0,
+    voicemail: 0, abandoned: 0, after_hours: 0,
+    answer_rate: 0, talk_sec: 0, avg_talk_sec: 0,
+    by_agent: [], by_line: [],
+  }
+
+  const byAgent = new Map<string, InboundAgentSummary>()
+  const byLine = new Map<string, InboundLineSummary>()
+  const detail: InboundDetail[] = []
+
+  for (const r of rows) {
+    const { outcome, afterHours } = classifyInbound(r.inbound_outcome)
+    // Only answered calls have a conversation to time; a voicemail's recording is the
+    // caller talking to a machine and would inflate "talk time" if it were added in.
+    const talk = outcome === 'answered' ? Math.round((r.call_length_min ?? 0) * 60) : 0
+
+    summary.received++
+    if (outcome === 'answered') {
+      summary.answered++
+      if ((r.inbound_outcome ?? '').startsWith('answered-owner')) summary.answered_owner++
+      else summary.answered_hunt++
+      summary.talk_sec += talk
+    } else if (outcome === 'voicemail') summary.voicemail++
+    else summary.abandoned++
+    if (afterHours) summary.after_hours++
+
+    // Per agent: answered calls only. See InboundAgentSummary for why misses are not
+    // attributed. A row with no agent (an unknown caller nobody had dialed) simply has
+    // nowhere to go, which is correct — it was handled by no one.
+    if (outcome === 'answered' && r.agent_user_id) {
+      let a = byAgent.get(r.agent_user_id)
+      if (!a) {
+        a = {
+          agent_id: r.agent_user_id,
+          agent_name: agentName.get(r.agent_user_id) ?? '(unnamed)',
+          answered: 0, answered_owner: 0, answered_hunt: 0, talk_sec: 0, avg_talk_sec: 0,
+        }
+        byAgent.set(r.agent_user_id, a)
+      }
+      a.answered++
+      if ((r.inbound_outcome ?? '').startsWith('answered-owner')) a.answered_owner++
+      else a.answered_hunt++
+      a.talk_sec += talk
+    }
+
+    // Per line: the pool number they rang back on.
+    if (r.to_number) {
+      let l = byLine.get(r.to_number)
+      if (!l) {
+        l = {
+          to_number: r.to_number,
+          label: numberLabel.get(r.to_number) ?? null,
+          received: 0, answered: 0, voicemail: 0, abandoned: 0, after_hours: 0,
+          answer_rate: 0, talk_sec: 0,
+        }
+        byLine.set(r.to_number, l)
+      }
+      l.received++
+      if (outcome === 'answered') { l.answered++; l.talk_sec += talk }
+      else if (outcome === 'voicemail') l.voicemail++
+      else l.abandoned++
+      if (afterHours) l.after_hours++
+    }
+
+    const line = r.to_number
+      ? (numberLabel.get(r.to_number) ? `${numberLabel.get(r.to_number)} (${r.to_number})` : r.to_number)
+      : ''
+    detail.push({
+      created_at: r.created_at,
+      lead: r.leads?.name || r.leads?.company_name || '—',
+      from_number: r.from_number ?? '',
+      line,
+      outcome: r.inbound_outcome ?? '',
+      handled_by: outcome === 'answered' && r.agent_user_id ? (agentName.get(r.agent_user_id) ?? '(unnamed)') : '',
+      duration_sec: talk,
+    })
+  }
+
+  summary.answer_rate = summary.received ? Math.round((summary.answered / summary.received) * 100) : 0
+  summary.avg_talk_sec = summary.answered ? Math.round(summary.talk_sec / summary.answered) : 0
+
+  for (const a of byAgent.values()) {
+    a.avg_talk_sec = a.answered ? Math.round(a.talk_sec / a.answered) : 0
+  }
+  for (const l of byLine.values()) {
+    l.answer_rate = l.received ? Math.round((l.answered / l.received) * 100) : 0
+  }
+
+  summary.by_agent = [...byAgent.values()].sort((a, b) => b.answered - a.answered || a.agent_name.localeCompare(b.agent_name))
+  summary.by_line = [...byLine.values()].sort((a, b) => b.received - a.received || a.to_number.localeCompare(b.to_number))
+
+  return { summary, detail }
 }
 
 // ── CSV serialisation ────────────────────────────────────────────────────────
@@ -347,10 +606,48 @@ export function dialerReportToCSV(report: DialerReport): string {
     lines.push('')
   }
 
+  // Inbound is reported apart from the outbound blocks above rather than merged into
+  // them: a callback is not an agent's dialling effort, its outcomes come from a
+  // different column, and folding the two together would quietly move the connect rate.
+  if (report.inbound.received > 0) {
+    const ib = report.inbound
+    lines.push('INBOUND SUMMARY')
+    lines.push(csvRow(['Received', 'Answered', 'Answer %', 'By owner', 'By team', 'Voicemail', 'Missed', 'After hours', 'Talk time', 'Avg talk/call']))
+    lines.push(csvRow([ib.received, ib.answered, `${ib.answer_rate}%`, ib.answered_owner, ib.answered_hunt, ib.voicemail, ib.abandoned, ib.after_hours, fmtDuration(ib.talk_sec), fmtDuration(ib.avg_talk_sec)]))
+    lines.push('')
+
+    if (ib.by_agent.length > 0) {
+      lines.push('INBOUND ANSWERED BY AGENT')
+      lines.push(csvRow(['Agent', 'Answered', 'As owner', 'From hunt group', 'Talk time', 'Avg talk/call']))
+      for (const a of ib.by_agent) {
+        lines.push(csvRow([a.agent_name, a.answered, a.answered_owner, a.answered_hunt, fmtDuration(a.talk_sec), fmtDuration(a.avg_talk_sec)]))
+      }
+      lines.push('')
+    }
+
+    if (ib.by_line.length > 0) {
+      lines.push('INBOUND BY LINE')
+      lines.push(csvRow(['Line', 'Number', 'Received', 'Answered', 'Answer %', 'Voicemail', 'Missed', 'After hours', 'Talk time']))
+      for (const l of ib.by_line) {
+        lines.push(csvRow([l.label ?? '—', l.to_number, l.received, l.answered, `${l.answer_rate}%`, l.voicemail, l.abandoned, l.after_hours, fmtDuration(l.talk_sec)]))
+      }
+      lines.push('')
+    }
+  }
+
   lines.push('CALL DETAIL')
   lines.push(csvRow(['Time', 'Agent', 'Lead', 'Called from', 'Direction', 'Outcome', 'Twilio status', 'Duration', 'Answered by', 'Interested', 'Appointment', 'Do not call']))
   for (const d of report.detail) {
     lines.push(csvRow([d.created_at, d.agent_name, d.lead, d.from_number, d.direction, d.outcome, d.status, fmtDuration(d.duration_sec), d.answered_by, d.interested, d.appointment, d.do_not_call]))
+  }
+
+  if (report.inbound_detail.length > 0) {
+    lines.push('')
+    lines.push('INBOUND CALL DETAIL')
+    lines.push(csvRow(['Time', 'Lead', 'Caller number', 'Line called', 'Outcome', 'Answered by', 'Duration']))
+    for (const d of report.inbound_detail) {
+      lines.push(csvRow([d.created_at, d.lead, d.from_number, d.line, d.outcome, d.handled_by, fmtDuration(d.duration_sec)]))
+    }
   }
 
   return lines.join('\r\n')
@@ -404,8 +701,85 @@ export function dialerSummaryHtml(report: DialerReport): string {
       <strong>Unmarked</strong> is answered calls where the wrap-up was skipped, so we cannot tell:
       they are excluded from Connected, and the number should be close to zero.
     </p>
+    ${inboundSummaryHtml(report)}
     <p style="color:#94a3b8;font-size:12px;margin-top:8px">Full per-call detail is attached as a CSV.</p>
   </div>`
+}
+
+/**
+ * The inbound block of the daily email.
+ *
+ * Deliberately headline-first rather than a per-agent table: the number worth waking up
+ * to is how many callbacks nobody took, and that figure belongs to the team, not to a
+ * name (see InboundAgentSummary). Missed calls are coloured only when there are any, so
+ * a clean day stays visually quiet.
+ *
+ * Returns an empty string when no callbacks arrived, so a team that only dials out sees
+ * the email it has always seen.
+ */
+function inboundSummaryHtml(report: DialerReport): string {
+  const ib = report.inbound
+  if (ib.received === 0) return ''
+
+  const cell = 'style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:right;font-variant-numeric:tabular-nums"'
+  const head = 'style="text-align:right;padding:6px 12px;border-bottom:2px solid #e2e8f0;font-size:12px;color:#475569"'
+  const missedColor = ib.abandoned > 0 ? '#b91c1c' : '#0f172a'
+
+  const agentRows = ib.by_agent.map(a => `
+    <tr>
+      <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#0f172a;text-align:left">${escapeHtml(a.agent_name)}</td>
+      <td ${cell}>${a.answered}</td>
+      <td ${cell}>${a.answered_owner}</td>
+      <td ${cell}>${a.answered_hunt}</td>
+      <td ${cell}>${fmtDuration(a.talk_sec)}</td>
+    </tr>`).join('')
+
+  return `
+    <h3 style="color:#0f172a;font-size:15px;margin:28px 0 4px">Inbound — callbacks received</h3>
+    <table style="border-collapse:collapse;width:100%;max-width:680px;margin-top:8px">
+      <thead>
+        <tr>
+          <th ${head}>Received</th>
+          <th ${head}>Answered</th>
+          <th ${head}>Answer %</th>
+          <th ${head}>Voicemail</th>
+          <th ${head}>Missed</th>
+          <th ${head}>After hours</th>
+          <th ${head}>Talk time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td ${cell}>${ib.received}</td>
+          <td ${cell}>${ib.answered}</td>
+          <td ${cell}>${ib.answer_rate}%</td>
+          <td ${cell}>${ib.voicemail}</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:${missedColor};font-weight:${ib.abandoned > 0 ? '700' : '400'}">${ib.abandoned}</td>
+          <td ${cell}>${ib.after_hours}</td>
+          <td ${cell}>${fmtDuration(ib.talk_sec)}</td>
+        </tr>
+      </tbody>
+    </table>
+    ${agentRows ? `
+    <table style="border-collapse:collapse;width:100%;max-width:680px;margin-top:12px">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #e2e8f0;font-size:12px;color:#475569">Answered by</th>
+          <th ${head}>Calls</th>
+          <th ${head}>As owner</th>
+          <th ${head}>From hunt</th>
+          <th ${head}>Talk time</th>
+        </tr>
+      </thead>
+      <tbody>${agentRows}</tbody>
+    </table>` : ''}
+    <p style="color:#94a3b8;font-size:12px;margin-top:12px">
+      <strong>Missed</strong> is a callback where nobody picked up and no message was left — the
+      warmest traffic the team gets, lost. These are counted for the team rather than against an
+      individual, because on a hunt-group call everyone's phone rings.
+      <strong>Talk time</strong> is measured from the call recording, the only length recorded on
+      an inbound call.
+    </p>`
 }
 
 function escapeHtml(s: string): string {
