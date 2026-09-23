@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
-import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildInstallmentPlan, sanitizeScopeItems, sanitizeDueDates, DEFAULT_SCOPE_ITEMS } from '@/lib/contract-plan'
-import { CONTRACT_LINK_DAYS } from '@/lib/contract-expiry'
+import { contractLinkExpired } from '@/lib/contract-expiry'
+import { sendSigningEmail } from '@/lib/contract-email'
+import { contractOwnerIds, contractInScope } from '@/lib/contract-access'
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -93,64 +93,8 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Send signing link email via default provider
-  const { data: provider } = await service
-    .from('email_providers')
-    .select('*')
-    .eq('is_active', true)
-    .eq('is_default', true)
-    .single()
-
-  if (provider) {
-    const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
-    const signingUrl = `${origin}/sign/${contract.signing_token}`
-    const agencyName = process.env.NEXT_PUBLIC_AGENCY_NAME || 'Novelio Technologies'
-    const html = `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-        <div style="background:linear-gradient(90deg,#1F3A93,#4a6cf7);height:5px;border-radius:4px 4px 0 0"></div>
-        <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-          <h2 style="color:#1F3A93;margin:0 0 8px">Your Service Agreement is Ready</h2>
-          <p style="color:#374151;margin:0 0 24px">Dear <strong>${contract.business_name}</strong>,</p>
-          <p style="color:#374151;margin:0 0 24px">
-            <strong>${agencyName}</strong> has prepared your service agreement. Please review and sign it by clicking the button below.
-          </p>
-          <p style="text-align:center;margin:32px 0">
-            <a href="${signingUrl}" style="background:#1F3A93;color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block">
-              Review &amp; Sign Agreement
-            </a>
-          </p>
-          <p style="color:#9ca3af;font-size:12px;margin:0 0 16px">Or copy this link:<br>${signingUrl}</p>
-          <p style="color:#9ca3af;font-size:12px;margin:0">This link is valid for ${CONTRACT_LINK_DAYS} days. If it expires, just reply and we&rsquo;ll send a fresh agreement.</p>
-          <hr style="border:none;border-top:1px solid #f0f0f0;margin:24px 0">
-          <p style="color:#9ca3af;font-size:12px;margin:0">${agencyName} · support@noveliotech.com</p>
-        </div>
-      </div>`
-
-    try {
-      if (provider.provider === 'resend') {
-        const resend = new Resend(provider.api_key)
-        await resend.emails.send({
-          from: `${agencyName} <${provider.from_email}>`,
-          to: [contract.client_email],
-          subject: `Service Agreement – ${agencyName}`,
-          html,
-        })
-      } else {
-        const from = provider.provider === 'gmail' ? provider.username : provider.from_email
-        const transporter = nodemailer.createTransport({
-          host: provider.host, port: provider.port, secure: provider.secure,
-          auth: { user: provider.username, pass: provider.password },
-        })
-        await transporter.sendMail({
-          from: `${agencyName} <${from}>`,
-          to: contract.client_email,
-          subject: `Service Agreement – ${agencyName}`,
-          html,
-        })
-      }
-    } catch (e: any) {
-      console.error('Contract email error:', e.message)
-    }
-  }
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  await sendSigningEmail(service, contract, origin)
 
   await service.from('activity_logs').insert({
     lead_id,
@@ -163,27 +107,61 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * PATCH /api/contracts — cancel an awaiting contract: { id, action: 'cancel' }.
+ * PATCH /api/contracts — act on an awaiting contract: { id, action: 'cancel' | 'resend' }.
  *
- * The record stays (it's an audit trail of what was offered) but the signing link dies
- * immediately; the client's page shows "Agreement Cancelled". Only `sent` contracts can
- * be cancelled — a signed agreement is a done deal, and un-cancelling doesn't exist:
+ * cancel: the record stays (it's an audit trail of what was offered) but the signing link
+ * dies immediately; the client's page shows "Agreement Cancelled". Only `sent` contracts
+ * can be cancelled — a signed agreement is a done deal, and un-cancelling doesn't exist:
  * stale terms get a fresh contract, not a revived link.
+ *
+ * resend: emails the same signing link again. It does NOT move sent_at, so the link's
+ * 7-day window is unchanged — an expired link needs a new contract, not a nudge.
+ *
+ * Both are limited to contracts inside the caller's scope (lib/contract-access).
  */
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('id,role').eq('id', user.id).single()
   // Same roles that can send one — see POST above and ContractTab's canManage.
   const CAN_SEND = ['admin', 'sales_agent', 'sales_manager']
-  if (!CAN_SEND.includes(profile?.role ?? '')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!profile || !CAN_SEND.includes(profile.role ?? '')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id, action } = await req.json().catch(() => ({}))
-  if (action !== 'cancel' || !id) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+  if ((action !== 'cancel' && action !== 'resend') || !id) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
 
   const service = createServiceClient()
+  const { data: existing } = await service
+    .from('contracts')
+    .select('id,lead_id,status,sent_at,created_at,created_by,client_email,business_name,signing_token,lead:leads(assigned_agent_id)')
+    .eq('id', id)
+    .maybeSingle()
+
+  const owners = await contractOwnerIds(service, profile)
+  const leadOwner = (existing?.lead as any)?.assigned_agent_id ?? null
+  if (!existing || !contractInScope(owners, { created_by: existing.created_by, lead_owner: leadOwner })) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 })
+  }
+
+  if (action === 'resend') {
+    if (existing.status !== 'sent' || contractLinkExpired(existing)) {
+      return NextResponse.json({ error: 'Only contracts still awaiting signature can be resent' }, { status: 409 })
+    }
+    const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || req.nextUrl.origin
+    const mailError = await sendSigningEmail(service, existing, origin)
+    if (mailError) return NextResponse.json({ error: `Email not sent: ${mailError}` }, { status: 502 })
+
+    await service.from('activity_logs').insert({
+      lead_id: existing.lead_id,
+      user_id: user.id,
+      action: 'Contract Resent',
+      details: `Signing link emailed again to ${existing.client_email}`,
+    })
+    return NextResponse.json({ success: true })
+  }
+
   // The status filter makes this a no-op on signed/cancelled rows rather than trusting
   // the browser's view of the state, which may be minutes old.
   const { data: cancelled, error } = await service

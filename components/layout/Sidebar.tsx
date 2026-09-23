@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
@@ -46,6 +46,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
+    { href: '/contracts',       label: 'Contracts',          icon: FileSignature },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/email-status',    label: 'Email Status',       icon: Mail },
@@ -95,6 +96,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
+    { href: '/contracts',       label: 'Contracts',          icon: FileSignature },
     { href: '/approvals',       label: 'Approvals',          icon: ClipboardList },
     { href: '/note-approvals',  label: 'Note Approvals',     icon: MessageSquarePlus },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
@@ -119,6 +121,7 @@ const adminSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/demo-close',      label: 'Demo & Close',       icon: MonitorPlay },
     { href: '/demos',           label: 'Demos',              icon: Images },
+    { href: '/contracts',       label: 'Contracts',          icon: FileSignature },
     { href: '/ai-calls',        label: 'Calls',           icon: PhoneCall },
     { href: '/sms',             label: 'SMS',             icon: MessageCircle },
     { href: '/developer-queue',                 label: 'Dev Queue',  icon: Code2 },
