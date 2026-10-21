@@ -79,12 +79,23 @@ function AnsweredBadge({ answeredBy }: { answeredBy: string | null }) {
   )
 }
 
-function StatusBadge({ status }: { status: string | null }) {
-  if (!status) return null
+/**
+ * Dial status label. An agent-marked "Hung up" is stored as status 'no-answer' so the
+ * dialer report buckets it correctly, but the lead may well have talked first — so the
+ * badge says what the agent actually marked.
+ */
+export function dialStatusLabel(status: string | null, answeredBy: string | null): string | null {
+  if (answeredBy === 'hangup') return 'Hung up'
+  return status ? status.replace(/-/g, ' ') : null
+}
+
+function StatusBadge({ status, answeredBy }: { status: string | null; answeredBy: string | null }) {
+  const label = dialStatusLabel(status, answeredBy)
+  if (!status || !label) return null
   const cls = STATUS_STYLE[status] || 'bg-slate-800 text-slate-400 border-slate-700'
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${cls}`}>
-      <Phone size={11} /> {status.replace(/-/g, ' ')}
+      <Phone size={11} /> {label}
     </span>
   )
 }
@@ -198,7 +209,7 @@ export function CallCard({ call, showLead = false }: { call: VoiceCallWithLead; 
             <>
               <Phone size={14} className="text-emerald-400" />
               <span className="text-sm font-semibold text-slate-200">Dialer Call</span>
-              <StatusBadge status={call.status} />
+              <StatusBadge status={call.status} answeredBy={call.answered_by} />
             </>
           ) : (
             <>

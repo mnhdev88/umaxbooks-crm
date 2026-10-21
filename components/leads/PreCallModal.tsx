@@ -9,6 +9,7 @@ import {
   User, Calendar, MessageSquare, Delete, ChevronDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { dialStatusLabel } from '@/components/voice/CallCard'
 
 /** voice_calls row with the resolved agent name (dialer calls only). */
 type CallWithAgent = VoiceCall & { agent?: { full_name: string | null } | null }
@@ -434,7 +435,7 @@ function CallRow({ call }: { call: CallWithAgent }) {
           <PhoneCall size={13} className="shrink-0 text-indigo-400" />
         )}
         <span className="font-semibold text-slate-200">{isDialer ? 'Dialer call' : 'AI call'}</span>
-        {call.status && <span className="text-slate-500">· {call.status.replace(/-/g, ' ')}</span>}
+        {call.status && <span className="text-slate-500">· {dialStatusLabel(call.status, call.answered_by)}</span>}
         {dur && <span className="text-slate-500">· {dur}</span>}
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {call.answered_by === 'voicemail' && <Voicemail size={12} className="text-slate-500" />}
