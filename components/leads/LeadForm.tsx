@@ -789,8 +789,10 @@ export function LeadForm({ lead, agents, onSuccess, userId, userRole, existingLe
           <select {...register('assigned_agent_id')} className={cn(F, 'cursor-pointer')}>
             <option value="">— Unassigned —</option>
             {/* On a new lead the creator may keep it for themselves; when editing an
-                existing one the self option is off, so reassignment stays the same. */}
-            {assignableAgents(agents, userRole, userId, { allowSelf: !lead })
+                existing one the self option only shows if they already own it — otherwise
+                the select has no matching option, silently falls back to "Unassigned",
+                and the save trips the agents' own-leads RLS policy. */}
+            {assignableAgents(agents, userRole, userId, { allowSelf: !lead || lead.assigned_agent_id === userId })
               .map(a => (
                 <option key={a.id} value={a.id}>
                   {a.id === userId ? `${a.full_name} (me)` : a.full_name}
