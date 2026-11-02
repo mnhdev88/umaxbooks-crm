@@ -310,19 +310,76 @@ function SourceBadge({ source }: { source?: string }) {
 }
 
 // ── File parsing (CSV + Excel) ─────────────────────────────────────
-async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const URL_RE   = /^(https?:\/\/|www\.)\S+$/i
+const PHONE_RE = /^\+?[\d\s().\-]{7,20}$/
+const MAPS_RE   = /google\.[a-z.]+\/maps|maps\.google|maps\.app\.goo\.gl|goo\.gl\/maps|g\.page/i
+const SOCIAL_RE = /facebook\.com|instagram\.com|linkedin\.com|twitter\.com|tiktok\.com/i
+
+function isPhone(v: string) {
+  return PHONE_RE.test(v) && v.replace(/\D/g, '').length >= 7
+}
+
+// A real header row never holds an email, a link or a phone number, so any of
+// those in row 1 means the sheet is a bare list that starts with its first lead.
+function firstRowIsData(row: any[]) {
+  return row.some(c => {
+    const v = String(c ?? '').trim()
+    return EMAIL_RE.test(v) || URL_RE.test(v) || isPhone(v)
+  })
+}
+
+// Exports sometimes wrap text cells in literal quotes ("Imagine It Framed").
+function cleanCell(c: unknown) {
+  return String(c ?? '').trim().replace(/^"(.*)"$/, '$1').trim()
+}
+
+// Without column names, the only clue to a column's meaning is what's in it. Only
+// map what's unambiguous; anything unsure stays on Skip for the user to choose.
+function guessFieldsFromValues(headers: string[], rows: Record<string, string>[]) {
+  const auto: Record<string, string> = {}
+  const taken = new Set<string>()
+  const assign = (h: string, field: string, altField?: string) => {
+    const target = !taken.has(field) ? field : altField && !taken.has(altField) ? altField : null
+    if (target) taken.add(target)
+    auto[h] = target ?? '— Skip —'
+  }
+  const sample = rows.slice(0, 25)
+  headers.forEach(h => {
+    const values = sample.map(r => r[h]).filter(Boolean)
+    const most = (test: (v: string) => boolean) =>
+      values.length > 0 && values.filter(test).length / values.length >= 0.6
+    if (most(v => EMAIL_RE.test(v))) assign(h, 'email', 'alt_email')
+    else if (most(v => MAPS_RE.test(v))) assign(h, 'gmb_url')
+    else if (most(v => SOCIAL_RE.test(v))) assign(h, 'social_url')
+    else if (most(v => URL_RE.test(v))) assign(h, 'website_url')
+    else if (most(v => /^[0-5](\.\d+)?$/.test(v)) && values.some(v => v.includes('.'))) assign(h, 'gmb_review_rating')
+    else if (most(isPhone) && values.some(v => v.replace(/\D/g, '').length >= 10)) assign(h, 'phone', 'alt_phone')
+    // Lead lists put the business first: the first mostly-text column is the name.
+    else if (most(v => /[a-z]{2}/i.test(v))) assign(h, 'company_name')
+    else auto[h] = '— Skip —'
+  })
+  return auto
+}
+
+async function parseFile(file: File, hasHeaderRow?: boolean): Promise<{ headers: string[]; rows: Record<string, string>[]; headerless: boolean }> {
   const { read, utils } = await import('xlsx')
   const buffer = await file.arrayBuffer()
   const workbook = read(buffer, { type: 'array' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
   const raw = utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' })
-  if (raw.length < 2) return { headers: [], rows: [] }
+  const headerless = raw.length > 0 && (hasHeaderRow === undefined ? firstRowIsData(raw[0]) : !hasHeaderRow)
+  if (raw.length < (headerless ? 1 : 2)) return { headers: [], rows: [], headerless }
+  const dataRows = headerless ? raw : raw.slice(1)
   // Keep the header row positional. A sheet with a blank column (or a stray
   // trailing one) used to have its empty headers filtered out while the data
   // cells stayed put, shifting every later column's values one place left —
   // priority silently received the category, city received the address, etc.
   // So pair each header with its own index first, THEN drop the blanks.
-  const rawHeaders = (raw[0] as any[]).map(h => String(h ?? '').trim())
+  const rawHeaders = headerless
+    ? Array.from({ length: raw.reduce((n, r) => Math.max(n, r.length), 0) }, (_, i) =>
+        dataRows.some(r => String(r[i] ?? '').trim()) ? `Column ${i + 1}` : '')
+    : (raw[0] as any[]).map(h => String(h ?? '').trim())
   const cols = rawHeaders
     .map((name, index) => ({ name, index }))
     .filter(c => c.name)
@@ -335,12 +392,12 @@ async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<
     if (n) c.name = `${c.name} (${n + 1})`
   })
   const headers = cols.map(c => c.name)
-  const rows = raw.slice(1)
+  const rows = dataRows
     .filter((r: any[]) => r.some(c => c !== '' && c != null))
     .map((r: any[]) =>
-      cols.reduce((o, c) => ({ ...o, [c.name]: String(r[c.index] ?? '').trim() }), {} as Record<string, string>)
+      cols.reduce((o, c) => ({ ...o, [c.name]: cleanCell(r[c.index]) }), {} as Record<string, string>)
     )
-  return { headers, rows }
+  return { headers, rows, headerless }
 }
 
 const CRM_FIELDS = [
@@ -388,6 +445,7 @@ export function LeadsPageClient({
   const [importStep, setImportStep]   = useState(1)
   const [csvFile, setCsvFile]         = useState<File | null>(null)
   const [csvHeaders, setCsvHeaders]   = useState<string[]>([])
+  const [csvHeaderless, setCsvHeaderless] = useState(false)
   const [csvRows, setCsvRows]         = useState<Record<string, string>[]>([])
   const [fieldMap, setFieldMap]       = useState<Record<string, string>>({})
   const [importing, setImporting]     = useState(false)
@@ -503,17 +561,19 @@ export function LeadsPageClient({
   }
 
   // ── File upload (CSV / Excel) ──────────────────────────────────
-  async function handleCsvFile(file: File) {
+  async function handleCsvFile(file: File, hasHeaderRow?: boolean) {
     setCsvFile(file)
     setParseError(null)
     try {
-      const { headers, rows } = await parseFile(file)
+      const { headers, rows, headerless } = await parseFile(file, hasHeaderRow)
       if (headers.length === 0) {
-        setParseError('Could not read file — make sure the first row contains column headers.')
+        setParseError('Could not read file — it needs at least one row of leads.')
+        setImportStep(1)
         return
       }
       setCsvHeaders(headers)
       setCsvRows(rows)
+      setCsvHeaderless(headerless)
       const auto: Record<string, string> = {}
       headers.forEach(h => {
         const hl = h.toLowerCase().replace(/[\s_\-]+/g, ' ').trim()
@@ -553,7 +613,7 @@ export function LeadsPageClient({
         else if (hl.includes('note') || hl.includes('comment') || hl.includes('remark')) auto[h] = 'notes'
         else auto[h] = '— Skip —'
       })
-      setFieldMap(auto)
+      setFieldMap(headerless ? guessFieldsFromValues(headers, rows) : auto)
       setImportStep(2)
     } catch (e: any) {
       setParseError(e.message || 'Failed to read file.')
@@ -1064,20 +1124,34 @@ export function LeadsPageClient({
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Map CSV Columns to CRM Fields</p>
-                    <table className="w-full text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Map CSV Columns to CRM Fields</p>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                        <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
+                          checked={!csvHeaderless}
+                          onChange={e => { if (csvFile) handleCsvFile(csvFile, e.target.checked) }} />
+                        First row is column names
+                      </label>
+                    </div>
+                    {csvHeaderless && (
+                      <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-900/20 border border-amber-800/40 rounded-lg px-3 py-2.5 mb-3">
+                        <AlertCircle size={13} className="flex-shrink-0" />
+                        <span>This file has no column names, so row 1 is imported as a lead. Mappings were guessed from the values — please check them.</span>
+                      </div>
+                    )}
+                    <table className="w-full table-fixed text-xs">
                       <thead>
                         <tr className="bg-slate-800">
-                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Your Column</th>
-                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Sample</th>
-                          <th scope="col" className="text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Map to CRM Field</th>
+                          <th scope="col" className="w-[30%] text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Your Column</th>
+                          <th scope="col" className="w-[35%] text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Sample</th>
+                          <th scope="col" className="w-[35%] text-left px-3 py-2 text-slate-500 font-semibold uppercase tracking-wide border border-slate-700">Map to CRM Field</th>
                         </tr>
                       </thead>
                       <tbody>
                         {csvHeaders.map(h => (
                           <tr key={h} className={fieldMap[h] === 'company_name' ? 'bg-orange-900/10' : ''}>
-                            <td className="px-3 py-2 font-mono text-slate-400 border border-slate-800">{h}</td>
-                            <td className="px-3 py-2 font-mono text-slate-500 border border-slate-800 truncate max-w-[100px]">{csvRows[0]?.[h] || '—'}</td>
+                            <td title={h} className="px-3 py-2 font-mono text-slate-400 border border-slate-800 truncate">{h}</td>
+                            <td title={csvRows[0]?.[h] || undefined} className="px-3 py-2 font-mono text-slate-500 border border-slate-800 truncate">{csvRows[0]?.[h] || '—'}</td>
                             <td className="px-3 py-2 border border-slate-800">
                               <select value={fieldMap[h] || '— Skip —'}
                                 onChange={e => setFieldMap(prev => ({ ...prev, [h]: e.target.value }))}
