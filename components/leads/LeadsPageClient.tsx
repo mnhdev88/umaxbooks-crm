@@ -400,6 +400,24 @@ async function parseFile(file: File, hasHeaderRow?: boolean): Promise<{ headers:
   return { headers, rows, headerless }
 }
 
+// The DB only rejects repeat phones/emails, so a re-upload without those columns
+// would copy every lead. Company + city catches that; a missing city on either
+// side counts as a match, while the same name in another city is a separate branch.
+const normLeadPart = (v?: string | null) => (v ?? '').trim().toLowerCase()
+
+function rememberLead(known: Map<string, Set<string>>, company?: string | null, city?: string | null) {
+  const key = normLeadPart(company)
+  if (!known.has(key)) known.set(key, new Set())
+  known.get(key)!.add(normLeadPart(city))
+}
+
+function isKnownLead(known: Map<string, Set<string>>, company?: string | null, city?: string | null) {
+  const cities = known.get(normLeadPart(company))
+  if (!cities) return false
+  const c = normLeadPart(city)
+  return !c || cities.has('') || cities.has(c)
+}
+
 const CRM_FIELDS = [
   'company_name', 'name', 'phone', 'email', 'alt_phone', 'alt_email', 'city', 'state', 'address',
   'zip_code', 'country', 'website_url', 'social_url', 'whatsapp_number',
@@ -631,6 +649,23 @@ export function LeadsPageClient({
 
     const { slugify } = await import('@/lib/utils')
 
+    // Page through existing leads: selects are capped at 1000 rows.
+    const known = new Map<string, Set<string>>()
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('company_name, city')
+        .order('id')
+        .range(from, from + 999)
+      if (error) {
+        toast.error('Could not check for duplicates, so nothing was imported. Please try again.')
+        setImporting(false)
+        return
+      }
+      data.forEach(l => rememberLead(known, l.company_name, l.city))
+      if (data.length < 1000) break
+    }
+
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i]
       const record: Record<string, any> = { source: 'GMB', status: 'New', priority: 'Normal', created_by: userId }
@@ -646,6 +681,11 @@ export function LeadsPageClient({
       if (altPhones.length) record.alt_phones = altPhones.map(v => ({ value: v, label: 'Other' }))
       if (altEmails.length) record.alt_emails = altEmails.map(v => ({ value: v, label: 'Other' }))
       if (!record.company_name) { err++; log.push(`Row ${i + 2}: Missing company name — skipped`); continue }
+      if (isKnownLead(known, record.company_name, record.city)) {
+        dup++
+        log.push(`Row ${i + 2}: Duplicate — ${record.company_name}${record.city ? `, ${record.city}` : ''} already exists (skipped)`)
+        continue
+      }
       if (!record.name) record.name = record.company_name
       // Mint the id here so the activity row can point at the lead without paying an
       // insert-returning round-trip for every row.
@@ -663,6 +703,7 @@ export function LeadsPageClient({
         else { err++; log.push(`Row ${i + 2}: Error — ${error.message}`) }
       } else {
         ok++
+        rememberLead(known, record.company_name, record.city)
         log.push(`Row ${i + 2}: Imported — ${record.company_name}`)
         imported.push({
           lead_id: record.id,
@@ -690,6 +731,8 @@ export function LeadsPageClient({
     setShowImport(false)
     if (fileRef.current) fileRef.current.value = ''
   }
+
+  const unmappedContactFields = ['phone', 'email'].filter(f => !Object.values(fieldMap).includes(f))
 
   const canEdit = profile.role !== 'developer'
 
@@ -1195,6 +1238,14 @@ export function LeadsPageClient({
                 </div>
               )}
             </div>
+
+            {/* Stays in view while scrolling the mapping list, right above Import */}
+            {importStep === 2 && unmappedContactFields.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-900/20 border-t border-amber-800/40 px-6 py-2.5 flex-shrink-0">
+                <AlertCircle size={13} className="flex-shrink-0" />
+                <span><strong>No column mapped to {unmappedContactFields.join(' or ')}.</strong> These leads will be imported without it. If your file has this column, map it below first.</span>
+              </div>
+            )}
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-800 flex justify-between items-center flex-shrink-0">
