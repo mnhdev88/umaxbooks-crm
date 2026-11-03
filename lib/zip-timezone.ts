@@ -19,10 +19,10 @@ const RANGES: TzRange[] = [
   { min: 324, max: 325, tz: 'America/Chicago' },      // FL panhandle (Panama City, Pensacola)
   { min: 326, max: 349, tz: 'America/New_York' },     // FL east/south
   { min: 350, max: 369, tz: 'America/Chicago' },      // Alabama
-  { min: 370, max: 373, tz: 'America/Chicago' },      // TN middle (Nashville)
-  { min: 374, max: 374, tz: 'America/New_York' },     // Chattanooga
-  { min: 375, max: 376, tz: 'America/Chicago' },      // TN
-  { min: 377, max: 379, tz: 'America/New_York' },     // East TN (Knoxville)
+  { min: 370, max: 372, tz: 'America/Chicago' },      // TN middle (Nashville)
+  { min: 373, max: 374, tz: 'America/New_York' },     // Chattanooga area (373 also has a few Central towns)
+  { min: 375, max: 375, tz: 'America/Chicago' },      // Memphis
+  { min: 376, max: 379, tz: 'America/New_York' },     // East TN (Johnson City, Knoxville)
   { min: 380, max: 385, tz: 'America/Chicago' },      // West TN (Memphis)
   { min: 386, max: 397, tz: 'America/Chicago' },      // Mississippi
   { min: 398, max: 399, tz: 'America/New_York' },     // Georgia

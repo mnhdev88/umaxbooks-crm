@@ -1,3 +1,5 @@
+import { getTimezoneFromZip as getIanaTimezoneFromZip } from './zip-timezone'
+
 export interface TZInfo {
   tz: string
   abbr: string
@@ -11,23 +13,16 @@ export const US_TIMEZONES: TZInfo[] = [
   { tz: 'America/Los_Angeles', abbr: 'PT',  label: 'Pacific Time (PT)'  },
   { tz: 'America/Anchorage',   abbr: 'AKT', label: 'Alaska Time (AKT)'  },
   { tz: 'Pacific/Honolulu',    abbr: 'HT',  label: 'Hawaii Time (HT)'   },
+  { tz: 'America/Phoenix',     abbr: 'MST', label: 'Arizona Time (MST)' },
+  { tz: 'America/Puerto_Rico', abbr: 'AST', label: 'Atlantic Time (AST)' },
+  { tz: 'Pacific/Guam',        abbr: 'ChST', label: 'Guam Time (ChST)'  },
 ]
 
-// Derive US timezone from 5-digit ZIP code using hardcoded prefix rules
+// Same ZIP map as the lead's "Local Time" clock, so a callback is saved in the
+// zone the agent sees on the page. Null when the ZIP can't be mapped (e.g. Canadian).
 export function getTimezoneFromZip(zip: string): TZInfo | null {
-  if (!zip) return null
-  const digits = zip.replace(/\D/g, '')
-  if (!digits) return null
-
-  const p3 = digits.substring(0, 3)
-  if (['967', '968'].includes(p3))                       return US_TIMEZONES[5] // Hawaii
-  if (['995','996','997','998','999'].includes(p3))       return US_TIMEZONES[4] // Alaska
-
-  const d = parseInt(digits[0])
-  if (d <= 4) return US_TIMEZONES[0] // Eastern  (0xx–4xx)
-  if (d <= 7) return US_TIMEZONES[1] // Central  (5xx–7xx)
-  if (d === 8) return US_TIMEZONES[2] // Mountain (8xx)
-  return US_TIMEZONES[3]             // Pacific  (9xx)
+  const iana = getIanaTimezoneFromZip(zip)
+  return US_TIMEZONES.find(t => t.tz === iana) ?? null
 }
 
 // Convert a datetime-local input value (YYYY-MM-DDTHH:MM, interpreted as the given
