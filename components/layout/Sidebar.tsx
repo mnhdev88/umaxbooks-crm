@@ -222,7 +222,9 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   // Two requests per tick, and the sidebar is mounted on every dashboard page in
   // every open tab — so this ran regardless of whether anyone was looking at the
   // badge. Paused while hidden, caught up on refocus. See lib/use-poll.
-  usePoll(() => { fetchPendingCount(); fetchPendingNotes() }, 30_000, showsApprovalBadges)
+  // 2 min (was 30s): approvals aren't time-critical, and these are count queries
+  // run by every admin/manager tab.
+  usePoll(() => { fetchPendingCount(); fetchPendingNotes() }, 120_000, showsApprovalBadges)
 
   useEffect(() => {
     fetchUnreadCount()

@@ -70,7 +70,9 @@ export function DashboardShell({ userId, children }: { userId: string; children:
   // "Last seen" is about an ACTIVE user, so a hidden tab stamping it every 60s
   // was both wrong and ~9,600 writes a day. usePoll already re-fires on refocus,
   // which is exactly the moment last_seen should move.
-  usePoll(() => { supabase.rpc('touch_last_seen').then(() => {}, () => {}) }, 60_000)
+  // Every 5 min (was 60s): "Last seen X ago" doesn't need minute precision, and
+  // migration 115 makes the function skip the write when the stamp is < 4 min old.
+  usePoll(() => { supabase.rpc('touch_last_seen').then(() => {}, () => {}) }, 5 * 60_000)
 
   // Mark all my conversations delivered on load — clears the receipt backlog for
   // messages that arrived while I was offline (powers WhatsApp-style ✓✓).

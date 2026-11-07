@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
@@ -11,6 +11,7 @@ import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { FollowUpsWidget } from '@/components/dashboard/FollowUpsWidget'
 import { fetchActivityFlags, type ActivityMap } from '@/lib/activity-flags'
+import { fetchAllPipelineLeads, PIPELINE_SELECT, PIPELINE_SELECT_NO_FOLLOWUPS, FOCUS_REFRESH_MIN_MS } from '@/lib/pipeline-leads'
 
 // Re-exported so the kanban components and the developer pipeline keep their import path.
 export type { ActivityMap }
@@ -22,62 +23,61 @@ export default function PipelinePage() {
   const [loading, setLoading]       = useState(true)
   const supabase = createClient()
 
+  // Last successful refresh + a counter so an older, slower response can't
+  // overwrite a newer one (focus + crm:lead-updated can overlap).
+  const lastFetchAt = useRef(0)
+  const fetchSeq    = useRef(0)
+
   useEffect(() => {
     if (!profile) return
     const currentProfile = profile
 
+    // Role scoping — applied to both the row count and every page query.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scope = (q: any) => {
+      if (currentProfile.role === 'developer') q = q.not('status', 'in', '("New","Callback Booked","Disqualified")')
+      if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') {
+        q = q.eq('assigned_agent_id', currentProfile.id).neq('status', 'Disqualified')
+      }
+      return q
+    }
+
     async function fetchLeads() {
-      // PostgREST caps each response at 1000 rows, so page through in batches to
-      // load every lead (keeps dashboard counts accurate past 1000).
-      const BATCH = 1000
-      const buildQuery = (withFollowUps: boolean, offset: number) => {
-        const select = withFollowUps
-          ? '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)'
-          : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
-        const q = supabase.from('leads').select(select).order('updated_at', { ascending: false }).range(offset, offset + BATCH - 1)
-        if (currentProfile.role === 'developer') q.not('status', 'in', '("New","Callback Booked","Disqualified")')
-        if (currentProfile.role === 'agent' || currentProfile.role === 'sales_agent') {
-          q.eq('assigned_agent_id', currentProfile.id)
-          q.neq('status', 'Disqualified')
-        }
-        return q
+      const seq = ++fetchSeq.current
+      lastFetchAt.current = Date.now()
+
+      let res = await fetchAllPipelineLeads<Lead>(supabase, PIPELINE_SELECT, scope)
+      if (res.error) {
+        // follow_ups table may not exist yet — fall back without the join
+        console.warn('follow_ups join failed, retrying without:', res.error.message)
+        res = await fetchAllPipelineLeads<Lead>(supabase, PIPELINE_SELECT_NO_FOLLOWUPS, scope)
+      }
+      if (seq !== fetchSeq.current) return // a newer refresh started; drop this one
+      if (res.error && !res.data.length) {
+        console.error('Could not load pipeline:', res.error.message)
+        setLoading(false)
+        return
       }
 
-      let withFollowUps = true
-      const data: any[] = []
-      let error: any = null
-      for (let offset = 0; ; offset += BATCH) {
-        let res = await buildQuery(withFollowUps, offset)
-        if (res.error && withFollowUps) {
-          // follow_ups table may not exist yet — fall back without the join
-          console.warn('follow_ups join failed, retrying without:', res.error.message)
-          withFollowUps = false
-          res = await buildQuery(false, offset)
-        }
-        if (res.error) { error = res.error; break }
-        const batch = res.data || []
-        data.push(...batch)
-        if (batch.length < BATCH) break
-      }
-      if (!error || data.length) {
-        setLeads(data as unknown as Lead[])
-
-        // Fetch email/call activity flags for Contacted leads only
-        const contactedIds = (data as any[]).filter(l => l.status === 'Contacted').map(l => l.id)
-        try {
-          setActivityMap(await fetchActivityFlags(supabase, contactedIds))
-        } catch (err) {
-          // Badges are secondary to the board — log loudly but still render the leads.
-          console.error('Could not load email/call activity flags:', err)
-        }
-      }
+      // Show the board now; the email/call badges are secondary, so they load
+      // afterwards instead of holding the whole board behind ~45 extra requests.
+      setLeads(res.data)
       setLoading(false)
+
+      const contactedIds = res.data.filter(l => l.status === 'Contacted').map(l => l.id)
+      try {
+        const flags = await fetchActivityFlags(supabase, contactedIds)
+        if (seq === fetchSeq.current) setActivityMap(flags)
+      } catch (err) {
+        console.error('Could not load email/call activity flags:', err)
+      }
     }
 
     fetchLeads()
 
-    // Refetch when user returns to this tab (covers bfcache restore + tab switching)
-    const onFocus    = () => fetchLeads()
+    // Refetch when the user comes back to the tab — but not on every alt-tab:
+    // the full board is several MB, so skip it if we refreshed in the last minute.
+    const onFocus    = () => { if (Date.now() - lastFetchAt.current > FOCUS_REFRESH_MIN_MS) fetchLeads() }
     const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) fetchLeads() }
     const onLeadUpdated = () => fetchLeads()
     window.addEventListener('focus', onFocus)
@@ -88,6 +88,7 @@ export default function PipelinePage() {
       window.removeEventListener('pageshow', onPageShow)
       window.removeEventListener('crm:lead-updated', onLeadUpdated)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is stable per mount
   }, [profile])
 
   return (

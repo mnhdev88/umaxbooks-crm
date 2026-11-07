@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoardClient } from '@/components/kanban/KanbanBoardClient'
 import { useProfile } from '@/components/layout/DashboardShell'
 import { Header } from '@/components/layout/Header'
 import { Lead, PipelineStatus, Profile } from '@/types'
 import { fetchActivityFlags, type ActivityMap } from '@/lib/activity-flags'
+import { fetchAllPipelineLeads, PIPELINE_SELECT, PIPELINE_SELECT_NO_FOLLOWUPS, FOCUS_REFRESH_MIN_MS } from '@/lib/pipeline-leads'
 
 const DEV_STAGES: PipelineStatus[] = [
   'Contacted',
@@ -26,41 +27,42 @@ export default function DevPipelinePage() {
   const [loading, setLoading]         = useState(true)
   const supabase = createClient()
 
+  const lastFetchAt = useRef(0)
+  const fetchSeq    = useRef(0)
+
   useEffect(() => {
     if (!profile) return
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scope = (q: any) => q.in('status', DEV_STAGES)
+
     async function fetchLeads() {
-      const buildQuery = (withFollowUps: boolean) => {
-        const select = withFollowUps
-          ? '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role), follow_ups(scheduled_at, status)'
-          : '*, assigned_agent:profiles!leads_assigned_agent_id_fkey(id, full_name, email, role)'
-        return supabase
-          .from('leads')
-          .select(select)
-          .in('status', DEV_STAGES)
-          .order('updated_at', { ascending: false })
-      }
+      const seq = ++fetchSeq.current
+      lastFetchAt.current = Date.now()
 
-      let { data, error } = await buildQuery(true)
-      if (error) {
-        ;({ data, error } = await buildQuery(false))
-      }
-      if (data) {
-        setLeads(data as unknown as Lead[])
+      // Slim columns + parallel pages (shared with the main pipeline). Also removes
+      // the old silent 1000-row cap on this board.
+      let res = await fetchAllPipelineLeads<Lead>(supabase, PIPELINE_SELECT, scope)
+      if (res.error) res = await fetchAllPipelineLeads<Lead>(supabase, PIPELINE_SELECT_NO_FOLLOWUPS, scope)
+      if (seq !== fetchSeq.current) return
 
-        const contactedIds = (data as any[]).filter(l => l.status === 'Contacted').map(l => l.id)
-        try {
-          setActivityMap(await fetchActivityFlags(supabase, contactedIds))
-        } catch (err) {
-          console.error('Could not load email/call activity flags:', err)
-        }
-      }
+      // Board first; email/call badges fill in afterwards.
+      setLeads(res.data)
       setLoading(false)
+
+      const contactedIds = res.data.filter(l => l.status === 'Contacted').map(l => l.id)
+      try {
+        const flags = await fetchActivityFlags(supabase, contactedIds)
+        if (seq === fetchSeq.current) setActivityMap(flags)
+      } catch (err) {
+        console.error('Could not load email/call activity flags:', err)
+      }
     }
 
     fetchLeads()
 
-    const onFocus       = () => fetchLeads()
+    // Skip focus refetches within a minute of the last refresh
+    const onFocus       = () => { if (Date.now() - lastFetchAt.current > FOCUS_REFRESH_MIN_MS) fetchLeads() }
     const onPageShow    = (e: PageTransitionEvent) => { if (e.persisted) fetchLeads() }
     const onLeadUpdated = () => fetchLeads()
     window.addEventListener('focus', onFocus)
