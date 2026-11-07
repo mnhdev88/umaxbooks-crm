@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Lead, Profile } from '@/types'
 import { AuditTab } from './tabs/AuditTab'
 import { AppointmentTab } from './tabs/AppointmentTab'
@@ -18,26 +18,30 @@ import { ContractTab } from '@/components/contracts/ContractTab'
 import { WebsiteDetailsTab } from './tabs/WebsiteDetailsTab'
 import { ShareTab } from './tabs/ShareTab'
 import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 
 // sales_manager has the same lead-working tabs as sales_agent (everything except the
 // admin-only Client Portal) — they oversee and can step in for their team's leads.
-const ALL_TABS = [
-  { id: 'audits',          label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
+//
+// Order = how often agents reach for them. Notes is first and the default (what you
+// check before/after every call). `more: true` tabs live in a "More" menu so the
+// bar fits a laptop screen without sideways scrolling.
+const ALL_TABS: { id: string; label: string; roles: string[]; more?: boolean }[] = [
   { id: 'notes',           label: 'Notes',           roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
-  { id: 'demo',            label: 'Demo',            roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'activity',        label: 'Activity',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
   { id: 'calls',           label: 'AI Calls',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager'] },
   { id: 'sms',             label: 'SMS',             roles: ['admin', 'agent', 'sales_agent', 'sales_manager'] },
   { id: 'appointments',    label: 'Calls & Appts',   roles: ['admin', 'sales_agent', 'sales_manager'] },
+  { id: 'audits',          label: 'Audits',          roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'demo',            label: 'Demo',            roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
   { id: 'deal',            label: 'Deal',            roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'share',           label: 'Client Link',     roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'revisions',       label: 'Revisions',       roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'live',            label: 'Live',            roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'before-after',    label: 'Before / After',  roles: ['admin', 'sales_agent', 'sales_manager'] },
-  { id: 'website-details', label: 'Client Portal',   roles: ['admin'] },
-  { id: 'send-content',    label: 'Send Content',    roles: ['admin', 'sales_agent', 'sales_manager', 'developer'] },
-  { id: 'activity',        label: 'Activity',        roles: ['admin', 'agent', 'sales_agent', 'sales_manager', 'developer'] },
+  { id: 'contract',        label: 'Contract',        roles: ['admin', 'sales_agent', 'sales_manager'], more: true },
+  { id: 'share',           label: 'Client Link',     roles: ['admin', 'sales_agent', 'sales_manager'], more: true },
+  { id: 'revisions',       label: 'Revisions',       roles: ['admin', 'sales_agent', 'sales_manager'], more: true },
+  { id: 'live',            label: 'Live',            roles: ['admin', 'sales_agent', 'sales_manager'], more: true },
+  { id: 'before-after',    label: 'Before / After',  roles: ['admin', 'sales_agent', 'sales_manager'], more: true },
+  { id: 'website-details', label: 'Client Portal',   roles: ['admin'], more: true },
+  { id: 'send-content',    label: 'Send Content',    roles: ['admin', 'sales_agent', 'sales_manager', 'developer'], more: true },
 ]
 
 interface LeadDetailTabsProps {
@@ -51,113 +55,106 @@ interface LeadDetailTabsProps {
 
 export function LeadDetailTabs({ lead, profile, agents, developers, userId, initialTab }: LeadDetailTabsProps) {
   const TABS = ALL_TABS.filter(t => t.roles.includes(profile.role))
+  const PRIMARY = TABS.filter(t => !t.more)
+  const MORE    = TABS.filter(t => t.more)
   const defaultTab = (initialTab && TABS.find(t => t.id === initialTab))
     ? initialTab
     : TABS[0]?.id || 'activity'
   const [activeTab, setActiveTab] = useState(defaultTab)
+  const [moreOpen, setMoreOpen]   = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const activeMore = MORE.find(t => t.id === activeTab)
 
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft,  setCanScrollLeft]  = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
-
-  const checkScroll = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 2)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-  }, [])
-
+  // Close the "More" menu on outside click / Escape
   useEffect(() => {
-    checkScroll()
-    const el = scrollRef.current
-    el?.addEventListener('scroll', checkScroll, { passive: true })
-    window.addEventListener('resize', checkScroll)
+    if (!moreOpen) return
+    const onDown = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false) }
+    const onKey  = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
     return () => {
-      el?.removeEventListener('scroll', checkScroll)
-      window.removeEventListener('resize', checkScroll)
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
     }
-  }, [checkScroll])
+  }, [moreOpen])
 
-  function scrollTabs(dir: 'left' | 'right') {
-    scrollRef.current?.scrollBy({ left: dir === 'left' ? -160 : 160, behavior: 'smooth' })
-  }
-
-  function handleTabClick(id: string) {
-    setActiveTab(id)
-    // Scroll the active tab into view
-    const el = scrollRef.current
-    if (!el) return
-    const btn = el.querySelector<HTMLElement>(`[data-tab="${id}"]`)
-    if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-  }
+  const tabCls = (active: boolean) => cn(
+    'px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer',
+    active ? 'border-orange-500 text-orange-400' : 'border-transparent text-slate-500 hover:text-slate-300'
+  )
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl">
       {/* Tab nav */}
       <div className="border-b border-slate-800">
         {/* Mobile: dropdown */}
-        <div className="flex items-center gap-2 px-4 py-2 md:hidden">
+        <div className="flex items-center gap-2 px-3 py-2 md:hidden">
           <select
             value={activeTab}
             onChange={e => setActiveTab(e.target.value)}
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500"
+            aria-label="Lead section"
+            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-orange-500"
           >
-            {TABS.map(tab => (
-              <option key={tab.id} value={tab.id}>{tab.label}</option>
-            ))}
+            {PRIMARY.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+            {MORE.length > 0 && (
+              <optgroup label="More">
+                {MORE.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+              </optgroup>
+            )}
           </select>
         </div>
 
-        {/* Desktop: scrollable tab bar */}
-        <div className="hidden md:flex items-stretch relative">
-          {/* Left scroll button */}
-          {canScrollLeft && (
+        {/* Desktop: core tabs + "More" menu (no sideways scrolling) */}
+        <div className="hidden md:flex items-stretch flex-wrap px-1" role="tablist">
+          {PRIMARY.map(tab => (
             <button
-              onClick={() => scrollTabs('left')}
-              className="shrink-0 flex items-center px-2 text-slate-500 hover:text-slate-200
-                         bg-slate-900 border-r border-slate-800 transition-colors z-10"
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={tabCls(activeTab === tab.id)}
             >
-              <ChevronLeft size={14} />
+              {tab.label}
             </button>
-          )}
-
-          {/* Tabs */}
-          <div
-            ref={scrollRef}
-            className="flex overflow-x-auto scrollbar-hide flex-1"
-          >
-            {TABS.map((tab) => (
+          ))}
+          {MORE.length > 0 && (
+            <div ref={moreRef} className="relative flex">
               <button
-                key={tab.id}
-                data-tab={tab.id}
-                onClick={() => handleTabClick(tab.id)}
-                className={cn(
-                  'px-3 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap shrink-0',
-                  activeTab === tab.id
-                    ? 'border-orange-500 text-orange-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-300'
-                )}
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen(o => !o)}
+                className={cn(tabCls(!!activeMore), 'inline-flex items-center gap-1')}
               >
-                {tab.label}
+                {activeMore ? activeMore.label : 'More'}
+                <ChevronDown size={12} aria-hidden="true" className={cn('transition-transform', moreOpen && 'rotate-180')} />
               </button>
-            ))}
-          </div>
-
-          {/* Right scroll button */}
-          {canScrollRight && (
-            <button
-              onClick={() => scrollTabs('right')}
-              className="shrink-0 flex items-center px-2 text-slate-500 hover:text-slate-200
-                         bg-slate-900 border-l border-slate-800 transition-colors z-10"
-            >
-              <ChevronRight size={14} />
-            </button>
+              {moreOpen && (
+                <div role="menu" className="absolute left-0 top-full z-40 mt-1 min-w-44 rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-xl shadow-black/40">
+                  {MORE.map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setActiveTab(tab.id); setMoreOpen(false) }}
+                      className={cn(
+                        'w-full text-left px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer',
+                        activeTab === tab.id ? 'bg-orange-500/15 text-orange-400 font-medium' : 'text-slate-300 hover:bg-slate-800'
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       {/* Tab content */}
-      <div className="p-5">
+      <div className="p-3 sm:p-5">
         {activeTab === 'activity' && <ActivityTab leadId={lead.id} />}
         {activeTab === 'calls' && <CallsTab leadId={lead.id} />}
         {activeTab === 'sms' && (

@@ -380,7 +380,7 @@ export function ComposeModal({
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-6 px-4 pb-6 overflow-y-auto"
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
       >
-        <div role="dialog" aria-modal="true" aria-label="Compose Email" className="bg-[#0E0B24] border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
+        <div role="dialog" aria-modal="true" aria-label="Compose Email" className="bg-surface border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl">
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
@@ -574,7 +574,7 @@ export function ComposeModal({
                   value={htmlBody}
                   onChange={e => setHtmlBody(e.target.value)}
                   placeholder="Paste or type HTML here…"
-                  className="w-full bg-[#0E0B24] text-slate-300 text-sm font-mono px-4 py-3 focus:outline-none resize-none min-h-[260px]"
+                  className="w-full bg-surface text-slate-300 text-sm font-mono px-4 py-3 focus:outline-none resize-none min-h-[260px]"
                   rows={14}
                 />
               ) : (
@@ -701,7 +701,7 @@ export function ComposeModal({
       {/* Storage file picker overlay */}
       {showFilePicker && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-[#160E32] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
+          <div className="bg-surface-2 border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <h3 className="text-white font-medium text-sm">Pick from Uploaded Files</h3>
               <button onClick={() => setShowFilePicker(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
@@ -810,7 +810,7 @@ function ToolSelect({ title, placeholder, options, onPick }: {
       className="bg-white/5 border border-white/10 rounded px-1.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-orange-500/50 cursor-pointer hover:text-white"
     >
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o.value} value={o.value} className="bg-[#160E32]">{o.label}</option>)}
+      {options.map(o => <option key={o.value} value={o.value} className="bg-surface-2">{o.label}</option>)}
     </select>
   )
 }
@@ -837,7 +837,7 @@ function ColorMenu({ title, icon, colors, onPick }: {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onMouseDown={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-20 mt-1 p-2 bg-[#160E32] border border-white/10 rounded-lg shadow-2xl grid grid-cols-4 gap-1.5">
+          <div className="absolute left-0 top-full z-20 mt-1 p-2 bg-surface-2 border border-white/10 rounded-lg shadow-2xl grid grid-cols-4 gap-1.5">
             {colors.map(c => (
               <button
                 key={c}

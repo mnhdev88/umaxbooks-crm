@@ -121,7 +121,7 @@ export function SmsInboxClient({
         {/* Thread pane */}
         <div
           className={cn(
-            'min-h-0 flex-col bg-[#0E0B24]',
+            'min-h-0 flex-col bg-surface',
             showThread ? 'flex' : 'hidden md:flex'
           )}
         >

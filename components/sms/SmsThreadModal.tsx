@@ -30,7 +30,7 @@ export function SmsThreadModal({
         role="dialog"
         aria-label="Text this lead"
         onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] max-h-[640px] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-[#0E0B24] shadow-2xl shadow-black/40"
+        className="flex h-[80vh] max-h-[640px] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-surface shadow-2xl shadow-black/40"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4">
           <div className="min-w-0">

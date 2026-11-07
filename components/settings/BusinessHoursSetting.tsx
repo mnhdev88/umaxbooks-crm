@@ -106,7 +106,7 @@ export function BusinessHoursSetting() {
   }
 
   return (
-    <div className="bg-[#160E32] border border-white/10 rounded-xl p-6">
+    <div className="bg-surface-2 border border-white/10 rounded-xl p-6">
       <div className="flex items-center gap-2 mb-1">
         <PhoneIncoming className="w-4 h-4 text-orange-400" />
         <h2 className="text-slate-100 font-semibold text-lg">Working Hours (Inbound Calls)</h2>
@@ -172,9 +172,9 @@ export function BusinessHoursSetting() {
             className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500/50 disabled:opacity-50"
           >
             {COMMON_ZONES.map((z) => (
-              <option key={z} value={z} className="bg-[#160E32]">{z}</option>
+              <option key={z} value={z} className="bg-surface-2">{z}</option>
             ))}
-            <option value="__other" className="bg-[#160E32]">Other…</option>
+            <option value="__other" className="bg-surface-2">Other…</option>
           </select>
         </div>
         {tz === '__other' && (

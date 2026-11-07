@@ -78,11 +78,11 @@ export function SettingsTabs({ tabs, initialTab }: { tabs: SettingsTab[]; initia
 
   return (
     <div>
-      {/* Sticky so the tab row stays reachable inside a long tab. bg-[#0E0B24]/80 is not
+      {/* Sticky so the tab row stays reachable inside a long tab. bg-surface/80 is not
           an arbitrary pick: light mode is a list of manual !important overrides in
           globals.css, and that exact class already has one (→ rgba(255,255,255,0.95)).
           A new hex here would render a dark bar on the light theme. */}
-      <div className="sticky top-0 z-10 -mx-6 mb-6 border-b border-slate-800 bg-[#0E0B24]/80 px-6 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-6 mb-6 border-b border-slate-800 bg-surface/80 px-6 backdrop-blur">
         {/* Mobile: a select, matching LeadDetailTabs — five underlined tabs do not fit
             a phone without horizontal scrolling that nobody discovers. */}
         <div className="py-3 md:hidden">

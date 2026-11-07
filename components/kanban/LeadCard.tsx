@@ -149,7 +149,10 @@ export function LeadCard({ lead, overlay, userRole, userId, agents = [], onReass
 
         {/* Contact name + callback + GMB rating */}
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-slate-400 truncate">{lead.name}</p>
+          {/* Contact name only when it differs from the company (GMB imports duplicate it) */}
+          <p className="text-xs text-slate-400 truncate">
+            {(lead.name ?? '').trim().toLowerCase() === (lead.company_name ?? '').trim().toLowerCase() ? '' : lead.name}
+          </p>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {callbackInfo && callbackLevel && (() => {
               const { label } = callbackInfo

@@ -56,7 +56,7 @@ export function PortalSidebar({ profile, isAdminPreview = false, isOpen = false,
 
   return (
     <aside className={cn(
-      'w-60 bg-[#0E0B24] border-r border-slate-800 flex flex-col shrink-0',
+      'w-60 bg-surface border-r border-slate-800 flex flex-col shrink-0',
       'fixed inset-y-0 left-0 z-50 transition-transform duration-300',
       'lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:translate-x-0 lg:visible lg:pointer-events-auto',
       isOpen ? 'translate-x-0' : '-translate-x-full invisible pointer-events-none'

@@ -129,7 +129,7 @@ export function Reactions({ messageId, userId, reactions, align = 'start' }: Pro
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
             <div className={cn(
-              'absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-xl border border-slate-700 bg-[#0E0B24] p-1 shadow-xl',
+              'absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-xl border border-slate-700 bg-surface p-1 shadow-xl',
               align === 'end' ? 'right-0' : 'left-0'
             )}>
               {QUICK.map((e) => (

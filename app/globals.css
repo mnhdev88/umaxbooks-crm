@@ -1,32 +1,61 @@
 @import "tailwindcss";
 
+/* ── Novelio "Dusk" palette ──────────────────────────────────────────────────
+   Derived from the logo: an infinity loop running blue #60A5FA → violet
+   #A78BFA → orange #FB923C on deep navy. Surfaces use the logo's navy (not
+   pure black) and the primary is a desaturated periwinkle-violet that sits
+   between the logo's blue and violet, so large areas stay calm on the eyes.
+
+   Theme surfaces are CSS variables so components can use bg-canvas /
+   bg-surface / bg-surface-2 and get the right colour in either theme.
+   Dark is the default; html.light switches the variables. */
 :root {
-  --background: #07061A;
-  --foreground: #f1f5f9;
-  /* Novelio brand violet */
-  --brand: #8B5CF6;
-  --brand-light: #A78BFA;
-  --brand-dark: #7C3AED;
+  --canvas:     #0E1424;  /* page background — logo navy, slightly lifted */
+  --surface:    #141B2D;  /* cards, panels, modals */
+  --surface-2:  #1B2338;  /* raised / inset areas, menus */
+  --border:     #263049;
+  --background: var(--canvas);
+  --foreground: #E2E6EF;  /* soft off-white, not pure #fff (less halation) */
+
+  --brand:       #6E66E0;
+  --brand-light: #9D97F3;
+  --brand-dark:  #5B52CC;
+  /* Logo gradient stops — for brand accents only, not large fills */
+  --logo-blue:   #60A5FA;
+  --logo-violet: #A78BFA;
+  --logo-orange: #FB923C;
+}
+html.light {
+  --canvas:     #F2F3F8;  /* cool off-white page — less glare than #fff */
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F5F9;
+  --border:     #E1E4EC;
+  --foreground: #1F2337;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-brand: var(--brand);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Remap orange palette → Novelio violet (no component changes needed) */
-  --color-orange-50:  #F5F3FF;
-  --color-orange-100: #EDE9FE;
-  --color-orange-200: #DDD6FE;
-  --color-orange-300: #C4B5FD;
-  --color-orange-400: #A78BFA;
-  --color-orange-500: #8B5CF6;
-  --color-orange-600: #7C3AED;
-  --color-orange-700: #6D28D9;
-  --color-orange-800: #5B21B6;
-  --color-orange-900: #4C1D95;
-  --color-orange-950: #2E1065;
+  /* Remap orange palette → Novelio dusk violet (no component changes needed).
+     500 carries white text at 4.5:1; 400 reads at ≥5.6:1 on dark surfaces. */
+  --color-orange-50:  #F5F5FE;
+  --color-orange-100: #EEEDFC;
+  --color-orange-200: #DCDAF9;
+  --color-orange-300: #B9B5F7;
+  --color-orange-400: #9D97F3;
+  --color-orange-500: #6E66E0;
+  --color-orange-600: #5B52CC;
+  --color-orange-700: #4B43B0;
+  --color-orange-800: #3D378C;
+  --color-orange-900: #322E6E;
+  --color-orange-950: #1E1B42;
 }
 
 * {
@@ -76,8 +105,8 @@
 
 /* Force dark background on native select option popups */
 html:not(.light) select option {
-  background-color: #160F30;
-  color: #f1f5f9;
+  background-color: var(--surface-2);
+  color: var(--foreground);
 }
 html.light select option {
   background-color: #ffffff;
@@ -104,57 +133,54 @@ body {
 .text-\[11px\] { font-size: 12px !important; }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
-html { scrollbar-width: thin; scrollbar-color: #8B5CF6 #07061A; }
-::-webkit-scrollbar-track { background: #07061A; }
-::-webkit-scrollbar-thumb { background: #8B5CF6; border-radius: 99px; opacity: 0.5; }
-::-webkit-scrollbar-thumb:hover { background: #7C3AED; }
+/* Muted thumb: a bright brand-coloured scrollbar on every panel is visual noise */
+html { scrollbar-width: thin; scrollbar-color: #3A4560 var(--canvas); }
+::-webkit-scrollbar-track { background: var(--canvas); }
+::-webkit-scrollbar-thumb { background: #3A4560; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 
 /* ── Light theme overrides ───────────────────────────────────────────────── */
 html.light {
   color-scheme: light;
 }
 html.light body {
-  /* Softer lavender-gray page so white cards lift off it (less glare than near-white) */
-  background: #ECEAF6 !important;
-  color: #2a273f !important;
+  /* Cool off-white page so white cards lift off it (less glare than near-white) */
+  background: var(--canvas) !important;
+  color: var(--foreground) !important;
 }
-html.light .bg-\[\#0A0820\],
-html.light .bg-\[\#0E0B24\] { background-color: #ffffff !important; }
-html.light .bg-\[\#160E32\],
-html.light .bg-\[\#160E32\]\/80 { background-color: #F0EEFF !important; }
-html.light .bg-\[\#0E0B24\]\/80 { background-color: rgba(255,255,255,0.95) !important; }
+/* bg-canvas / bg-surface / bg-surface-2 switch via the CSS variables above. */
 html.light .bg-slate-900 { background-color: #ffffff !important; }
-html.light .bg-slate-800 { background-color: #F5F3FF !important; }
-html.light .bg-slate-700 { background-color: #EDE9FE !important; }
-html.light .bg-slate-800\/60 { background-color: rgba(245,243,255,0.7) !important; }
-html.light .bg-slate-800\/50 { background-color: rgba(245,243,255,0.6) !important; }
-html.light .bg-slate-800\/40 { background-color: rgba(245,243,255,0.5) !important; }
+html.light .bg-slate-800 { background-color: #F4F5F9 !important; }
+html.light .bg-slate-700 { background-color: #ECEEF4 !important; }
+html.light .bg-slate-800\/60 { background-color: rgba(244,245,249,0.7) !important; }
+html.light .bg-slate-800\/50 { background-color: rgba(244,245,249,0.6) !important; }
+html.light .bg-slate-800\/40 { background-color: rgba(244,245,249,0.5) !important; }
 html.light .bg-slate-900\/50 { background-color: rgba(255,255,255,0.6) !important; }
 html.light .bg-slate-900\/60 { background-color: rgba(255,255,255,0.7) !important; }
 html.light .bg-slate-900\/40 { background-color: rgba(255,255,255,0.5) !important; }
-html.light .border-slate-800 { border-color: #DDD6FE !important; }
-html.light .border-slate-700 { border-color: #C4B5FD !important; }
-html.light .border-slate-700\/50 { border-color: rgba(196,181,253,0.5) !important; }
-html.light .border-slate-700\/30 { border-color: rgba(196,181,253,0.3) !important; }
-html.light .border-slate-600 { border-color: #A78BFA !important; }
+html.light .border-slate-800 { border-color: #E1E4EC !important; }
+html.light .border-slate-700 { border-color: #CDD2DE !important; }
+html.light .border-slate-700\/50 { border-color: rgba(205,210,222,0.5) !important; }
+html.light .border-slate-700\/30 { border-color: rgba(205,210,222,0.3) !important; }
+html.light .border-slate-600 { border-color: #A9B0C2 !important; }
 /* Softer, calibrated text scale — gentler than pure near-black, muted greys kept ≥AA */
-html.light .text-slate-100 { color: #2a273f !important; }
-html.light .text-slate-200 { color: #353151 !important; }
-html.light .text-slate-300 { color: #433f63 !important; }
-html.light .text-slate-400 { color: #57537a !important; }
-html.light .text-slate-500 { color: #615d88 !important; }
-html.light .text-slate-600 { color: #615d88 !important; }
-html.light .hover\:bg-slate-800:hover { background-color: #EDE9FE !important; }
-html.light .hover\:bg-slate-700:hover { background-color: #DDD6FE !important; }
-html.light .hover\:bg-slate-600:hover { background-color: #C4B5FD !important; }
+html.light .text-slate-100 { color: #1F2337 !important; }
+html.light .text-slate-200 { color: #2A2F45 !important; }
+html.light .text-slate-300 { color: #3A4058 !important; }
+html.light .text-slate-400 { color: #4A5070 !important; }
+html.light .text-slate-500 { color: #5A6080 !important; }
+html.light .text-slate-600 { color: #5A6080 !important; }
+html.light .hover\:bg-slate-800:hover { background-color: #ECEEF4 !important; }
+html.light .hover\:bg-slate-700:hover { background-color: #E1E4EC !important; }
+html.light .hover\:bg-slate-600:hover { background-color: #CDD2DE !important; }
 html.light .hover\:text-slate-100:hover { color: #0f172a !important; }
 html.light .hover\:text-slate-300:hover { color: #334155 !important; }
 html.light .hover\:border-slate-500:hover { border-color: #94a3b8 !important; }
 html.light .hover\:bg-emerald-900\/30:hover { background-color: #a7f3d0 !important; }
-html.light .hover\:bg-orange-900\/30:hover  { background-color: #EDE9FE !important; }
+html.light .hover\:bg-orange-900\/30:hover  { background-color: #EEEDFC !important; }
 html.light .hover\:bg-red-900\/30:hover     { background-color: #fecaca !important; }
 html.light .hover\:text-emerald-300:hover   { color: #065f46 !important; }
-html.light .hover\:text-orange-300:hover    { color: #7C3AED !important; }
+html.light .hover\:text-orange-300:hover    { color: #5B52CC !important; }
 html.light .hover\:text-red-300:hover       { color: #b91c1c !important; }
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light textarea,
@@ -166,12 +192,12 @@ html.light select {
 /* Sonner toast — adapt to light theme (inline styles need !important) */
 html.light [data-sonner-toast] {
   background: #ffffff !important;
-  border-color: #DDD6FE !important;
-  color: #1e1b4b !important;
+  border-color: #DCDAF9 !important;
+  color: #1F2337 !important;
 }
-html.light ::-webkit-scrollbar-track { background: #EDE9FE; }
-html.light ::-webkit-scrollbar-thumb { background: #A78BFA; }
-html.light ::-webkit-scrollbar-thumb:hover { background: #7C3AED; }
+html.light { scrollbar-color: #C3C8D6 var(--canvas); }
+html.light ::-webkit-scrollbar-thumb { background: #C3C8D6; }
+html.light ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 
 /* Colored text — darken for light backgrounds */
 html.light .text-indigo-300  { color: #4338ca !important; }
@@ -194,9 +220,9 @@ html.light .text-sky-300     { color: #0369a1 !important; }
 html.light .text-sky-400     { color: #0369a1 !important; }
 html.light .text-red-300     { color: #b91c1c !important; }
 html.light .text-red-400     { color: #b91c1c !important; }
-html.light .text-orange-300  { color: #7C3AED !important; }
-html.light .text-orange-400  { color: #6D28D9 !important; }
-html.light .text-orange-500  { color: #7C3AED !important; }
+html.light .text-orange-300  { color: #5B52CC !important; }
+html.light .text-orange-400  { color: #4B43B0 !important; }
+html.light .text-orange-500  { color: #5B52CC !important; }
 html.light .text-yellow-400  { color: #a16207 !important; }
 
 /* Status/source badge backgrounds — keep subtle tint on light bg */
@@ -212,10 +238,10 @@ html.light .bg-emerald-900\/20 { background-color: #ecfdf5 !important; }
 html.light .bg-emerald-900\/30 { background-color: #d1fae5 !important; }
 html.light .bg-sky-900\/40     { background-color: #e0f2fe !important; }
 html.light .bg-red-900\/40     { background-color: #fee2e2 !important; }
-html.light .bg-orange-900\/40  { background-color: #EDE9FE !important; }
-html.light .bg-orange-900\/20  { background-color: #F5F3FF !important; }
-html.light .bg-orange-900\/30  { background-color: #EDE9FE !important; }
-html.light .bg-orange-900\/10  { background-color: #F5F3FF !important; }
+html.light .bg-orange-900\/40  { background-color: #EEEDFC !important; }
+html.light .bg-orange-900\/20  { background-color: #F5F5FE !important; }
+html.light .bg-orange-900\/30  { background-color: #EEEDFC !important; }
+html.light .bg-orange-900\/10  { background-color: #F5F5FE !important; }
 html.light .bg-green-900\/20   { background-color: #f0fdf4 !important; }
 html.light .bg-green-900\/30   { background-color: #dcfce7 !important; }
 html.light .bg-red-900\/20     { background-color: #fff1f2 !important; }
@@ -237,14 +263,14 @@ html.light .border-teal-800\/40    { border-color: #5eead4 !important; }
 html.light .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
 html.light .border-emerald-800     { border-color: #34d399 !important; }
 html.light .border-red-800\/40     { border-color: #fca5a5 !important; }
-html.light .border-orange-800\/40  { border-color: #DDD6FE !important; }
-html.light .border-orange-800      { border-color: #C4B5FD !important; }
+html.light .border-orange-800\/40  { border-color: #DCDAF9 !important; }
+html.light .border-orange-800      { border-color: #B9B5F7 !important; }
 html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
 
 /* text-white / hover:text-white — override for light mode */
-html.light .text-white          { color: #2a273f !important; }
-html.light .hover\:text-white:hover { color: #2a273f !important; }
+html.light .text-white          { color: #1F2337 !important; }
+html.light .hover\:text-white:hover { color: #1F2337 !important; }
 
 /* white/5 and white/10 backgrounds used in settings form inputs */
 html.light .bg-white\/5  { background-color: #f8fafc !important; }
@@ -253,26 +279,26 @@ html.light .border-white\/10 { border-color: #cbd5e1 !important; }
 
 /* Gradient backgrounds used in audit/AI sections */
 html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
-html.light .to-orange-950\/20      { --tw-gradient-to: #EDE9FE !important; }
-html.light .border-orange-900\/30  { border-color: #DDD6FE !important; }
+html.light .to-orange-950\/20      { --tw-gradient-to: #EEEDFC !important; }
+html.light .border-orange-900\/30  { border-color: #DCDAF9 !important; }
 
 /* Active nav / button backgrounds — violet tints for light mode */
-html.light .bg-orange-500\/15 { background-color: #EDE9FE !important; }
-html.light .bg-orange-500\/25 { background-color: #DDD6FE !important; }
-html.light .bg-orange-500\/20 { background-color: #E9E4FD !important; }
+html.light .bg-orange-500\/15 { background-color: #EEEDFC !important; }
+html.light .bg-orange-500\/25 { background-color: #DCDAF9 !important; }
+html.light .bg-orange-500\/20 { background-color: #E6E5FB !important; }
 
 /* Accent borders */
-html.light .border-orange-500\/30 { border-color: #C4B5FD !important; }
-html.light .border-orange-500\/20 { border-color: #DDD6FE !important; }
+html.light .border-orange-500\/30 { border-color: #B9B5F7 !important; }
+html.light .border-orange-500\/20 { border-color: #DCDAF9 !important; }
 
 /* Card depth in light mode — violet-tinted shadow */
-html.light .rounded-xl { box-shadow: 0 2px 8px rgba(109,40,217,0.07), 0 1px 2px rgba(109,40,217,0.04) !important; }
+html.light .rounded-xl { box-shadow: 0 2px 8px rgba(30,35,60,0.07), 0 1px 2px rgba(30,35,60,0.04) !important; }
 
 /* Sidebar/panel borders in light mode */
-html.light .border-slate-800\/80 { border-color: #E8E4FD !important; }
+html.light .border-slate-800\/80 { border-color: #E4E6EE !important; }
 
 /* orange-500/10 icon backgrounds */
-html.light .bg-orange-500\/10 { background-color: #EDE9FE !important; }
+html.light .bg-orange-500\/10 { background-color: #EEEDFC !important; }
 html.light .bg-purple-500\/10 { background-color: #faf5ff !important; }
 
 /* Input focus — violet ring */
@@ -280,8 +306,8 @@ html.light input:focus,
 html.light textarea:focus,
 html.light select:focus {
   outline: none;
-  border-color: #8B5CF6 !important;
-  box-shadow: 0 0 0 2px rgba(139,92,246,0.15) !important;
+  border-color: #6E66E0 !important;
+  box-shadow: 0 0 0 2px rgba(110,102,224,0.15) !important;
 }
 
 /* ── Pipeline / kanban card light mode fixes ─────────────────────────────── */
@@ -298,39 +324,37 @@ html.light .border-amber-600\/50 { border-color: #FCD34D !important; }
 /* Column bg in light mode */
 html.light .bg-slate-900\/60  { background-color: rgba(255,255,255,0.75) !important; }
 /* Drop-zone hover */
-html.light .bg-slate-800\/80  { background-color: rgba(237,233,254,0.8) !important; }
+html.light .bg-slate-800\/80  { background-color: rgba(236,238,244,0.8) !important; }
 /* Dashed drop placeholder */
-html.light .border-slate-700\/50 { border-color: rgba(196,181,253,0.5) !important; }
+html.light .border-slate-700\/50 { border-color: rgba(205,210,222,0.5) !important; }
 
 /* ── Light theme — additional coverage (audit gap fixes) ─────────────────── */
 
 /* Full-page / panel backgrounds that weren't mapped */
-html.light .bg-\[\#07061A\] { background-color: #ECEAF6 !important; }
-html.light .bg-\[\#0e1525\] { background-color: #ECEAF6 !important; }
-html.light .bg-slate-950    { background-color: #ECEAF6 !important; }
+html.light .bg-slate-950    { background-color: #F2F3F8 !important; }
 
 /* Slate background opacity variants */
 html.light .bg-slate-900\/30 { background-color: rgba(255,255,255,0.45) !important; }
-html.light .bg-slate-800\/70 { background-color: rgba(245,243,255,0.75) !important; }
-html.light .bg-slate-800\/30 { background-color: rgba(245,243,255,0.45) !important; }
-html.light .bg-slate-800\/20 { background-color: rgba(245,243,255,0.35) !important; }
-html.light .bg-slate-800\/10 { background-color: rgba(245,243,255,0.25) !important; }
-html.light .bg-slate-700\/60 { background-color: rgba(237,233,254,0.7) !important; }
-html.light .bg-slate-700\/40 { background-color: rgba(237,233,254,0.5) !important; }
-html.light .bg-slate-700\/30 { background-color: rgba(237,233,254,0.4) !important; }
-html.light .bg-slate-600\/30 { background-color: rgba(196,181,253,0.35) !important; }
-html.light .bg-slate-600     { background-color: #C4B5FD !important; }
-html.light .hover\:bg-slate-800\/70:hover { background-color: rgba(245,243,255,0.7) !important; }
+html.light .bg-slate-800\/70 { background-color: rgba(244,245,249,0.75) !important; }
+html.light .bg-slate-800\/30 { background-color: rgba(244,245,249,0.45) !important; }
+html.light .bg-slate-800\/20 { background-color: rgba(244,245,249,0.35) !important; }
+html.light .bg-slate-800\/10 { background-color: rgba(244,245,249,0.25) !important; }
+html.light .bg-slate-700\/60 { background-color: rgba(236,238,244,0.7) !important; }
+html.light .bg-slate-700\/40 { background-color: rgba(236,238,244,0.5) !important; }
+html.light .bg-slate-700\/30 { background-color: rgba(236,238,244,0.4) !important; }
+html.light .bg-slate-600\/30 { background-color: rgba(205,210,222,0.35) !important; }
+html.light .bg-slate-600     { background-color: #CDD2DE !important; }
+html.light .hover\:bg-slate-800\/70:hover { background-color: rgba(244,245,249,0.7) !important; }
 
 /* Slate borders / dividers */
-html.light .border-slate-800\/60 { border-color: rgba(221,214,254,0.6) !important; }
-html.light .border-slate-700\/60 { border-color: rgba(196,181,253,0.6) !important; }
-html.light .border-slate-700\/40 { border-color: #DDD6FE !important; }
-html.light .border-slate-600\/40 { border-color: rgba(196,181,253,0.5) !important; }
+html.light .border-slate-800\/60 { border-color: rgba(225,228,236,0.6) !important; }
+html.light .border-slate-700\/60 { border-color: rgba(205,210,222,0.6) !important; }
+html.light .border-slate-700\/40 { border-color: #E1E4EC !important; }
+html.light .border-slate-600\/40 { border-color: rgba(205,210,222,0.5) !important; }
 html.light .border-slate-500     { border-color: #94a3b8 !important; }
-html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: #DDD6FE !important; }
-html.light .divide-slate-700 > :not([hidden]) ~ :not([hidden])     { border-color: #DDD6FE !important; }
-html.light .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(196,181,253,0.6) !important; }
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: #E1E4EC !important; }
+html.light .divide-slate-700 > :not([hidden]) ~ :not([hidden])     { border-color: #E1E4EC !important; }
+html.light .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(205,210,222,0.6) !important; }
 
 /* Semantic -500 tint backgrounds (badges, banners, icon chips) */
 html.light .bg-blue-500\/10   { background-color: #eff6ff !important; }
@@ -341,14 +365,14 @@ html.light .bg-blue-500\/15   { background-color: #DBEAFE !important; }
 html.light .bg-amber-500\/15  { background-color: #FEF3C7 !important; }
 html.light .bg-green-500\/15  { background-color: #DCFCE7 !important; }
 html.light .bg-red-500\/15    { background-color: #FEE2E2 !important; }
-html.light .bg-purple-500\/15 { background-color: #EDE9FE !important; }
+html.light .bg-purple-500\/15 { background-color: #EEEDFC !important; }
 html.light .bg-blue-500\/20   { background-color: #dbeafe !important; }
 html.light .bg-purple-500\/20 { background-color: #f3e8ff !important; }
 html.light .bg-cyan-500\/20   { background-color: #cffafe !important; }
 html.light .bg-green-500\/20  { background-color: #dcfce7 !important; }
 html.light .bg-red-500\/20    { background-color: #fee2e2 !important; }
 html.light .bg-yellow-500\/20 { background-color: #fef9c3 !important; }
-html.light .bg-orange-500\/5  { background-color: #F8F7FF !important; }
+html.light .bg-orange-500\/5  { background-color: #F8F8FE !important; }
 
 /* Semantic -900 tint backgrounds not previously mapped */
 html.light .bg-sky-900\/30    { background-color: #e0f2fe !important; }
@@ -364,19 +388,19 @@ html.light .bg-green-900\/15  { background-color: #dcfce7 !important; }
 html.light .bg-green-900\/5   { background-color: #f0fdf4 !important; }
 html.light .bg-green-950\/60  { background-color: #dcfce7 !important; }
 html.light .bg-green-900\/60  { background-color: #bbf7d0 !important; }
-html.light .bg-orange-900\/15 { background-color: #F5F3FF !important; }
+html.light .bg-orange-900\/15 { background-color: #F5F5FE !important; }
 
 /* Yellow draft-card tints (email history) */
 html.light .bg-yellow-500\/5  { background-color: #fefce8 !important; }
 html.light .bg-yellow-400\/10 { background-color: #fef9c3 !important; }
 
 /* Violet — entirely unmapped previously (find-email button, click-track badges) */
-html.light .bg-violet-900\/20 { background-color: #f5f3ff !important; }
-html.light .bg-violet-900\/30 { background-color: #ede9fe !important; }
-html.light .hover\:bg-violet-900\/30:hover { background-color: #ede9fe !important; }
-html.light .text-violet-400   { color: #7c3aed !important; }
-html.light .hover\:text-violet-300:hover { color: #6d28d9 !important; }
-html.light .border-violet-800\/40 { border-color: #C4B5FD !important; }
+html.light .bg-violet-900\/20 { background-color: #F5F5FE !important; }
+html.light .bg-violet-900\/30 { background-color: #EEEDFC !important; }
+html.light .hover\:bg-violet-900\/30:hover { background-color: #EEEDFC !important; }
+html.light .text-violet-400   { color: #5B52CC !important; }
+html.light .hover\:text-violet-300:hover { color: #4B43B0 !important; }
+html.light .border-violet-800\/40 { border-color: #B9B5F7 !important; }
 
 /* Text */
 html.light .text-yellow-300 { color: #a16207 !important; }
@@ -394,8 +418,8 @@ html.light .border-cyan-800\/40   { border-color: #67e8f9 !important; }
 html.light .border-teal-700\/30   { border-color: #5eead4 !important; }
 html.light .border-teal-800\/30   { border-color: #99f6e4 !important; }
 html.light .border-blue-800\/30   { border-color: #bfdbfe !important; }
-html.light .border-purple-800\/30 { border-color: #ddd6fe !important; }
-html.light .border-purple-800\/50 { border-color: #c4b5fd !important; }
+html.light .border-purple-800\/30 { border-color: #DCDAF9 !important; }
+html.light .border-purple-800\/50 { border-color: #B9B5F7 !important; }
 html.light .border-pink-800\/30   { border-color: #fbcfe8 !important; }
 html.light .border-green-800\/20  { border-color: #bbf7d0 !important; }
 html.light .border-green-800\/30  { border-color: #bbf7d0 !important; }
@@ -404,23 +428,23 @@ html.light .border-red-600\/60    { border-color: #dc2626 !important; }
 html.light .border-red-800\/50    { border-color: #fca5a5 !important; }
 html.light .border-red-800\/20    { border-color: #fecaca !important; }
 html.light .border-blue-700       { border-color: #93c5fd !important; }
-html.light .border-purple-700     { border-color: #c4b5fd !important; }
+html.light .border-purple-700     { border-color: #B9B5F7 !important; }
 html.light .border-amber-700      { border-color: #fcd34d !important; }
 
 /* Orange (→ violet) borders not previously mapped */
-html.light .border-orange-700      { border-color: #C4B5FD !important; }
-html.light .border-orange-700\/50  { border-color: #C4B5FD !important; }
-html.light .border-orange-700\/25  { border-color: #DDD6FE !important; }
-html.light .border-orange-600\/50  { border-color: #C4B5FD !important; }
-html.light .border-orange-800\/30  { border-color: #DDD6FE !important; }
+html.light .border-orange-700      { border-color: #B9B5F7 !important; }
+html.light .border-orange-700\/50  { border-color: #B9B5F7 !important; }
+html.light .border-orange-700\/25  { border-color: #DCDAF9 !important; }
+html.light .border-orange-600\/50  { border-color: #B9B5F7 !important; }
+html.light .border-orange-800\/30  { border-color: #DCDAF9 !important; }
 
 /* Gradient (close-deal header card) */
 html.light .from-orange-900\/15 {
-  --tw-gradient-from: #F5F3FF var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(245 243 255 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: #F5F5FE var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(245 245 254 / 0) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
-html.light .to-orange-900\/5 { --tw-gradient-to: #FBFAFF var(--tw-gradient-to-position) !important; }
+html.light .to-orange-900\/5 { --tw-gradient-to: #FAFAFE var(--tw-gradient-to-position) !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zoom-in-95 { from { transform: scale(0.95); } to { transform: scale(1); } }

@@ -12,8 +12,8 @@ import { useTheme } from '@/components/ThemeProvider'
 function useChartTheme() {
   const { theme } = useTheme()
   return theme === 'light'
-    ? { axis: '#57537a', track: '#EDE9FE', cursor: 'rgba(124,58,237,0.08)' }
-    : { axis: '#94a3b8', track: '#1e293b', cursor: 'rgba(148,163,184,0.08)' }
+    ? { axis: '#4A5070', track: '#ECEEF4', cursor: 'rgba(91,82,204,0.08)' }
+    : { axis: '#94a3b8', track: '#1B2338', cursor: 'rgba(148,163,184,0.08)' }
 }
 
 export interface Slice { name: string; value: number; color: string }
@@ -66,7 +66,7 @@ function ChartTooltip({ active, payload, total }: any) {
   const name = p.payload?.name ?? p.name
   const pct = total > 0 ? Math.round((val / total) * 100) : 0
   return (
-    <div className="rounded-lg bg-[#0E0B24] border border-slate-700 px-3 py-2 shadow-xl">
+    <div className="rounded-lg bg-surface border border-slate-700 px-3 py-2 shadow-xl">
       <p className="text-xs text-slate-300 font-medium capitalize">{String(name).replace(/_/g, ' ')}</p>
       <p className="text-sm text-slate-100 font-bold tabular-nums">
         {val.toLocaleString()} <span className="text-slate-500 font-normal">· {pct}%</span>

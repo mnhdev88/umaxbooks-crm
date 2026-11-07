@@ -54,7 +54,7 @@ export function EmojiPicker({
       {open && (
         <div
           role="menu"
-          className="absolute bottom-full left-0 mb-2 z-50 w-64 max-h-48 overflow-y-auto bg-[#0E0B24] border border-slate-700 rounded-xl shadow-2xl p-2 grid grid-cols-8 gap-0.5"
+          className="absolute bottom-full left-0 mb-2 z-50 w-64 max-h-48 overflow-y-auto bg-surface border border-slate-700 rounded-xl shadow-2xl p-2 grid grid-cols-8 gap-0.5"
         >
           {EMOJIS.map((e, i) => (
             <button

@@ -143,7 +143,7 @@ export function ThreadPane({
   const typing = typingLabel(typists)
 
   return (
-    <aside className="flex w-full flex-col border-l border-slate-800 bg-[#0E0B24] md:w-96 md:shrink-0">
+    <aside className="flex w-full flex-col border-l border-slate-800 bg-surface md:w-96 md:shrink-0">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-tight text-slate-100">Thread</p>

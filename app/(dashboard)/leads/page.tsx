@@ -19,7 +19,7 @@ const PER_PAGE = 25
 // full row on demand, so heavy text columns (notes, etc.) stay out of the list.
 // `timezone` (generated from zip_code) powers the live call-window badge.
 const LIST_COLUMNS =
-  'id, name, company_name, lead_number, priority, source, city, website_url, ' +
+  'id, name, company_name, phone, lead_number, priority, source, city, website_url, ' +
   'gmb_review_rating, number_of_reviews, gmb_last_seen, status, timezone, ' +
   'assigned_agent_id, created_at, slug, ' +
   'assigned_agent:profiles!leads_assigned_agent_id_fkey(full_name)'
@@ -28,7 +28,7 @@ const LIST_COLUMNS =
 // first" sort: the view bakes the agent-name join in and adds call_rank, so we
 // select a flat agent-name column instead of the PostgREST embed.
 const VIEW_COLUMNS =
-  'id, name, company_name, lead_number, priority, source, city, website_url, ' +
+  'id, name, company_name, phone, lead_number, priority, source, city, website_url, ' +
   'gmb_review_rating, number_of_reviews, gmb_last_seen, status, timezone, ' +
   'assigned_agent_id, created_at, slug, assigned_agent_name, call_rank'
 

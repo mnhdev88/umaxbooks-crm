@@ -9,7 +9,7 @@ export default async function UnsubscribedPage({ searchParams }: Props) {
   const isError = error === '1'
 
   return (
-    <div className="min-h-screen bg-[#0A0820] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-6">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 max-w-md w-full text-center space-y-5">
         {isError ? (
           <>

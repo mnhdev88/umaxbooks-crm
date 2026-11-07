@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOnlineUsers } from '@/components/layout/presence'
 import { ChatContact, ChatConversation } from '@/types'
@@ -34,7 +35,7 @@ function AvatarDot({ name, online, group }: { name: string; online: boolean; gro
       </div>
       {!group && (
         <span className={cn(
-          'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-[#0E0B24]',
+          'absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-surface',
           online ? 'bg-green-500' : 'bg-slate-600'
         )} />
       )}
@@ -58,6 +59,7 @@ export function ChatWidget({ userId, myName, myRole }: { userId: string; myName:
   const supabase = createClient()
   const online = useOnlineUsers()
 
+  const pathname = usePathname()
   const [panelOpen, setPanelOpen] = useState(false)
   const [composing, setComposing] = useState(false)   // people list vs. recent conversations
   const [contacts, setContacts] = useState<ChatContact[]>([])
@@ -208,6 +210,10 @@ export function ChatWidget({ userId, myName, myRole }: { userId: string; myName:
   const onlineCount = contacts.filter((c) => online.has(c.id)).length
   const showPeople = composing || search.trim().length > 0
 
+  // Lead detail pages have a fixed Call/Text bar at the bottom on phones —
+  // lift the launcher (and its panel) above it there.
+  const overActionBar = /^\/leads\/(?!new$)[^/]+$/.test(pathname ?? '')
+
   return (
     <>
       {/* Docked chat windows (stacked from the right, left of the launcher) */}
@@ -229,7 +235,10 @@ export function ChatWidget({ userId, myName, myRole }: { userId: string; myName:
 
       {/* Panel */}
       {panelOpen && (
-        <div className="fixed bottom-24 right-4 z-50 w-[88vw] overflow-hidden rounded-2xl border border-slate-700 bg-[#0E0B24] shadow-2xl sm:right-6 sm:w-80">
+        <div className={cn(
+          'fixed right-3 z-50 w-[88vw] overflow-hidden rounded-2xl border border-slate-700 bg-surface shadow-2xl sm:bottom-24 sm:right-6 sm:w-80',
+          overActionBar ? 'bottom-36' : 'bottom-20',
+        )}>
           <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
             <div className="flex items-center gap-2">
               {showPeople && (
@@ -343,11 +352,16 @@ export function ChatWidget({ userId, myName, myRole }: { userId: string; myName:
       <button
         onClick={() => setPanelOpen((o) => !o)}
         aria-label={unread > 0 ? `Chat — ${unread} unread` : 'Chat'}
-        className="fixed bottom-6 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-2xl transition-colors hover:bg-orange-600 sm:right-6"
+        className={cn(
+          // Smaller on phones so it covers less of the list; 48px still clears the 44px touch minimum
+          'fixed right-3 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-black/30 transition-colors hover:bg-orange-600 cursor-pointer',
+          'sm:bottom-6 sm:right-6 sm:h-14 sm:w-14',
+          overActionBar ? 'bottom-[5.25rem]' : 'bottom-4',
+        )}
       >
-        {panelOpen ? <X size={24} /> : <MessageCircle size={24} />}
+        {panelOpen ? <X size={22} /> : <MessageCircle size={22} />}
         {!panelOpen && unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold ring-2 ring-[#07061A]">
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold ring-2 ring-canvas">
             {unread > 99 ? '99+' : unread}
           </span>
         )}

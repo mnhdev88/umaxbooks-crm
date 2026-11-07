@@ -189,7 +189,7 @@ export function PreCallModal({
         role="dialog"
         aria-label="Confirm call"
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-[#0E0B24] p-5 shadow-2xl shadow-black/40"
+        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl border border-slate-700 bg-surface p-5 shadow-2xl shadow-black/40"
       >
         <div className="flex items-start justify-between gap-3">
           <div>

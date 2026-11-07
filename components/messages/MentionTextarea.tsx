@@ -152,7 +152,7 @@ export const MentionTextarea = forwardRef<MentionTextareaHandle, Props>(function
           <div className="fixed inset-0 z-10" onClick={() => setQuery(null)} />
           <ul
             role="listbox"
-            className="absolute bottom-full z-20 mb-2 w-64 list-none overflow-hidden rounded-xl border border-slate-700 bg-[#0E0B24] p-1 shadow-2xl"
+            className="absolute bottom-full z-20 mb-2 w-64 list-none overflow-hidden rounded-xl border border-slate-700 bg-surface p-1 shadow-2xl"
           >
             {matches.map((m, i) => (
               <li key={m.id}>

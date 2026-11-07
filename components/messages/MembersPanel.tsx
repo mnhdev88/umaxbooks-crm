@@ -98,7 +98,7 @@ export function MembersPanel({ conversation, userId, myRole, members, onClose, o
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 pt-24" onClick={onClose}>
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-[#0E0B24] shadow-2xl"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">

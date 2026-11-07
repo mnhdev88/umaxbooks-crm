@@ -30,7 +30,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0A0820',
+  // Browser/PWA chrome follows the OS scheme (matches --canvas in globals.css)
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)',  color: '#0E1424' },
+    { media: '(prefers-color-scheme: light)', color: '#F2F3F8' },
+  ],
   width: 'device-width',
   initialScale: 1,
   // App-like feel when installed; pages handle their own scroll containers
@@ -52,12 +56,14 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            var t = localStorage.getItem('theme') || 'dark';
+            var p = localStorage.getItem('theme') || 'system';
+            var t = p === 'light' || p === 'dark' ? p
+              : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
             document.documentElement.classList.add(t);
           } catch(e) { document.documentElement.classList.add('dark'); }
         `}} />
       </head>
-      <body className="bg-[#0A0820] text-slate-100 min-h-screen">
+      <body className="bg-canvas text-slate-100 min-h-screen">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:bg-orange-500 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-medium focus:text-sm"
@@ -73,7 +79,7 @@ export default function RootLayout({
           position="bottom-right"
           visibleToasts={3}
           toastOptions={{
-            style: { background: '#1e1b4b', border: '1px solid #3730a3', color: '#f1f5f9' },
+            style: { background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' },
           }}
         />
       </body>

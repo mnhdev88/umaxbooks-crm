@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CallWindowBadge } from './CallWindowBadge'
+import { DialButton } from '@/components/dialer/DialButton'
 import { assignableAgents } from '@/lib/leads/assignable'
 
 // ── Template download helpers ─────────────────────────────────────────────────
@@ -303,6 +304,12 @@ function StatusCell({ lead, userId }: { lead: Lead; userId: string }) {
   )
 }
 
+// Most GMB imports set contact name = company name; only show the company line when it differs.
+function sameText(a?: string | null, b?: string | null) {
+  const n = (v?: string | null) => (v ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  return n(a) === n(b)
+}
+
 function SourceBadge({ source }: { source?: string }) {
   if (!source) return <span className="text-slate-600 text-xs">—</span>
   const s = SRC[source] || { label: source, cls: 'bg-slate-700 text-slate-400' }
@@ -494,6 +501,9 @@ export function LeadsPageClient({
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => setParams({ q: v.trim() || null }), 350)
   }
+
+  const [showFilters, setShowFilters] = useState(false)
+  const activeFilterCount = [filters.src, filters.status, filters.assignee, filters.state, sortCallable].filter(Boolean).length
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage))
   const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.state || (filters.tab && filters.tab !== 'all'))
@@ -751,8 +761,9 @@ export function LeadsPageClient({
         </div>
       )}
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Stats row — one swipeable strip on phones, compact 5-up grid on laptop,
+          so the actual lead list starts near the top of the screen. */}
+      <div className="-mx-3 px-3 flex gap-2 overflow-x-auto scrollbar-hide snap-x md:mx-0 md:px-0 md:grid md:grid-cols-5 md:gap-3 md:overflow-visible">
         {[
           { label: 'Total Leads',       val: stats.total,  sub: '+' + Math.min(stats.total, 6) + ' this week', accent: true },
           { label: 'New (Uncontacted)', val: stats.newCt,  sub: 'Needs follow-up',    color: 'text-indigo-400' },
@@ -761,22 +772,24 @@ export function LeadsPageClient({
           { label: 'Closed Won',        val: stats.closed, sub: 'This month',         color: 'text-emerald-400' },
         ].map(s => (
           <div key={s.label} className={cn(
-            'bg-slate-900 border rounded-xl px-4 py-3.5',
+            'bg-slate-900 border rounded-xl px-3 py-2.5 md:px-4 shrink-0 min-w-[8.5rem] snap-start md:min-w-0',
             s.accent ? 'border-orange-500/30' : 'border-slate-800'
           )}>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1.5">{s.label}</p>
-            <p className={cn('text-2xl font-semibold tracking-tight', s.accent ? 'text-orange-400' : s.color)}>{s.val}</p>
-            <p className="text-xs text-slate-600 mt-1">{s.sub}</p>
+            <p className="text-[11px] text-slate-500 uppercase tracking-wider truncate">{s.label}</p>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <p className={cn('text-xl font-semibold tracking-tight tabular-nums', s.accent ? 'text-orange-400' : s.color)}>{s.val}</p>
+              <p className="text-[11px] text-slate-500 truncate">{s.sub}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-full overflow-x-auto md:w-fit">
+      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-full overflow-x-auto scrollbar-hide md:w-fit">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setParams({ tab: t.id === 'all' ? null : t.id })}
             className={cn(
-              'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
+              'px-3 md:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer',
               filters.tab === t.id
                 ? 'bg-slate-700 text-slate-100'
                 : 'text-slate-500 hover:text-slate-300'
@@ -788,15 +801,38 @@ export function LeadsPageClient({
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[160px] md:min-w-[200px]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             value={searchInput} onChange={e => onSearchChange(e.target.value)}
-            placeholder="Search by name, company, city, website, phone..."
+            placeholder="Search name, company, city, phone…"
             aria-label="Search leads"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2.5 md:py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
           />
         </div>
+        {/* Phones: filters collapse behind one button (badge = how many are set) */}
+        <button
+          type="button"
+          onClick={() => setShowFilters(v => !v)}
+          aria-expanded={showFilters}
+          className={cn(
+            'md:hidden inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium border transition-colors cursor-pointer',
+            showFilters || activeFilterCount > 0
+              ? 'bg-orange-500/15 border-orange-500/50 text-orange-300'
+              : 'bg-slate-900 border-slate-700 text-slate-400'
+          )}>
+          <Filter size={14} aria-hidden="true" /> Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 rounded-full bg-orange-500 text-white text-[11px] font-bold px-1.5 leading-4">{activeFilterCount}</span>
+          )}
+        </button>
+        {canEdit && (
+          <Button size="sm" className="md:hidden min-h-11" onClick={() => setShowAdd(true)} aria-label="Add lead">
+            <Plus size={15} />
+          </Button>
+        )}
+        {/* md:contents → on laptop these sit inline in the toolbar as before */}
+        <div className={cn('w-full grid grid-cols-2 gap-2 md:contents', !showFilters && 'hidden')}>
         {[
           { key: 'src',      val: filters.src,      opts: ['GMB','Facebook','LinkedIn','WhatsApp','Referral','Cold Call','Website Form','Other'], placeholder: 'All Sources' },
           { key: 'status',   val: filters.status,   opts: STATUSES, placeholder: 'All Status' },
@@ -805,7 +841,7 @@ export function LeadsPageClient({
         ].map((f, i) => (
           <select key={i} value={f.val} onChange={e => setParams({ [f.key]: e.target.value || null })}
             aria-label={f.placeholder}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 cursor-pointer">
+            className="min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 md:py-2 text-sm text-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 cursor-pointer">
             <option value="">{f.placeholder}</option>
             {f.opts.map((o, j) => <option key={o} value={o}>{f.labels ? f.labels[j] : o}</option>)}
           </select>
@@ -816,18 +852,19 @@ export function LeadsPageClient({
           aria-pressed={sortCallable}
           title="Sort leads it's currently past the local calling time for to the top"
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border transition-colors',
+            'col-span-2 justify-center inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 md:py-2 text-sm font-medium border transition-colors cursor-pointer',
             sortCallable
               ? 'bg-orange-500/15 border-orange-500/50 text-orange-300'
               : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500'
           )}>
           <Phone size={13} /> Call-ready first
         </button>
+        </div>
         {canEdit && <>
-          <Button variant="ghost" size="sm" onClick={() => setShowImport(true)}>
+          <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => setShowImport(true)}>
             <Upload size={13} /> Bulk Import
           </Button>
-          <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Button size="sm" className="hidden md:inline-flex" onClick={() => setShowAdd(true)}>
             <Plus size={13} /> Add Lead
           </Button>
         </>}
@@ -866,34 +903,97 @@ export function LeadsPageClient({
         </div>
       )}
 
-      {/* Table */}
+      {/* Lead list */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+
+        {/* Phones: one card per lead — name, where, when to call, status, and a call button */}
+        <ul className="md:hidden divide-y divide-slate-800">
+          {leads.map(lead => {
+            const sub = sameText(lead.company_name, lead.name) ? null : lead.company_name
+            return (
+              <li key={lead.id} className={cn('flex gap-3 px-3 py-3', selectedIds.has(lead.id) && 'bg-orange-900/10')}>
+                {canEdit && (
+                  <input type="checkbox" className="accent-orange-500 w-4 h-4 mt-1 shrink-0 cursor-pointer"
+                    aria-label={`Select ${lead.name}`}
+                    checked={selectedIds.has(lead.id)}
+                    onChange={e => {
+                      const n = new Set(selectedIds)
+                      e.target.checked ? n.add(lead.id) : n.delete(lead.id)
+                      setSelectedIds(n)
+                    }} />
+                )}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/leads/${lead.id}`} className="min-w-0 font-semibold text-slate-100 text-[15px] leading-snug hover:text-orange-400">
+                      {lead.name}
+                      {sub && <span className="block text-xs font-normal text-slate-500 truncate">{sub}</span>}
+                    </Link>
+                    {lead.lead_number ? (
+                      <span className="shrink-0 font-mono text-[11px] text-slate-500 mt-0.5">NVL-{String(lead.lead_number).padStart(3, '0')}</span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+                    {lead.city && <span>{lead.city}</span>}
+                    <SourceBadge source={lead.source} />
+                    {lead.priority && lead.priority !== 'Normal' && (
+                      <span className={cn('font-semibold', PRIORITY_CLS[lead.priority])}>↑ {lead.priority}</span>
+                    )}
+                    {lead.gmb_review_rating ? <span className="text-yellow-400">★ {lead.gmb_review_rating}</span> : null}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <CallWindowBadge timeZone={(lead as Lead & { timezone?: string }).timezone} windowStart={callWindow.start} windowEnd={callWindow.end} />
+                    {canEdit ? <StatusCell lead={lead} userId={userId} /> : <StatusBadge status={lead.status} />}
+                  </div>
+                </div>
+                {lead.phone && (
+                  <div className="shrink-0 self-center [&>button]:min-h-11 [&>button]:px-3">
+                    <DialButton leadId={lead.id} phone={lead.phone} name={lead.name} />
+                  </div>
+                )}
+              </li>
+            )
+          })}
+          {leads.length === 0 && (
+            <li className="px-4 py-12 text-center text-slate-500 text-sm">
+              {anyFilter ? 'No leads match your filters.' : 'No leads yet. Add your first lead!'}
+            </li>
+          )}
+        </ul>
+
+        {/* Laptop+: table. Lower-value columns (Website, Last Seen, Added) only on
+            wide screens so the table fits a laptop without sideways scrolling. */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-800/60">
               <tr>
                 {canEdit && (
-                  <th scope="col" className="w-9 px-3 py-3">
+                  <th scope="col" className="w-9 px-3 py-2.5 border-b border-slate-800">
                     <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
                       aria-label="Select all leads"
                       onChange={e => toggleAll(e.target.checked)} />
                   </th>
                 )}
-                {['Lead ID','Lead / Company','Source','Location','Call Window','Website','GMB Rating','Last Seen','Status','Assigned','Added',''].map(h => (
-                  <th scope="col" key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-3 whitespace-nowrap border-b border-slate-800">
+                {([
+                  ['Lead', ''], ['Source', ''], ['Location', ''], ['Call Window', ''],
+                  ['Website', 'hidden 2xl:table-cell'], ['GMB Rating', ''], ['Last Seen', 'hidden 2xl:table-cell'],
+                  ['Status', ''], ['Assigned', ''], ['Added', 'hidden 2xl:table-cell'], ['', ''],
+                ] as const).map(([h, cls], i) => (
+                  <th scope="col" key={i} className={cn('text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2.5 whitespace-nowrap border-b border-slate-800', cls)}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {leads.map(lead => (
+              {leads.map(lead => {
+                const sub = sameText(lead.company_name, lead.name) ? null : lead.company_name
+                return (
                 <tr key={lead.id} className={cn(
                   'border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors',
                   selectedIds.has(lead.id) && 'bg-orange-900/10'
                 )}>
                   {canEdit && (
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-2">
                       <input type="checkbox" className="accent-orange-500 w-3.5 h-3.5 cursor-pointer"
                         aria-label={`Select ${lead.name}`}
                         checked={selectedIds.has(lead.id)}
@@ -904,39 +1004,32 @@ export function LeadsPageClient({
                         }} />
                     </td>
                   )}
-                  <td className="px-3 py-3 whitespace-nowrap">
-                    {lead.lead_number ? (
-                      <Link href={`/leads/${lead.id}`}
-                        className="inline-flex font-mono text-[11px] font-semibold px-2 py-1 rounded-md bg-slate-800 text-orange-400/90 border border-slate-700 hover:border-orange-500/50 hover:text-orange-400 transition-colors">
-                        NVL-{String(lead.lead_number).padStart(3, '0')}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-600 text-xs">—</span>
-                    )}
+                  <td className="px-3 py-2 max-w-[260px]">
+                    <Link href={`/leads/${lead.id}`} className="block font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors truncate" title={lead.name}>{lead.name}</Link>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 min-w-0">
+                      {lead.lead_number ? (
+                        <span className="font-mono text-[11px] text-orange-400/80 shrink-0">NVL-{String(lead.lead_number).padStart(3, '0')}</span>
+                      ) : null}
+                      {sub && <span className="truncate">{sub}</span>}
+                      {lead.priority && lead.priority !== 'Normal' && (
+                        <span className={cn('font-semibold shrink-0', PRIORITY_CLS[lead.priority])}>↑ {lead.priority}</span>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-3 py-3">
-                    <Link href={`/leads/${lead.id}`} className="font-semibold text-slate-100 text-sm hover:text-orange-400 transition-colors">{lead.name}</Link>
-                    <p className="text-xs text-slate-500 mt-0.5">{lead.company_name}</p>
-                    {lead.priority && lead.priority !== 'Normal' && (
-                      <span className={cn('text-xs font-semibold', PRIORITY_CLS[lead.priority])}>
-                        ↑ {lead.priority}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2">
                     <SourceBadge source={lead.source} />
                   </td>
-                  <td className="px-3 py-3 text-sm text-slate-400">
+                  <td className="px-3 py-2 text-sm text-slate-400 whitespace-nowrap">
                     {lead.city || <span className="text-slate-600">—</span>}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2">
                     <CallWindowBadge
                       timeZone={(lead as any).timezone}
                       windowStart={callWindow.start}
                       windowEnd={callWindow.end}
                     />
                   </td>
-                  <td className="px-3 py-3 max-w-[160px]">
+                  <td className="px-3 py-2 max-w-[160px] hidden 2xl:table-cell">
                     {lead.website_url
                       ? <a href={ensureHttps(lead.website_url)} target="_blank" rel="noreferrer" title={lead.website_url}
                           className="text-xs text-blue-400 hover:text-blue-300 hover:underline block truncate">
@@ -945,44 +1038,45 @@ export function LeadsPageClient({
                       : <span className="text-slate-600 text-xs">No website</span>
                     }
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2 whitespace-nowrap">
                     <StarRating rating={lead.gmb_review_rating} />
                     {lead.number_of_reviews ? (
                       <p className="text-xs text-slate-600 mt-0.5">({lead.number_of_reviews} reviews)</p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3 text-xs text-slate-500">
+                  <td className="px-3 py-2 text-xs text-slate-500 hidden 2xl:table-cell">
                     {lead.gmb_last_seen ? new Date(lead.gmb_last_seen).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—'}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2">
                     {canEdit
                       ? <StatusCell lead={lead} userId={userId} />
                       : <StatusBadge status={lead.status} />}
                   </td>
-                  <td className="px-3 py-3 text-xs text-slate-400">
+                  <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
                     {(lead as any).assigned_agent?.full_name || <span className="text-slate-600">—</span>}
                   </td>
-                  <td className="px-3 py-3 text-xs text-slate-500">
+                  <td className="px-3 py-2 text-xs text-slate-500 hidden 2xl:table-cell whitespace-nowrap">
                     {formatDate(lead.created_at)}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
                       <Link href={`/leads/${lead.id}`}
                         aria-label={`View ${lead.name}`}
-                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                        className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors">
                         <Eye size={14} aria-hidden="true" />
                       </Link>
                       {canEdit && (
                         <button onClick={() => openEdit(lead.id)} disabled={loadingEdit}
                           aria-label={`Edit ${lead.name}`}
-                          className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors disabled:opacity-50">
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500 transition-colors disabled:opacity-50 cursor-pointer">
                           <Edit2 size={14} aria-hidden="true" />
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
               {leads.length === 0 && (
                 <tr>
                   <td colSpan={13} className="px-4 py-12 text-center text-slate-500">
@@ -995,7 +1089,7 @@ export function LeadsPageClient({
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800 text-xs text-slate-500">
+        <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-3 border-t border-slate-800 text-xs text-slate-500">
           <span>Showing {totalCount === 0 ? 0 : (page - 1) * perPage + 1}–{Math.min(page * perPage, totalCount)} of {totalCount} leads</span>
           <div className="flex items-center gap-1">
             <button onClick={() => goToPage(page - 1)} disabled={page === 1}

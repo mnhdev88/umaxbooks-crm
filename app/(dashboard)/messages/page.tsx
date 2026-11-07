@@ -88,7 +88,7 @@ export default async function MessagesPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#07061A]">
+    <div className="flex flex-col h-screen bg-canvas">
       <Header title="Messages" profile={profile as Profile} />
       <MessagesClient
         userId={user.id}

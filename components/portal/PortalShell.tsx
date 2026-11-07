@@ -32,7 +32,7 @@ export function PortalShell({ profile, isAdminPreview = false, children }: Props
 
   return (
     <PortalProfileContext.Provider value={{ profile, isAdminPreview }}>
-      <div className="flex min-h-screen bg-[#07061A]">
+      <div className="flex min-h-screen bg-canvas">
         {navOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/60 lg:hidden"
@@ -43,7 +43,7 @@ export function PortalShell({ profile, isAdminPreview = false, children }: Props
         <PortalSidebar profile={profile} isAdminPreview={isAdminPreview} isOpen={navOpen} onClose={() => setNavOpen(false)} />
         <main className="flex-1 min-w-0">
           {/* Mobile top bar */}
-          <div className="lg:hidden sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-[#0E0B24] border-b border-slate-800">
+          <div className="lg:hidden sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-surface border-b border-slate-800">
             <button
               onClick={() => setNavOpen(true)}
               aria-label="Open menu"

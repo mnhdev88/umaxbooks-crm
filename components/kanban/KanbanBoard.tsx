@@ -274,15 +274,16 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
       onDragEnd={handleDragEnd}
     >
       {/* ── Search & filter toolbar ── */}
-      <div className="flex items-center gap-3 px-6 py-2.5 border-b border-slate-800 bg-[#0E0B24] shrink-0">
-        <div className="relative flex-1 max-w-sm">
+      {/* Phones: search gets its own full-width row; the dropdowns share the next */}
+      <div className="flex items-center gap-2 md:gap-3 flex-wrap px-3 md:px-6 py-2.5 border-b border-slate-800 bg-surface shrink-0">
+        <div className="relative basis-full md:basis-auto md:flex-1 md:max-w-sm">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search leads by name, company, phone…"
             aria-label="Search leads"
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-8 py-2.5 md:py-1.5 text-sm md:text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500"
           />
           {search && (
             <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
@@ -299,7 +300,7 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
             value={filterAgentId}
             onChange={e => setFilterAgentId(e.target.value)}
             aria-label="Filter by agent"
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[160px]"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 flex-1 min-w-0 max-md:py-2.5 md:flex-none md:min-w-[160px]"
           >
             <option value="">{userRole === 'sales_manager' ? 'All my agents' : 'All agents'}</option>
             {agents.map(a => (
@@ -315,7 +316,7 @@ export function KanbanBoard({ initialLeads, activityMap = {}, userRole, userId, 
           value={sortMode}
           onChange={e => setSortMode(e.target.value as SortMode)}
           aria-label="Sort leads"
-          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[170px]"
+          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 flex-1 min-w-0 max-md:py-2.5 md:flex-none md:min-w-[170px]"
         >
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>

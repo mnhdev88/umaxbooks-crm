@@ -293,7 +293,7 @@ export function ChatWindow({
   return (
     <div
       className={cn(
-        'pointer-events-auto flex flex-col overflow-hidden rounded-t-xl border border-slate-700 bg-[#0E0B24] shadow-2xl',
+        'pointer-events-auto flex flex-col overflow-hidden rounded-t-xl border border-slate-700 bg-surface shadow-2xl',
         'w-[88vw] sm:w-80',
         className
       )}
@@ -301,7 +301,7 @@ export function ChatWindow({
     >
       {/* Header */}
       <div
-        className="flex shrink-0 cursor-pointer items-center gap-2 bg-[#160E32] px-3 py-2"
+        className="flex shrink-0 cursor-pointer items-center gap-2 bg-surface-2 px-3 py-2"
         onClick={() => setMinimized((m) => !m)}
       >
         <div className="relative shrink-0">
@@ -311,7 +311,7 @@ export function ChatWindow({
           )}>
             {isGroup ? <Hash size={14} /> : (contact?.full_name ?? '?').charAt(0).toUpperCase()}
           </div>
-          {!isGroup && online && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-2 ring-[#160E32]" />}
+          {!isGroup && online && <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-2 ring-surface-2" />}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold leading-tight text-slate-100">{headerName}</p>
@@ -341,7 +341,7 @@ export function ChatWindow({
 
       {!minimized && (
         <>
-          <div className="h-80 space-y-2 overflow-y-auto bg-[#07061A] px-3 py-3">
+          <div className="h-80 space-y-2 overflow-y-auto bg-canvas px-3 py-3">
             {loading ? (
               <p className="py-6 text-center text-[11px] text-slate-500">Loading…</p>
             ) : messages.length === 0 ? (
@@ -372,7 +372,7 @@ export function ChatWindow({
           </div>
 
           {typing && (
-            <p className="bg-[#07061A] px-3 pb-1 text-[10px] italic text-slate-500" aria-live="polite">{typing}</p>
+            <p className="bg-canvas px-3 pb-1 text-[10px] italic text-slate-500" aria-live="polite">{typing}</p>
           )}
 
           <div className="flex shrink-0 items-end gap-1.5 border-t border-slate-800 p-2">

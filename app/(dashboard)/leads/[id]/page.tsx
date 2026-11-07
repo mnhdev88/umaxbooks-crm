@@ -127,6 +127,10 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       '☆'.repeat(Math.max(0, 5 - Math.floor(lead.gmb_review_rating)))
     : null
 
+  // Most GMB imports set contact name = company name; don't print it twice.
+  const norm = (v?: string | null) => (v ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const sameName = !lead.name || norm(lead.name) === norm(lead.company_name)
+
   const PRIORITY_CLS: Record<string, string> = {
     'Urgent': 'text-red-400',
     'High':   'text-amber-400',
@@ -139,14 +143,15 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     <>
       <Header title={lead.company_name} profile={profile as Profile} />
 
-      <div className="p-6 space-y-5">
+      {/* pb-28 on mobile leaves room for the fixed Call / Text / AI Call bar */}
+      <div className="p-3 sm:p-4 md:p-6 pb-28 md:pb-6 space-y-4 md:space-y-5">
 
         {/* ── Top identity bar ───────────────────────────────── */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 md:p-5">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1 flex-wrap">
-                <h2 className="text-xl font-bold text-slate-100">{lead.company_name}</h2>
+              <div className="flex items-center gap-x-3 gap-y-2 mb-1 flex-wrap">
+                <h2 className="text-lg md:text-xl font-bold text-slate-100 break-words min-w-0">{lead.company_name}</h2>
                 <span className="inline-flex items-center gap-1">
                   {prevLead ? (
                     <Link href={`/leads/${prevLead.id}`} title={prevLead.lead_number != null ? `Previous lead (NVL-${String(prevLead.lead_number).padStart(3, '0')})` : 'Previous lead'}
@@ -186,12 +191,13 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                   </span>
                 )}
               </div>
-              <p className="text-slate-400 text-sm mb-3">{lead.name}</p>
+              {/* Contact name only when it adds something (often identical to the company) */}
+              {sameName ? <div className="mb-2" /> : <p className="text-slate-400 text-sm mb-3">{lead.name}</p>}
 
-              {/* Quick links row */}
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+              {/* Quick links row — whitespace-nowrap keeps numbers/emails from wrapping per digit */}
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm [&>*]:whitespace-nowrap [&>*]:max-w-full">
                 {lead.phone && (
-                  <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200">
+                  <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 text-slate-300 hover:text-slate-100">
                     <Phone size={12} className="text-orange-400" /> {lead.phone}
                   </a>
                 )}
@@ -232,20 +238,28 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               </div>
             </div>
 
-            <div className="text-right text-xs text-slate-500 flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2">
+            <div className="text-xs text-slate-500 flex flex-col md:items-end gap-1 md:text-right">
+              {/* Actions: inline on laptop; on phones a bar fixed to the bottom of the
+                  screen (thumb reach). Solid bg, no backdrop-blur — a backdrop-filter
+                  would become the containing block for the buttons' fixed modals. */}
+              <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 gap-2 border-t border-slate-800 bg-surface px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]
+                              [&>button]:justify-center [&>button]:min-h-11 [&>button]:text-sm
+                              md:static md:z-auto md:flex md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0
+                              md:[&>button]:min-h-0 md:[&>button]:text-xs">
                 <DialButton leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
                 <SmsButton leadId={lead.id} phone={lead.phone} altPhones={lead.alt_phones} name={lead.name} />
                 <AICallButton leadId={lead.id} phone={lead.phone} name={lead.name} />
               </div>
-              {lead.source && (
-                <p>Source: <span className="text-slate-300">{lead.source}</span></p>
-              )}
-              {lead.assigned_agent && (
-                <p>Agent: <span className="text-slate-300">{(lead.assigned_agent as any).full_name}</span></p>
-              )}
-              <p>Created: {formatDate(lead.created_at)}</p>
-              <p>Updated: {formatDate(lead.updated_at)}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 md:flex-col md:items-end md:gap-1">
+                {lead.source && (
+                  <p>Source: <span className="text-slate-300">{lead.source}</span></p>
+                )}
+                {lead.assigned_agent && (
+                  <p>Agent: <span className="text-slate-300">{(lead.assigned_agent as any).full_name}</span></p>
+                )}
+                <p>Created: {formatDate(lead.created_at)}</p>
+                <p>Updated: {formatDate(lead.updated_at)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -255,7 +269,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
           {/* Contact */}
           <Section title="Contact Information">
-            <InfoRow icon={Users}   label="Contact Name"   value={lead.name} />
+            <InfoRow icon={Users}   label="Contact Name"   value={sameName ? null : lead.name} />
             <InfoRow icon={Phone}   label="Phone"          value={lead.phone}  href={lead.phone ? `tel:${lead.phone}` : undefined} />
             {((lead.alt_phones || []) as LeadAltContact[]).filter(p => p?.value).map((p, i) => (
               <InfoRow key={`ap-${i}`} icon={Phone} label={`Phone (${p.label || 'Other'})`} value={p.value} href={`tel:${p.value}`} iconCls="text-slate-500" />
@@ -300,7 +314,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           {/* GMB Stats */}
           {(lead.gmb_url || lead.gmb_review_rating || lead.number_of_reviews || lead.gmb_category || lead.gmb_last_seen || lead.competitor_count) && (
             <Section title="GMB & Competitive Data">
-              <InfoRow icon={MapPin} label="GMB Profile URL" value={lead.gmb_url || null} href={lead.gmb_url || undefined} iconCls="text-green-400" />
+              {/* GMB URL already shown under Online Presence */}
               {lead.gmb_review_rating && (
                 <div className="flex items-center gap-2 text-xs min-w-0">
                   <Star size={11} className="text-yellow-400 flex-shrink-0" />

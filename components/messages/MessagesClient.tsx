@@ -43,7 +43,7 @@ function Avatar({ name, size = 36, online, group }: { name: string; size?: numbe
       </div>
       {online && (
         <span
-          className="absolute bottom-0 right-0 rounded-full bg-green-500 ring-2 ring-[#0E0B24]"
+          className="absolute bottom-0 right-0 rounded-full bg-green-500 ring-2 ring-surface"
           style={{ width: size * 0.3, height: size * 0.3 }}
           aria-label="Online"
         />
@@ -470,7 +470,7 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
 
       {/* ── Conversation list ─────────────────────────────────────────────── */}
       <aside className={cn(
-        'flex w-full flex-col border-r border-slate-800 bg-[#0E0B24] md:w-80 md:shrink-0',
+        'flex w-full flex-col border-r border-slate-800 bg-surface md:w-80 md:shrink-0',
         activeId ? 'hidden md:flex' : 'flex'
       )}>
         <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
@@ -530,7 +530,7 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
       </aside>
 
       {/* ── Active thread ─────────────────────────────────────────────────── */}
-      <section className={cn('min-w-0 flex-1 flex-col bg-[#07061A]', activeId ? 'flex' : 'hidden md:flex')}>
+      <section className={cn('min-w-0 flex-1 flex-col bg-canvas', activeId ? 'flex' : 'hidden md:flex')}>
         {!activeConv ? (
           <div className="flex flex-1 flex-col items-center justify-center text-slate-500">
             <MessageSquare size={40} className="mb-3 opacity-40" />
@@ -538,7 +538,7 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
           </div>
         ) : (
           <>
-            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-800 bg-[#160E32]/60 px-4">
+            <div className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-800 bg-surface-2/60 px-4">
               <button
                 onClick={() => setActiveId(null)}
                 aria-label="Back to conversations"
@@ -628,7 +628,7 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
                   <p className="px-4 pb-1 text-[11px] italic text-slate-500" aria-live="polite">{typing}</p>
                 )}
 
-                <div className="shrink-0 border-t border-slate-800 bg-[#0E0B24] p-3">
+                <div className="shrink-0 border-t border-slate-800 bg-surface p-3">
                   <div className="flex items-end gap-2">
                     <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
                     <EmojiPicker
@@ -706,7 +706,7 @@ export function MessagesClient({ userId, myName, myRole, contacts, managers, ini
       {/* ── New-chat picker ───────────────────────────────────────────────── */}
       {pickerOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 pt-24" onClick={() => setPickerOpen(false)}>
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-[#0E0B24] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-surface shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
               <span className="text-sm font-semibold text-slate-100">New message</span>
               <button onClick={() => setPickerOpen(false)} aria-label="Close" className="rounded p-1 text-slate-500 hover:text-white">

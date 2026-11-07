@@ -645,7 +645,7 @@ function CallWidget({
     <div
       role="dialog"
       aria-label="Active call"
-      className="fixed bottom-5 right-5 z-[100] w-72 rounded-2xl border border-slate-700 bg-[#0E0B24] p-4 shadow-2xl shadow-black/40"
+      className="fixed bottom-5 right-5 z-[100] w-72 rounded-2xl border border-slate-700 bg-surface p-4 shadow-2xl shadow-black/40"
     >
       <div className="flex items-center gap-3">
         <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/15 text-orange-300">
@@ -803,7 +803,7 @@ function IncomingCallWidget({
         role="dialog"
         aria-modal="true"
         aria-label="Incoming call"
-        className="w-full max-w-sm rounded-3xl border border-emerald-500/40 bg-[#0E0B24] p-8 text-center shadow-2xl shadow-black/60"
+        className="w-full max-w-sm rounded-3xl border border-emerald-500/40 bg-surface p-8 text-center shadow-2xl shadow-black/60"
       >
         <span className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
           <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
@@ -843,7 +843,7 @@ function IncomingCallWidget({
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm
                        font-semibold text-white transition-colors hover:bg-emerald-500
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2
-                       focus-visible:ring-offset-[#0E0B24]"
+                       focus-visible:ring-offset-surface"
           >
             <Phone size={17} /> Answer
           </button>
@@ -911,7 +911,7 @@ function SecondCallCard({
     <div
       role="dialog"
       aria-label="Another incoming call"
-      className="fixed right-5 top-5 z-[110] w-72 rounded-2xl border border-emerald-500/40 bg-[#0E0B24] p-4 shadow-2xl shadow-black/50"
+      className="fixed right-5 top-5 z-[110] w-72 rounded-2xl border border-emerald-500/40 bg-surface p-4 shadow-2xl shadow-black/50"
     >
       <div className="flex items-center gap-2.5">
         <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
@@ -994,7 +994,7 @@ function DispositionForm({
     <div
       role="dialog"
       aria-label="Call outcome"
-      className="fixed bottom-5 right-5 z-[100] w-80 rounded-2xl border border-slate-700 bg-[#0E0B24] p-4 shadow-2xl shadow-black/40"
+      className="fixed bottom-5 right-5 z-[100] w-80 rounded-2xl border border-slate-700 bg-surface p-4 shadow-2xl shadow-black/40"
     >
       <p className="text-sm font-semibold text-slate-100">Log call outcome</p>
       <p className="truncate text-xs text-slate-400">{name || 'Lead'}</p>

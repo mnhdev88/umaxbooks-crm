@@ -527,7 +527,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
             // which forced a horizontal scrollbar and pushed the fixed-height
             // container out of view, leaving blank space below the page.
             <table className="w-full table-fixed text-sm border-collapse">
-              <thead className="sticky top-0 z-10 bg-[#0E0B24] border-b border-slate-800">
+              <thead className="sticky top-0 z-10 bg-surface border-b border-slate-800">
                 <tr className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th scope="col" className="px-4 py-3 w-[200px]">Lead</th>
                   <th scope="col" className="px-4 py-3 w-[180px]">Subject</th>
@@ -661,7 +661,7 @@ export function EmailStatusClient({ initialSends, initialTrackingMap, userId }: 
         {selectedEmail && (
           // Caps at 480px but is allowed to shrink to 40% on narrower screens; a fixed
           // shrink-0 480px pushed the table past the viewport on laptop widths.
-          <div className="w-[480px] max-w-[40%] shrink border-l border-slate-800 flex flex-col bg-[#0A0820] overflow-hidden">
+          <div className="w-[480px] max-w-[40%] shrink border-l border-slate-800 flex flex-col bg-canvas overflow-hidden">
 
             {/* Drawer header: lead info + close */}
             <div className="flex items-start justify-between px-4 py-3 border-b border-slate-800 shrink-0 gap-3">
