@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Trash2, Star, Wifi, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
 
-type ProviderType = 'gmail' | 'aws_ses' | 'resend' | 'sendgrid' | 'custom'
+type ProviderType = 'google_workspace' | 'gmail' | 'aws_ses' | 'resend' | 'sendgrid' | 'custom'
 
 interface EmailProvider {
   id: string
@@ -22,6 +22,7 @@ interface EmailProvider {
 }
 
 const PROVIDER_PRESETS: Record<ProviderType, { label: string; host: string; port: number; secure: boolean }> = {
+  google_workspace: { label: "Agent's Gmail (Workspace)", host: '',            port: 0,   secure: false },
   gmail:     { label: 'Gmail',        host: 'smtp.gmail.com',                         port: 587, secure: false },
   aws_ses:   { label: 'AWS SES',      host: 'email-smtp.us-east-1.amazonaws.com',     port: 587, secure: false },
   resend:    { label: 'Resend API',   host: '',                                        port: 0,   secure: false },
@@ -30,6 +31,7 @@ const PROVIDER_PRESETS: Record<ProviderType, { label: string; host: string; port
 }
 
 const PROVIDER_HINTS: Partial<Record<ProviderType, string>> = {
+  google_workspace: "Each agent's email goes out from their own Google Workspace mailbox, shows in their Gmail Sent folder and threads with lead replies. Needs the service-account setup in docs/GMAIL_WORKSPACE_SETUP.md. Can't be the default: bulk and automated mail keep using the default provider (Resend). Test sends from your own mailbox.",
   gmail:     'Requires a 16-digit App Password — not your regular password. Enable 2FA → Google Account → Security → App Passwords.',
   aws_ses:   'Use SMTP credentials from AWS SES console (not IAM access keys). Adjust region in the host if needed.',
   resend:    'Enter your Resend API key (starts with re_). Get one free at resend.com — 3,000 emails/month.',
@@ -91,6 +93,7 @@ export function EmailProviders() {
   }
 
   function isValid() {
+    if (form.provider === 'google_workspace') return !!form.name
     if (!form.name || !form.from_email) return false
     if (form.provider === 'resend') return !!form.api_key
     return !!(form.host && form.username && form.password)
@@ -119,9 +122,13 @@ export function EmailProviders() {
 
   async function save() {
     setSaving(true)
-    const payload = form.provider === 'resend'
-      ? { ...form, host: null, port: null, secure: false, username: null, password: null }
-      : { ...form, api_key: null }
+    const payload = form.provider === 'google_workspace'
+      // Sends as the agent — no credentials here, and never the default (bulk mail
+      // and automated sends go through the default provider, which must be Resend/SMTP)
+      ? { ...form, host: null, port: null, secure: false, username: null, password: null, api_key: null, from_email: '', is_default: false }
+      : form.provider === 'resend'
+        ? { ...form, host: null, port: null, secure: false, username: null, password: null }
+        : { ...form, api_key: null }
 
     if (editId) {
       const { error } = await supabase.from('email_providers').update(payload).eq('id', editId)
@@ -205,7 +212,7 @@ export function EmailProviders() {
             </div>
           </div>
 
-          {form.provider !== 'resend' && (
+          {form.provider !== 'resend' && form.provider !== 'google_workspace' && (
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
                 <label className="text-xs text-slate-400 mb-1.5 block">SMTP Host</label>
@@ -228,7 +235,7 @@ export function EmailProviders() {
             </div>
           )}
 
-          {form.provider === 'resend' ? (
+          {form.provider === 'google_workspace' ? null : form.provider === 'resend' ? (
             <div>
               <label className="text-xs text-slate-400 mb-1.5 block">API Key</label>
               <input
@@ -267,7 +274,7 @@ export function EmailProviders() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {form.provider !== 'google_workspace' && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-slate-400 mb-1.5 block">From Email</label>
               <input
@@ -286,7 +293,7 @@ export function EmailProviders() {
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
               />
             </div>
-          </div>
+          </div>}
 
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Send Test Email To</label>
@@ -316,7 +323,7 @@ export function EmailProviders() {
           )}
 
           <div className="flex items-center justify-between pt-1 gap-3 flex-wrap">
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+            {form.provider === 'google_workspace' ? <span /> : <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={form.is_default}
@@ -324,7 +331,7 @@ export function EmailProviders() {
                 className="accent-orange-500 w-4 h-4"
               />
               Set as default provider
-            </label>
+            </label>}
             <div className="flex items-center gap-2">
               <button
                 onClick={testForm}
@@ -369,7 +376,7 @@ export function EmailProviders() {
                     )}
                   </div>
                   <span className="text-slate-400 text-xs">
-                    {PROVIDER_PRESETS[p.provider].label} · {p.from_email}
+                    {PROVIDER_PRESETS[p.provider]?.label ?? p.provider} · {p.provider === 'google_workspace' ? "sends from each agent's own mailbox" : p.from_email}
                   </span>
                 </div>
               </div>
@@ -390,7 +397,7 @@ export function EmailProviders() {
                   <Wifi className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{testing === p.id ? '…' : 'Test'}</span>
                 </button>
-                {!p.is_default && (
+                {!p.is_default && p.provider !== 'google_workspace' && (
                   <button
                     onClick={() => setDefault(p.id)}
                     title="Set as default"

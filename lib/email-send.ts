@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
+import { buildRawMessage, getMessage, header, normalizeSubject, sendRawMessage } from '@/lib/google/gmail'
+import { isWorkspaceEmail } from '@/lib/google/workspace'
 
 // ---- HTML helpers (tracking pixel, click rewriting, unsubscribe footer) ----
 
@@ -46,6 +48,24 @@ function injectUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * Latest Gmail thread between this agent and lead with the same subject (ignoring
+ * Re:/Fwd:), so a CRM send continues the conversation instead of starting a new one.
+ */
+async function findThreadToContinue(service: any, lead_id: string, agentId: string, subject: string) {
+  const { data } = await service
+    .from('email_sends')
+    .select('subject, gmail_thread_id, rfc822_message_id')
+    .eq('lead_id', lead_id)
+    .eq('mailbox_user_id', agentId)
+    .not('gmail_thread_id', 'is', null)
+    .order('sent_at', { ascending: false, nullsFirst: false })
+    .limit(20)
+  const wanted = normalizeSubject(subject)
+  return ((data || []) as { subject: string; gmail_thread_id: string; rfc822_message_id: string | null }[])
+    .find(r => normalizeSubject(r.subject) === wanted) || null
+}
 
 export interface SendLeadEmailParams {
   service: any                          // Supabase service-role client
@@ -148,9 +168,41 @@ export async function sendLeadEmail(params: SendLeadEmailParams): Promise<SendLe
 
   let sgMessageId: string | null = null
   let resendMessageId: string | null = null
+  let gmailFields: Record<string, string | null> = {}
 
   try {
-    if (provider.provider === 'resend') {
+    if (provider.provider === 'google_workspace') {
+      // Send as the agent from their own Workspace mailbox → lands in their Gmail
+      // "Sent" folder and threads with earlier mail to/from this lead.
+      const mailbox = agentProfile?.email?.toLowerCase()
+      if (!sent_by || !mailbox) throw new Error("Sending through Gmail needs the signed-in agent's mailbox")
+      if (!isWorkspaceEmail(mailbox)) {
+        throw new Error(`${mailbox} is not a Google Workspace mailbox on this domain — pick another email provider`)
+      }
+
+      const thread = await findThreadToContinue(service, lead_id, sent_by, subject)
+      const raw = await buildRawMessage({
+        from, to: to_email, cc: ccEmails, bcc: bccEmails,
+        subject, html: finalHtml || '',
+        attachments: attachmentData,
+        inReplyTo: thread?.rfc822_message_id,
+        references: thread?.rfc822_message_id,
+      })
+      const sent = await sendRawMessage(mailbox, raw, thread?.gmail_thread_id)
+
+      // The Message-ID header is what de-duplicates this row against the Gmail sync
+      let rfc822: string | null = null
+      try {
+        rfc822 = header(await getMessage(mailbox, sent.id, 'metadata', ['Message-ID']), 'Message-ID') || null
+      } catch { /* sync still skips it by gmail_message_id */ }
+
+      gmailFields = {
+        gmail_message_id: sent.id,
+        gmail_thread_id: sent.threadId,
+        rfc822_message_id: rfc822,
+        mailbox_user_id: sent_by,
+      }
+    } else if (provider.provider === 'resend') {
       const resend = new Resend(provider.api_key)
       const { data, error } = await resend.emails.send({
         from,
@@ -226,6 +278,9 @@ export async function sendLeadEmail(params: SendLeadEmailParams): Promise<SendLe
       tracking_token: trackingToken,
       sendgrid_message_id: sgMessageId,
       resend_message_id: resendMessageId,
+      direction: 'outbound',
+      source: 'crm',
+      ...gmailFields,
     }
     if (existingSendId) {
       await service.from('email_sends').update(sentRow).eq('id', existingSendId)

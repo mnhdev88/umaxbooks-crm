@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/resolve-email-geo",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/gmail-sync",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

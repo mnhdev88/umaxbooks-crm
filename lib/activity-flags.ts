@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type ActivityMap = Record<string, { emailSent: boolean; callLogged: boolean }>
 
-const EMAIL_ACTIONS = ['Email Sent to Client', 'Auto Follow-up Email Sent'] as const
+const EMAIL_ACTIONS = ['Email Sent to Client', 'Auto Follow-up Email Sent', 'Email Sent from Gmail'] as const
 const CALL_ACTION = 'Call Logged'
 const TRACKED_ACTIONS = [...EMAIL_ACTIONS, CALL_ACTION]
 

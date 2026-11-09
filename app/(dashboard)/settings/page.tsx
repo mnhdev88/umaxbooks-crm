@@ -8,6 +8,7 @@ import { UserManagement } from '@/components/settings/UserManagement'
 import { EmailProviders } from '@/components/settings/EmailProviders'
 import { EmailTemplates } from '@/components/settings/EmailTemplates'
 import { AutomatedEmailSetting } from '@/components/settings/AutomatedEmailSetting'
+import { GmailSyncSetting } from '@/components/settings/GmailSyncSetting'
 import { CallTargetSetting } from '@/components/settings/CallTargetSetting'
 import { CallWindowSetting } from '@/components/settings/CallWindowSetting'
 import { BusinessHoursSetting } from '@/components/settings/BusinessHoursSetting'
@@ -97,6 +98,7 @@ export default async function SettingsPage({
         <>
           <AutomatedEmailSetting />
           <EmailProviders />
+          <GmailSyncSetting />
           <EmailTemplates />
         </>
       ),

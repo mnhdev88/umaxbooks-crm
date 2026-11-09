@@ -122,8 +122,11 @@ export function ComposeModal({
     ])
     setProviders(data || [])
     if (!initialDraft?.provider_id) {
-      const def = (data || []).find((p: any) => p.is_default)
-      if (def) setProviderId(def.id)
+      // Prefer sending from the agent's own Gmail (Workspace) so the mail shows in their
+      // Sent folder and threads with replies; else the default provider.
+      const pick = (data || []).find((p: any) => p.provider === 'google_workspace')
+        || (data || []).find((p: any) => p.is_default)
+      if (pick) setProviderId(pick.id)
     }
     if (profile) {
       setAgentName(profile.full_name || '')
@@ -406,7 +409,7 @@ export function ComposeModal({
                   <option value="">— Select email provider —</option>
                   {providers.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.provider === 'gmail' ? p.username : p.from_email})
+                      {p.name} ({p.provider === 'google_workspace' ? (agentEmail || 'your Gmail') : p.provider === 'gmail' ? p.username : p.from_email})
                     </option>
                   ))}
                 </select>

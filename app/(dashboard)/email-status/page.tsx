@@ -48,12 +48,14 @@ export default async function EmailStatusPage() {
       .from('email_sends')
       .select(SELECT_COLS)
       .neq('status', 'scheduled')
+      .eq('direction', 'outbound')  // lead replies synced from Gmail live on the lead, not here
       .eq('sent_by', user.id)
 
     let leadScopedQuery = supabase
       .from('email_sends')
       .select(SELECT_COLS.replace('lead:leads(', 'lead:leads!inner('))
       .neq('status', 'scheduled')
+      .eq('direction', 'outbound')  // lead replies synced from Gmail live on the lead, not here
 
     // A sales_agent's leads RLS lets them see leads beyond their own assignment
     // (e.g. unassigned), so pin the lead half to leads actually assigned to them.
@@ -82,6 +84,7 @@ export default async function EmailStatusPage() {
       .from('email_sends')
       .select(SELECT_COLS)
       .neq('status', 'scheduled')
+      .eq('direction', 'outbound')  // lead replies synced from Gmail live on the lead, not here
       .order('created_at', { ascending: false })
     sends = ((res.data as any[]) || []).sort((a, b) =>
       String(b.sent_at || b.created_at || '').localeCompare(String(a.sent_at || a.created_at || '')))

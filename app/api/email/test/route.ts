@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
+import { buildRawMessage, sendRawMessage } from '@/lib/google/gmail'
+import { isWorkspaceEmail, workspaceConfigError } from '@/lib/google/workspace'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -22,7 +24,26 @@ export async function POST(req: NextRequest) {
     : `${from_name || 'Noveliotech CRM'} <${from_email}>`
 
   try {
-    if (provider === 'resend') {
+    if (provider === 'google_workspace') {
+      // Proves the service account can impersonate a mailbox: sends from the admin's own
+      const configError = workspaceConfigError()
+      if (configError) throw new Error(configError)
+      const mailbox = user.email!.toLowerCase()
+      if (!isWorkspaceEmail(mailbox)) {
+        throw new Error(`Your login (${mailbox}) is not on the Workspace domain, so it can't be used for the test`)
+      }
+      const raw = await buildRawMessage({
+        from: mailbox,
+        to,
+        subject: 'Noveliotech CRM — Gmail (Workspace) Test',
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+          <h2 style="color:#f97316;">Email Test Successful</h2>
+          <p>The CRM can send as <strong>${mailbox}</strong> through Google Workspace.</p>
+          <p style="color:#94a3b8;font-size:13px;">Sent via Noveliotech CRM Settings</p>
+        </div>`,
+      })
+      await sendRawMessage(mailbox, raw)
+    } else if (provider === 'resend') {
       const resend = new Resend(api_key)
       const { error } = await resend.emails.send({
         from: effectiveFrom,

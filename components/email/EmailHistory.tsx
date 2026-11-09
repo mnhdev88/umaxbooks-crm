@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Mail, Clock, CheckCircle, XCircle, Paperclip, Send,
   ChevronDown, ChevronUp, Loader2, FileEdit, Trash2,
-  MailOpen, MailCheck,
+  MailOpen, MailCheck, Reply,
 } from 'lucide-react'
 
 interface EmailSend {
@@ -15,8 +15,10 @@ interface EmailSend {
   bcc: string | null
   subject: string
   html_body: string | null
-  attachments: { name: string; url: string }[]
-  status: 'sent' | 'scheduled' | 'failed'
+  attachments: { name: string; url?: string }[]
+  status: 'sent' | 'scheduled' | 'failed' | 'received' | 'delivered' | 'bounced' | 'spam' | 'deferred' | 'unsubscribed'
+  direction?: 'outbound' | 'inbound'
+  source?: 'crm' | 'gmail'
   scheduled_at: string | null
   sent_at: string | null
   error: string | null
@@ -172,11 +174,12 @@ export function EmailHistory({ leadId, refreshKey, onOpenDraft }: Props) {
       {/* Sent emails section */}
       {sends.length > 0 && (
         <div>
-          {draft && <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Sent</p>}
+          {draft && <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Emails</p>}
           <div className="space-y-2">
             {sends.map(s => {
               const tracking = s.tracking_token ? trackingMap[s.tracking_token] : null
               const opened = !!tracking?.first_opened_at
+              const inbound = s.direction === 'inbound'
 
               return (
                 <div key={s.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
@@ -184,9 +187,11 @@ export function EmailHistory({ leadId, refreshKey, onOpenDraft }: Props) {
                     className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors"
                     onClick={() => setExpanded(expanded === s.id ? null : s.id)}
                   >
-                    {/* Sent/scheduled/failed icon */}
-                    <div className={`mt-0.5 shrink-0 ${s.status === 'sent' ? 'text-green-400' : s.status === 'scheduled' ? 'text-blue-400' : 'text-red-400'}`}>
-                      {s.status === 'sent'
+                    {/* Reply / sent / scheduled / failed icon */}
+                    <div className={`mt-0.5 shrink-0 ${inbound ? 'text-sky-400' : s.status === 'scheduled' ? 'text-blue-400' : ['failed', 'bounced', 'spam'].includes(s.status) ? 'text-red-400' : 'text-green-400'}`}>
+                      {inbound
+                        ? <Reply className="w-4 h-4" />
+                        : !['failed', 'bounced', 'spam', 'scheduled'].includes(s.status)
                         ? <CheckCircle className="w-4 h-4" />
                         : s.status === 'scheduled'
                           ? <Clock className="w-4 h-4" />
@@ -203,14 +208,24 @@ export function EmailHistory({ leadId, refreshKey, onOpenDraft }: Props) {
                         </span>
                       </div>
 
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        {inbound ? (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-300 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded">Reply from lead</span>
+                        ) : s.status !== 'scheduled' && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+                            {s.source === 'gmail' ? 'via Gmail' : 'via CRM'}
+                          </span>
+                        )}
+                      </div>
+
                       <p className="text-xs text-slate-400 mt-0.5">
-                        To: {s.to_email}
+                        {inbound ? `From: ${s.from_email}` : `To: ${s.to_email}`}
                         {s.cc ? ` · CC: ${s.cc}` : ''}
-                        {s.sender ? ` · Sent by ${s.sender.full_name}` : ''}
+                        {!inbound && s.sender ? ` · Sent by ${s.sender.full_name}` : ''}
                       </p>
 
                       {/* Open tracking badge */}
-                      {s.status === 'sent' && s.tracking_token && (
+                      {!inbound && s.status === 'sent' && s.tracking_token && (
                         <div className="mt-1.5 flex items-center gap-1.5">
                           {opened ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-400 bg-green-900/30 border border-green-800/40 px-2 py-0.5 rounded-full">
