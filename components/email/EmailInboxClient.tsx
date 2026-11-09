@@ -1,16 +1,27 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Inbox, ChevronLeft, ExternalLink, RefreshCw, Reply, Search, Loader2 } from 'lucide-react'
+import { Inbox, ChevronLeft, ExternalLink, RefreshCw, Reply, Search, Loader2, Plus } from 'lucide-react'
 import { cn, timeAgo } from '@/lib/utils'
 import { usePoll } from '@/lib/use-poll'
 import type { EmailConversationSummary } from '@/lib/email-conversations'
 import { EmailThreadView } from './EmailThreadView'
 import { ComposeModal } from './ComposeModal'
 import { EMAIL_UNREAD_EVENT } from '@/lib/email-events'
+import { NewEmailDialog, type RecipientLead } from './NewEmailDialog'
 
 type Filter = 'all' | 'unread' | 'needs_reply'
+
+/** What the compose window is open for — a reply in a thread, or a new email. */
+interface ComposeTarget {
+  leadId: string
+  toEmail: string
+  altEmails: { value: string; label?: string }[] | null
+  name: string
+  company: string
+  subject: string
+}
 
 /**
  * Emails inbox: every lead email conversation (CRM sends, mail synced from Gmail and lead
@@ -34,7 +45,17 @@ export function EmailInboxClient({
   const [agentId, setAgentId] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
-  const [replyOpen, setReplyOpen] = useState(false)
+  const [compose, setCompose] = useState<ComposeTarget | null>(null)
+  const [newEmailOpen, setNewEmailOpen] = useState(false)
+  // Floating "New email" button: shrinks to a + while the list scrolls, grows back once it settles
+  const [scrolling, setScrolling] = useState(false)
+  const scrollIdle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onListScroll = useCallback(() => {
+    setScrolling(true)
+    if (scrollIdle.current) clearTimeout(scrollIdle.current)
+    scrollIdle.current = setTimeout(() => setScrolling(false), 450)
+  }, [])
+  useEffect(() => () => { if (scrollIdle.current) clearTimeout(scrollIdle.current) }, [])
   const [threadKey, setThreadKey] = useState(0)
 
   const refresh = useCallback(async () => {
@@ -112,7 +133,7 @@ export function EmailInboxClient({
         style={{ height: 'calc(100vh - 140px)' }}
       >
         {/* List pane */}
-        <div className={cn('flex min-h-0 flex-col border-slate-800 md:border-r', showThread ? 'hidden md:flex' : 'flex')}>
+        <div className={cn('relative flex min-h-0 flex-col border-slate-800 md:border-r', showThread ? 'hidden md:flex' : 'flex')}>
           <div className="space-y-2.5 border-b border-slate-800 px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-100">
@@ -122,6 +143,7 @@ export function EmailInboxClient({
                   {visible.length}
                 </span>
               </p>
+              <div className="flex items-center gap-1.5">
               <button
                 onClick={syncNow}
                 disabled={syncing}
@@ -129,8 +151,9 @@ export function EmailInboxClient({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
               >
                 {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Sync now
+                <span className="hidden sm:inline">Sync now</span>
               </button>
+              </div>
             </div>
             {syncMsg && <p className="text-[11px] text-slate-400">{syncMsg}</p>}
 
@@ -172,7 +195,7 @@ export function EmailInboxClient({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-20" onScroll={onListScroll}>
             {visible.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-xs text-slate-500">
                 <Inbox size={26} className="text-slate-700" />
@@ -223,6 +246,30 @@ export function EmailInboxClient({
               })
             )}
           </div>
+
+          {/* Floating "New email": a full pill at rest, a compact + while the list scrolls */}
+          <button
+            onClick={() => setNewEmailOpen(true)}
+            aria-label="New email"
+            title="New email"
+            className={cn(
+              'absolute bottom-4 right-4 z-10 flex h-12 items-center justify-center rounded-full bg-orange-500 text-white',
+              'shadow-lg shadow-orange-950/40 ring-1 ring-white/10 hover:bg-orange-600 active:scale-95',
+              'transition-[width,transform,background-color] duration-200 ease-out motion-reduce:transition-none',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300',
+              scrolling ? 'w-12 scale-90' : 'w-[9.5rem] scale-100',
+            )}
+          >
+            <Plus size={20} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
+            <span
+              className={cn(
+                'overflow-hidden whitespace-nowrap text-sm font-semibold transition-[max-width,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
+                scrolling ? 'ml-0 max-w-0 opacity-0' : 'ml-1.5 max-w-[6.5rem] opacity-100',
+              )}
+            >
+              New email
+            </span>
+          </button>
         </div>
 
         {/* Thread pane */}
@@ -244,7 +291,14 @@ export function EmailInboxClient({
                   </p>
                 </div>
                 <button
-                  onClick={() => setReplyOpen(true)}
+                  onClick={() => selected && setCompose({
+                    leadId: selected.leadId,
+                    toEmail: selected.email || selected.altEmails?.[0]?.value || '',
+                    altEmails: selected.altEmails,
+                    name: selected.name || '',
+                    company: selected.company || '',
+                    subject: replySubject,
+                  })}
                   disabled={!selected.email && !selected.altEmails?.length}
                   className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-orange-600 disabled:opacity-40"
                 >
@@ -268,18 +322,42 @@ export function EmailInboxClient({
         </div>
       </div>
 
-      {replyOpen && selected && (
+      {newEmailOpen && (
+        <NewEmailDialog
+          onClose={() => setNewEmailOpen(false)}
+          onReady={(lead: RecipientLead, toEmail: string) => {
+            setNewEmailOpen(false)
+            setCompose({
+              leadId: lead.id,
+              toEmail,
+              altEmails: lead.alt_emails,
+              name: lead.name || '',
+              company: lead.company_name || '',
+              subject: '',
+            })
+          }}
+        />
+      )}
+
+      {compose && (
         <ComposeModal
-          leadId={selected.leadId}
-          leadEmail={selected.email || selected.altEmails?.[0]?.value || ''}
-          altEmails={selected.altEmails}
-          leadName={selected.name || ''}
-          businessName={selected.company || ''}
+          leadId={compose.leadId}
+          leadEmail={compose.toEmail}
+          altEmails={compose.altEmails}
+          leadName={compose.name}
+          businessName={compose.company}
           userId={userId}
-          initialSubject={replySubject}
+          initialSubject={compose.subject}
           initialBody="<p><br></p>"
-          onClose={() => setReplyOpen(false)}
-          onSent={() => { setThreadKey(k => k + 1); refresh() }}
+          onClose={() => setCompose(null)}
+          onSent={async () => {
+            const sentTo = compose.leadId
+            setThreadKey(k => k + 1)
+            await refresh()
+            // Show the conversation that was just written to
+            setSelectedId(sentTo)
+            setShowThread(true)
+          }}
         />
       )}
     </div>
