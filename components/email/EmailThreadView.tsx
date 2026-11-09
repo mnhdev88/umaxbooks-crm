@@ -33,7 +33,7 @@ function displayName(addr: string | null) {
 const stripPixel = (html: string) => html.replace(/<img[^>]+\/api\/track\/open\/[^"'>]+[^>]*>/gi, '')
 
 /**
- * Full email conversation with one lead, oldest → newest. The newest message and any
+ * Full email conversation with one lead, newest → oldest. The newest message and any
  * lead replies start expanded; bodies render in a sandboxed iframe (no scripts).
  */
 export function EmailThreadView({ leadId, reloadKey }: { leadId: string; reloadKey: number }) {
@@ -47,12 +47,13 @@ export function EmailThreadView({ leadId, reloadKey }: { leadId: string; reloadK
       const res = await fetch(`/api/email/thread?lead_id=${leadId}`)
       const json = await res.json()
       if (!res.ok) { setError(json.error || 'Failed to load'); return }
-      const list = (json.emails || []) as ThreadEmail[]
+      // API returns oldest first; show newest on top.
+      const list = ((json.emails || []) as ThreadEmail[]).slice().reverse()
       setEmails(list)
       setOpens(json.opens || {})
       setError(null)
-      const last = list[list.length - 1]
-      setExpanded(new Set([...(last ? [last.id] : []), ...list.slice(-3).filter(e => e.direction === 'inbound').map(e => e.id)]))
+      const newest = list[0]
+      setExpanded(new Set([...(newest ? [newest.id] : []), ...list.slice(0, 3).filter(e => e.direction === 'inbound').map(e => e.id)]))
     } catch {
       setError('Failed to load')
     }
