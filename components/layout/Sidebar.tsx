@@ -7,11 +7,12 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, Monitor, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, Monitor, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature, Inbox,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
 import { usePoll } from '@/lib/use-poll'
+import { EMAIL_UNREAD_EVENT } from '@/lib/email-events'
 import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
@@ -33,6 +34,7 @@ const agentSections: NavSection[] = [
     { href: '/calendar',       label: 'Calendar',           icon: CalendarDays },
     { href: '/ai-calls',       label: 'Calls',              icon: PhoneCall },
     { href: '/sms',            label: 'SMS',                icon: MessageCircle },
+    { href: '/emails',         label: 'Emails',             icon: Inbox },
     { href: '/audits',         label: 'Audits & Follow-up', icon: Activity },
     { href: '/messages',       label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',  label: 'Notifications',      icon: Bell },
@@ -53,6 +55,7 @@ const salesAgentSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/ai-calls',        label: 'Calls',              icon: PhoneCall },
     { href: '/sms',             label: 'SMS',                icon: MessageCircle },
+    { href: '/emails',          label: 'Emails',             icon: Inbox },
     { href: '/messages',        label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',   label: 'Notifications',      icon: Bell },
   ]},
@@ -105,6 +108,7 @@ const salesManagerSections: NavSection[] = [
     { href: '/calendar',        label: 'Calendar',           icon: CalendarDays },
     { href: '/ai-calls',        label: 'Calls',              icon: PhoneCall },
     { href: '/sms',             label: 'SMS',                icon: MessageCircle },
+    { href: '/emails',          label: 'Emails',             icon: Inbox },
     { href: '/messages',        label: 'Messages',           icon: MessageSquare },
     { href: '/notifications',   label: 'Notifications',      icon: Bell },
   ]},
@@ -136,6 +140,7 @@ const adminSections: NavSection[] = [
     { href: '/calendar',      label: 'Calendar',      icon: CalendarDays },
     { href: '/ai-calls',      label: 'Calls',         icon: PhoneCall },
     { href: '/sms',           label: 'SMS',           icon: MessageCircle },
+    { href: '/emails',        label: 'Emails',        icon: Inbox },
     { href: '/messages',      label: 'Messages',      icon: MessageSquare },
     { href: '/notifications', label: 'Notifications', icon: Bell },
   ]},
@@ -186,6 +191,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const [pendingNotes, setPendingNotes] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
   const [chatUnread, setChatUnread]     = useState(0)
+  const [emailUnread, setEmailUnread]   = useState(0)
   const [signingOut, setSigningOut]     = useState(false)
 
   // Which collapsible sections the user has opened (remembered per browser).
@@ -277,6 +283,23 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
       .eq('user_id', profile.id)
       .eq('read', false)
     setUnreadCount(count || 0)
+  }
+
+  // Lead email conversations with unread replies (Emails inbox). Replies arrive via the
+  // 5-min Gmail sync, so a 60s poll is plenty; the inbox fires an event on read/sync.
+  const showsEmailBadge = sections.some(sec => sec.items.some(i => i.href === '/emails'))
+  usePoll(() => { fetchEmailUnread() }, 60_000, showsEmailBadge)
+  useEffect(() => {
+    if (!showsEmailBadge) return
+    fetchEmailUnread()
+    const onChange = () => { fetchEmailUnread() }
+    window.addEventListener(EMAIL_UNREAD_EVENT, onChange)
+    return () => window.removeEventListener(EMAIL_UNREAD_EVENT, onChange)
+  }, [showsEmailBadge])
+
+  async function fetchEmailUnread() {
+    const { data } = await supabase.rpc('email_unread_count')
+    setEmailUnread(typeof data === 'number' ? data : 0)
   }
 
   async function fetchChatUnread() {
@@ -371,6 +394,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
               item.href === '/note-approvals' && pendingNotes > 0 ? pendingNotes :
               item.href === '/notifications'  && unreadCount  > 0 ? unreadCount  :
               item.href === '/messages'       && chatUnread   > 0 ? chatUnread   :
+              item.href === '/emails'         && emailUnread  > 0 ? emailUnread  :
               0
             return { ...item, active, badge }
           })

@@ -5,7 +5,7 @@ import { syncAllMailboxes } from '@/lib/gmail-sync'
 
 // Gmail → CRM sync for every Workspace agent mailbox (see lib/gmail-sync.ts).
 // GET:  Vercel cron, every 5 minutes (Authorization: Bearer $CRON_SECRET)
-// POST: admin "Sync now" from Settings
+// POST: "Sync now" — admins sync every mailbox (Settings), others their own (Emails inbox)
 export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
@@ -21,9 +21,15 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!profile || ['client', 'developer'].includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-  const result = await syncAllMailboxes(createServiceClient())
+  // Admins sync every mailbox; everyone else syncs only their own (Emails inbox button)
+  const result = await syncAllMailboxes(
+    createServiceClient(),
+    profile.role === 'admin' ? {} : { userIds: [user.id] },
+  )
   return NextResponse.json(summarize(result), { status: result.ok ? 200 : 400 })
 }
 
