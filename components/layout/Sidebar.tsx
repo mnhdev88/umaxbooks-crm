@@ -7,8 +7,9 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, Monitor, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature, Inbox,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, Monitor, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature, Inbox, Search,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useTheme } from '@/components/ThemeProvider'
 import { usePoll } from '@/lib/use-poll'
@@ -16,7 +17,7 @@ import { EMAIL_UNREAD_EVENT } from '@/lib/email-events'
 import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' } as const
 const NEXT_THEME = { system: 'light', light: 'dark', dark: 'system' } as const
@@ -193,6 +194,28 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const [chatUnread, setChatUnread]     = useState(0)
   const [emailUnread, setEmailUnread]   = useState(0)
   const [signingOut, setSigningOut]     = useState(false)
+  const router = useRouter()
+
+  // Quick filter over the nav. Searches every section, collapsed ones included,
+  // so "unsub" finds Unsubscribes even while "More" is closed.
+  const [query, setQuery]         = useState('')
+  const [highlight, setHighlight] = useState(0)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  // "/" focuses the filter from anywhere (unless you're already typing somewhere).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      const el = searchRef.current
+      if (!el || el.offsetParent === null) return // sidebar hidden (closed on mobile)
+      e.preventDefault()
+      el.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Which collapsible sections the user has opened (remembered per browser).
   // The sidebar only mounts client-side (after the profile loads), so reading
@@ -317,6 +340,102 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
     window.location.href = '/login'
   }
 
+  const sectionRows = sections.map(section => {
+    const rows = section.items.map(item => {
+      const [hrefPath, hrefQuery] = item.href.split('?')
+      const hrefParams = hrefQuery ? new URLSearchParams(hrefQuery) : null
+      const active = hrefParams
+        ? pathname === hrefPath && searchParams.get('filter') === hrefParams.get('filter')
+        : pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+      const badge =
+        item.href === '/approvals'      && pendingCount > 0 ? pendingCount :
+        item.href === '/note-approvals' && pendingNotes > 0 ? pendingNotes :
+        item.href === '/notifications'  && unreadCount  > 0 ? unreadCount  :
+        item.href === '/messages'       && chatUnread   > 0 ? chatUnread   :
+        item.href === '/emails'         && emailUnread  > 0 ? emailUnread  :
+        0
+      return { ...item, active, badge, section: section.label }
+    })
+    return { section, rows }
+  })
+
+  // Label matches first (prefix, then word-start, then anywhere), then section-name matches.
+  const q = query.trim().toLowerCase()
+  const matches = q
+    ? sectionRows
+        .flatMap(s => s.rows)
+        .map(r => {
+          const l = r.label.toLowerCase()
+          const score =
+            l.startsWith(q) ? 0 :
+            l.split(/[\s&-]+/).some(w => w.startsWith(q)) ? 1 :
+            l.includes(q) ? 2 :
+            r.section?.toLowerCase().includes(q) ? 3 : -1
+          return { r, score }
+        })
+        .filter(m => m.score >= 0)
+        .sort((a, b) => a.score - b.score)
+        .map(m => m.r)
+    : []
+  const hl = Math.min(highlight, Math.max(matches.length - 1, 0))
+
+  function clearSearch() {
+    setQuery('')
+    setHighlight(0)
+  }
+
+  function onSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown' && matches.length) {
+      e.preventDefault()
+      setHighlight((hl + 1) % matches.length)
+    } else if (e.key === 'ArrowUp' && matches.length) {
+      e.preventDefault()
+      setHighlight((hl - 1 + matches.length) % matches.length)
+    } else if (e.key === 'Enter' && matches[hl]) {
+      e.preventDefault()
+      router.push(matches[hl].href)
+      clearSearch()
+      e.currentTarget.blur()
+      onClose()
+    } else if (e.key === 'Escape') {
+      clearSearch()
+      e.currentTarget.blur()
+    }
+  }
+
+  function renderRow(
+    { href, label, icon: Icon, active, badge, section }: (typeof sectionRows)[number]['rows'][number],
+    opts?: { highlighted?: boolean; showSection?: boolean },
+  ) {
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => { clearSearch(); onClose() }}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors duration-150',
+          active
+            ? 'bg-orange-500/15 text-orange-300 font-medium'
+            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70',
+          opts?.highlighted && !active && 'bg-slate-800/70 text-slate-100',
+          opts?.highlighted && 'ring-1 ring-orange-500/40',
+        )}
+      >
+        <Icon size={15} className="shrink-0" />
+        <span className="flex-1 truncate">{label}</span>
+        {opts?.showSection && section && (
+          <span className="text-[10px] text-slate-500 shrink-0">{section}</span>
+        )}
+        {badge > 0 && (
+          <span className="bg-orange-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </Link>
+    )
+  }
+
   return (
     <aside className={cn(
       'w-56 bg-surface border-r border-slate-800/80 flex flex-col',
@@ -380,24 +499,49 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
         </div>
       </div>
 
+      {/* Quick filter */}
+      <div className="px-2.5 pt-3">
+        <div className="relative">
+          <Search size={14} aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            onChange={e => { setQuery(e.target.value); setHighlight(0) }}
+            onKeyDown={onSearchKey}
+            placeholder="Search pages…"
+            aria-label="Search pages"
+            aria-controls="sidebar-nav"
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full bg-slate-900/60 border border-slate-800 rounded-lg pl-8 pr-7 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500/60 focus:ring-1 focus:ring-orange-500/30 [&::-webkit-search-cancel-button]:hidden"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => { clearSearch(); searchRef.current?.focus() }}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-200"
+            >
+              <X size={13} aria-hidden="true" />
+            </button>
+          ) : (
+            <kbd className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 border border-slate-700 rounded px-1 leading-4 pointer-events-none">/</kbd>
+          )}
+        </div>
+      </div>
+
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4 scrollbar-hide">
-        {sections.map((section, si) => {
-          const rows = section.items.map(item => {
-            const [hrefPath, hrefQuery] = item.href.split('?')
-            const hrefParams = hrefQuery ? new URLSearchParams(hrefQuery) : null
-            const active = hrefParams
-              ? pathname === hrefPath && searchParams.get('filter') === hrefParams.get('filter')
-              : pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-            const badge =
-              item.href === '/approvals'      && pendingCount > 0 ? pendingCount :
-              item.href === '/note-approvals' && pendingNotes > 0 ? pendingNotes :
-              item.href === '/notifications'  && unreadCount  > 0 ? unreadCount  :
-              item.href === '/messages'       && chatUnread   > 0 ? chatUnread   :
-              item.href === '/emails'         && emailUnread  > 0 ? emailUnread  :
-              0
-            return { ...item, active, badge }
-          })
+      <nav id="sidebar-nav" className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4 scrollbar-hide">
+        {q ? (
+          matches.length ? (
+            <div className="space-y-0.5">
+              {matches.map((r, i) => renderRow(r, { highlighted: i === hl, showSection: true }))}
+            </div>
+          ) : (
+            <p className="px-2.5 py-2 text-[12px] text-slate-500">No pages match “{query.trim()}”</p>
+          )
+        ) : sectionRows.map(({ section, rows }, si) => {
           const hasActive = rows.some(r => r.active)
           const open = !section.collapsible || hasActive || !!openSections[section.label ?? '']
           const hiddenBadges = open ? 0 : rows.reduce((n, r) => n + r.badge, 0)
@@ -427,28 +571,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
               ))}
               {open && (
                 <div className="space-y-0.5">
-                  {rows.map(({ href, label, icon: Icon, active, badge }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={onClose}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors duration-150',
-                        active
-                          ? 'bg-orange-500/15 text-orange-300 font-medium'
-                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70'
-                      )}
-                    >
-                      <Icon size={15} className="shrink-0" />
-                      <span className="flex-1 truncate">{label}</span>
-                      {badge > 0 && (
-                        <span className="bg-orange-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none">
-                          {badge > 99 ? '99+' : badge}
-                        </span>
-                      )}
-                    </Link>
-                  ))}
+                  {rows.map(r => renderRow(r))}
                 </div>
               )}
             </div>
