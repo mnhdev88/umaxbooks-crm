@@ -578,6 +578,83 @@ export function LeadsPageClient({
     router.refresh()
   }
 
+  // ── Bulk status change ─────────────────────────────────────────
+  // Open to every role that can edit leads. RLS decides which of the selected
+  // rows this user may actually update (agents: their own leads; managers: own
+  // team + unassigned; admins: all). Rows RLS filters out are reported as skipped.
+  const [pendingStatus, setPendingStatus] = useState('')
+  const [statusing, setStatusing] = useState(false)
+
+  async function bulkStatus(next: string) {
+    if (!next || selectedIds.size === 0) return
+    const selected = leads.filter(l => selectedIds.has(l.id))
+    // Leads already in the target status need no change.
+    const ids = selected.filter(l => l.status !== next).map(l => l.id)
+    const prevById = new Map(selected.map(l => [l.id, l.status]))
+    if (ids.length === 0) {
+      setPendingStatus('')
+      toast.info(`All selected leads are already "${next}"`)
+      return
+    }
+    setStatusing(true)
+
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+
+    const { data: updated, error } = await supabase
+      .from('leads')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .in('id', ids)
+      .select('id, company_name, name')
+
+    if (error) {
+      setStatusing(false)
+      toast.error(`Failed to update status: ${error.message}`)
+      return
+    }
+
+    const done = updated ?? []
+    if (done.length > 0) {
+      await supabase.from('activity_logs').insert(
+        done.map(l => ({
+          lead_id: l.id, user_id: userId,
+          action: 'Status Changed',
+          details: `Status changed from "${prevById.get(l.id)}" to "${next}" (bulk update)`,
+        }))
+      )
+
+      // One roll-up alert to developers for the statuses they act on, instead
+      // of the per-lead notification a single change sends.
+      if (next === 'Demo Scheduled' || next === 'Revision') {
+        const { data: devs } = await supabase.from('profiles').select('id').eq('role', 'developer')
+        if (devs?.length) {
+          const names = done.slice(0, 5).map(l => l.company_name || l.name).join(', ')
+          const more = done.length > 5 ? ` and ${done.length - 5} more` : ''
+          await supabase.from('notifications').insert(
+            devs.map(d => ({
+              user_id: d.id,
+              title: next === 'Demo Scheduled' ? 'Demo Scheduled' : 'Revision Requested',
+              message: `${done.length} lead${done.length !== 1 ? 's' : ''} moved to ${next}: ${names}${more}.`,
+              type: 'info',
+            }))
+          )
+        }
+      }
+    }
+
+    const skipped = ids.length - done.length
+    setStatusing(false)
+    setPendingStatus('')
+    setSelectedIds(new Set())
+    if (done.length > 0) {
+      toast.success(`Updated ${done.length} lead${done.length !== 1 ? 's' : ''} to "${next}"`)
+    }
+    if (skipped > 0) {
+      toast.warning(`${skipped} lead${skipped !== 1 ? 's were' : ' was'} skipped: you can only change leads you're allowed to edit.`)
+    }
+    router.refresh()
+  }
+
   // Edit needs every column; the list query is narrowed, so fetch the full row.
   async function openEdit(id: string) {
     setLoadingEdit(true)
@@ -870,13 +947,49 @@ export function LeadsPageClient({
         </>}
       </div>
 
-      {/* Bulk action bar — appears when leads are selected (assign-capable roles) */}
-      {canAssign && selectedIds.size > 0 && (
+      {/* Bulk action bar — appears when leads are selected. Status change for
+          every editing role; assign only for admins and sales managers. */}
+      {canEdit && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 flex-wrap bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-2.5">
           <span className="text-sm font-medium text-orange-300">
             {selectedIds.size} selected
           </span>
-          <div className="flex items-center gap-2">
+          {pendingStatus ? (
+            <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Confirm status change">
+              <span className="text-sm text-slate-200">
+                Change {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} to{' '}
+                <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_CLS[pendingStatus] || 'bg-slate-700 text-slate-300')}>{pendingStatus}</span>?
+              </span>
+              <button
+                type="button"
+                disabled={statusing}
+                onClick={() => bulkStatus(pendingStatus)}
+                className="text-xs font-medium text-white bg-orange-600 hover:bg-orange-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {statusing && <Loader2 size={12} className="animate-spin" />}
+                {statusing ? 'Updating…' : 'Confirm'}
+              </button>
+              <button
+                type="button"
+                disabled={statusing}
+                onClick={() => setPendingStatus('')}
+                className="text-xs text-slate-300 hover:text-slate-100 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <select
+              value=""
+              onChange={e => setPendingStatus(e.target.value)}
+              aria-label="Change status of selected leads"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus:border-orange-500 min-w-[160px] cursor-pointer"
+            >
+              <option value="">Change status…</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          {canAssign && !pendingStatus && <div className="flex items-center gap-2">
             <UserCheck size={14} className="text-slate-400 shrink-0" />
             <select
               defaultValue=""
@@ -893,9 +1006,9 @@ export function LeadsPageClient({
               ))}
             </select>
             {assigning && <Loader2 size={14} className="text-orange-400 animate-spin" />}
-          </div>
+          </div>}
           <button
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => { setSelectedIds(new Set()); setPendingStatus('') }}
             className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1 transition-colors ml-auto"
           >
             Clear selection
