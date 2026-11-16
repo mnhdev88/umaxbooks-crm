@@ -60,6 +60,8 @@ export default function RootLayout({
             var t = p === 'light' || p === 'dark' ? p
               : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
             document.documentElement.classList.add(t);
+            var a = localStorage.getItem('accent');
+            if (a && a !== 'violet' && /^(blue|teal|emerald|fuchsia|sunset)$/.test(a)) document.documentElement.setAttribute('data-accent', a);
           } catch(e) { document.documentElement.classList.add('dark'); }
         `}} />
       </head>

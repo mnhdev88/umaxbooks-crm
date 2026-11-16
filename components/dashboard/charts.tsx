@@ -12,7 +12,7 @@ import { useTheme } from '@/components/ThemeProvider'
 function useChartTheme() {
   const { theme } = useTheme()
   return theme === 'light'
-    ? { axis: '#4A5070', track: '#ECEEF4', cursor: 'rgba(91,82,204,0.08)' }
+    ? { axis: '#4A5070', track: '#ECEEF4', cursor: 'rgba(74,80,112,0.08)' }
     : { axis: '#94a3b8', track: '#1B2338', cursor: 'rgba(148,163,184,0.08)' }
 }
 

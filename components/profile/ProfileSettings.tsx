@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { Profile } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ShieldCheck, AlertCircle, User, Lock } from 'lucide-react'
+import { ShieldCheck, AlertCircle, User, Lock, Palette } from 'lucide-react'
+import { useTheme } from '@/components/ThemeProvider'
+import { AccentSwatches } from '@/components/layout/AccentPicker'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -26,6 +28,7 @@ export function ProfileSettings({ profile }: { profile: Profile }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const { preference, setPreference } = useTheme()
 
   async function handleChangePassword() {
     setError(null)
@@ -74,6 +77,36 @@ export function ProfileSettings({ profile }: { profile: Profile }) {
           </div>
         </div>
         <p className="text-xs text-slate-600 mt-4">Contact your admin to update your name, email or role.</p>
+      </div>
+
+      {/* Appearance */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-1">
+          <Palette size={15} className="text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-100">Appearance</h2>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">Saved on this browser. Works with light and dark mode.</p>
+
+        <p className="text-xs font-medium text-slate-300 mb-2">Theme</p>
+        <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-lg border border-slate-800 p-0.5 mb-5">
+          {(['system', 'light', 'dark'] as const).map(p => (
+            <button
+              key={p}
+              type="button"
+              role="radio"
+              aria-checked={preference === p}
+              onClick={() => setPreference(p)}
+              className={`px-3 py-1.5 text-xs rounded-md capitalize cursor-pointer transition-colors ${
+                preference === p ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-slate-100'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-xs font-medium text-slate-300 mb-2">Accent colour</p>
+        <AccentSwatches size="md" />
       </div>
 
       {/* Change Password */}

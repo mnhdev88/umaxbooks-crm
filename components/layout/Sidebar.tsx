@@ -15,6 +15,7 @@ import { useTheme } from '@/components/ThemeProvider'
 import { usePoll } from '@/lib/use-poll'
 import { EMAIL_UNREAD_EVENT } from '@/lib/email-events'
 import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
+import { AccentPicker } from '@/components/layout/AccentPicker'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useRef, useState } from 'react'
@@ -494,6 +495,7 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
                   ? <Sun size={15} aria-hidden="true" />
                   : <Moon size={15} aria-hidden="true" />}
             </button>
+            <AccentPicker />
             <RingVolumeControl />
           </div>
         </div>

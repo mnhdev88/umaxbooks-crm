@@ -17,14 +17,59 @@
   --background: var(--canvas);
   --foreground: #E2E6EF;  /* soft off-white, not pure #fff (less halation) */
 
-  --brand:       #6E66E0;
-  --brand-light: #9D97F3;
-  --brand-dark:  #5B52CC;
+  --brand:       var(--accent-500);
+  --brand-light: var(--accent-400);
+  --brand-dark:  var(--accent-600);
   /* Logo gradient stops — for brand accents only, not large fills */
   --logo-blue:   #60A5FA;
   --logo-violet: #A78BFA;
   --logo-orange: #FB923C;
+
+  /* ── Accent colour (user-selectable, html[data-accent]) ──────────────────
+     Components use the `orange-*` utilities, which @theme points at these.
+     Default = Novelio violet. Every 500 carries white text at ≥4.5:1, every
+     600/700 reads at ≥4.5:1 on white (light theme) and every 400 at ≥6:1 on
+     the dark surfaces. Status colours (red/green/amber/blue) never change. */
+  --accent-50:  #F5F5FE;
+  --accent-100: #EEEDFC;
+  --accent-200: #DCDAF9;
+  --accent-300: #B9B5F7;
+  --accent-400: #9D97F3;
+  --accent-500: #6E66E0;
+  --accent-600: #5B52CC;
+  --accent-700: #4B43B0;
+  --accent-800: #3D378C;
+  --accent-900: #322E6E;
+  --accent-950: #1E1B42;
 }
+html[data-accent="blue"] {
+  --accent-50: #EFF6FF; --accent-100: #DBEAFE; --accent-200: #BFDBFE; --accent-300: #93C5FD;
+  --accent-400: #60A5FA; --accent-500: #2563EB; --accent-600: #1D4ED8; --accent-700: #1E40AF;
+  --accent-800: #1E3A8A; --accent-900: #1E2F6B; --accent-950: #172554;
+}
+html[data-accent="teal"] {
+  --accent-50: #F0FDFA; --accent-100: #CCFBF1; --accent-200: #99F6E4; --accent-300: #5EEAD4;
+  --accent-400: #2DD4BF; --accent-500: #0F766E; --accent-600: #0D6660; --accent-700: #115E59;
+  --accent-800: #134E4A; --accent-900: #123F3C; --accent-950: #042F2E;
+}
+html[data-accent="emerald"] {
+  --accent-50: #ECFDF5; --accent-100: #D1FAE5; --accent-200: #A7F3D0; --accent-300: #6EE7B7;
+  --accent-400: #34D399; --accent-500: #047857; --accent-600: #03684B; --accent-700: #065F46;
+  --accent-800: #064E3B; --accent-900: #053F30; --accent-950: #022C22;
+}
+html[data-accent="fuchsia"] {
+  --accent-50: #FDF4FF; --accent-100: #FAE8FF; --accent-200: #F5D0FE; --accent-300: #F0ABFC;
+  --accent-400: #E879F9; --accent-500: #A21CAF; --accent-600: #8E1A9A; --accent-700: #86198F;
+  --accent-800: #701A75; --accent-900: #5B1660; --accent-950: #4A044E;
+}
+html[data-accent="sunset"] {
+  --accent-50: #FFF7ED; --accent-100: #FFEDD5; --accent-200: #FED7AA; --accent-300: #FDBA74;
+  --accent-400: #FB923C; --accent-500: #C2410C; --accent-600: #AD3A0B; --accent-700: #9A3412;
+  --accent-800: #7C2D12; --accent-900: #66250F; --accent-950: #431407;
+}
+/* The deeper 500s that carry white button text are too dim as plain text on
+   the navy surfaces, so in dark mode accent-500 text uses the lighter 400. */
+html[data-accent]:not(.light) .text-orange-500 { color: var(--accent-400); }
 html.light {
   --canvas:     #F2F3F8;  /* cool off-white page — less glare than #fff */
   --surface:    #FFFFFF;
@@ -45,17 +90,17 @@ html.light {
 
   /* Remap orange palette → Novelio dusk violet (no component changes needed).
      500 carries white text at 4.5:1; 400 reads at ≥5.6:1 on dark surfaces. */
-  --color-orange-50:  #F5F5FE;
-  --color-orange-100: #EEEDFC;
-  --color-orange-200: #DCDAF9;
-  --color-orange-300: #B9B5F7;
-  --color-orange-400: #9D97F3;
-  --color-orange-500: #6E66E0;
-  --color-orange-600: #5B52CC;
-  --color-orange-700: #4B43B0;
-  --color-orange-800: #3D378C;
-  --color-orange-900: #322E6E;
-  --color-orange-950: #1E1B42;
+  --color-orange-50: var(--accent-50);
+  --color-orange-100: var(--accent-100);
+  --color-orange-200: var(--accent-200);
+  --color-orange-300: var(--accent-300);
+  --color-orange-400: var(--accent-400);
+  --color-orange-500: var(--accent-500);
+  --color-orange-600: var(--accent-600);
+  --color-orange-700: var(--accent-700);
+  --color-orange-800: var(--accent-800);
+  --color-orange-900: var(--accent-900);
+  --color-orange-950: var(--accent-950);
 }
 
 * {
@@ -177,10 +222,10 @@ html.light .hover\:text-slate-100:hover { color: #0f172a !important; }
 html.light .hover\:text-slate-300:hover { color: #334155 !important; }
 html.light .hover\:border-slate-500:hover { border-color: #94a3b8 !important; }
 html.light .hover\:bg-emerald-900\/30:hover { background-color: #a7f3d0 !important; }
-html.light .hover\:bg-orange-900\/30:hover  { background-color: #EEEDFC !important; }
+html.light .hover\:bg-orange-900\/30:hover  { background-color: var(--accent-100) !important; }
 html.light .hover\:bg-red-900\/30:hover     { background-color: #fecaca !important; }
 html.light .hover\:text-emerald-300:hover   { color: #065f46 !important; }
-html.light .hover\:text-orange-300:hover    { color: #5B52CC !important; }
+html.light .hover\:text-orange-300:hover    { color: var(--accent-600) !important; }
 html.light .hover\:text-red-300:hover       { color: #b91c1c !important; }
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light textarea,
@@ -192,7 +237,7 @@ html.light select {
 /* Sonner toast — adapt to light theme (inline styles need !important) */
 html.light [data-sonner-toast] {
   background: #ffffff !important;
-  border-color: #DCDAF9 !important;
+  border-color: var(--accent-200) !important;
   color: #1F2337 !important;
 }
 html.light { scrollbar-color: #C3C8D6 var(--canvas); }
@@ -220,9 +265,9 @@ html.light .text-sky-300     { color: #0369a1 !important; }
 html.light .text-sky-400     { color: #0369a1 !important; }
 html.light .text-red-300     { color: #b91c1c !important; }
 html.light .text-red-400     { color: #b91c1c !important; }
-html.light .text-orange-300  { color: #5B52CC !important; }
-html.light .text-orange-400  { color: #4B43B0 !important; }
-html.light .text-orange-500  { color: #5B52CC !important; }
+html.light .text-orange-300  { color: var(--accent-600) !important; }
+html.light .text-orange-400  { color: var(--accent-700) !important; }
+html.light .text-orange-500  { color: var(--accent-600) !important; }
 html.light .text-yellow-400  { color: #a16207 !important; }
 
 /* Status/source badge backgrounds — keep subtle tint on light bg */
@@ -238,10 +283,10 @@ html.light .bg-emerald-900\/20 { background-color: #ecfdf5 !important; }
 html.light .bg-emerald-900\/30 { background-color: #d1fae5 !important; }
 html.light .bg-sky-900\/40     { background-color: #e0f2fe !important; }
 html.light .bg-red-900\/40     { background-color: #fee2e2 !important; }
-html.light .bg-orange-900\/40  { background-color: #EEEDFC !important; }
-html.light .bg-orange-900\/20  { background-color: #F5F5FE !important; }
-html.light .bg-orange-900\/30  { background-color: #EEEDFC !important; }
-html.light .bg-orange-900\/10  { background-color: #F5F5FE !important; }
+html.light .bg-orange-900\/40  { background-color: var(--accent-100) !important; }
+html.light .bg-orange-900\/20  { background-color: var(--accent-50) !important; }
+html.light .bg-orange-900\/30  { background-color: var(--accent-100) !important; }
+html.light .bg-orange-900\/10  { background-color: var(--accent-50) !important; }
 html.light .bg-green-900\/20   { background-color: #f0fdf4 !important; }
 html.light .bg-green-900\/30   { background-color: #dcfce7 !important; }
 html.light .bg-red-900\/20     { background-color: #fff1f2 !important; }
@@ -263,8 +308,8 @@ html.light .border-teal-800\/40    { border-color: #5eead4 !important; }
 html.light .border-emerald-800\/40 { border-color: #6ee7b7 !important; }
 html.light .border-emerald-800     { border-color: #34d399 !important; }
 html.light .border-red-800\/40     { border-color: #fca5a5 !important; }
-html.light .border-orange-800\/40  { border-color: #DCDAF9 !important; }
-html.light .border-orange-800      { border-color: #B9B5F7 !important; }
+html.light .border-orange-800\/40  { border-color: var(--accent-200) !important; }
+html.light .border-orange-800      { border-color: var(--accent-300) !important; }
 html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
 
@@ -279,17 +324,17 @@ html.light .border-white\/10 { border-color: #cbd5e1 !important; }
 
 /* Gradient backgrounds used in audit/AI sections */
 html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
-html.light .to-orange-950\/20      { --tw-gradient-to: #EEEDFC !important; }
-html.light .border-orange-900\/30  { border-color: #DCDAF9 !important; }
+html.light .to-orange-950\/20      { --tw-gradient-to: var(--accent-100) !important; }
+html.light .border-orange-900\/30  { border-color: var(--accent-200) !important; }
 
 /* Active nav / button backgrounds — violet tints for light mode */
-html.light .bg-orange-500\/15 { background-color: #EEEDFC !important; }
-html.light .bg-orange-500\/25 { background-color: #DCDAF9 !important; }
-html.light .bg-orange-500\/20 { background-color: #E6E5FB !important; }
+html.light .bg-orange-500\/15 { background-color: var(--accent-100) !important; }
+html.light .bg-orange-500\/25 { background-color: var(--accent-200) !important; }
+html.light .bg-orange-500\/20 { background-color: color-mix(in srgb, var(--accent-100) 50%, var(--accent-200)) !important; }
 
 /* Accent borders */
-html.light .border-orange-500\/30 { border-color: #B9B5F7 !important; }
-html.light .border-orange-500\/20 { border-color: #DCDAF9 !important; }
+html.light .border-orange-500\/30 { border-color: var(--accent-300) !important; }
+html.light .border-orange-500\/20 { border-color: var(--accent-200) !important; }
 
 /* Card depth in light mode — violet-tinted shadow */
 html.light .rounded-xl { box-shadow: 0 2px 8px rgba(30,35,60,0.07), 0 1px 2px rgba(30,35,60,0.04) !important; }
@@ -298,7 +343,7 @@ html.light .rounded-xl { box-shadow: 0 2px 8px rgba(30,35,60,0.07), 0 1px 2px rg
 html.light .border-slate-800\/80 { border-color: #E4E6EE !important; }
 
 /* orange-500/10 icon backgrounds */
-html.light .bg-orange-500\/10 { background-color: #EEEDFC !important; }
+html.light .bg-orange-500\/10 { background-color: var(--accent-100) !important; }
 html.light .bg-purple-500\/10 { background-color: #faf5ff !important; }
 
 /* Input focus — violet ring */
@@ -306,8 +351,8 @@ html.light input:focus,
 html.light textarea:focus,
 html.light select:focus {
   outline: none;
-  border-color: #6E66E0 !important;
-  box-shadow: 0 0 0 2px rgba(110,102,224,0.15) !important;
+  border-color: var(--accent-500) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-500) 15%, transparent) !important;
 }
 
 /* ── Pipeline / kanban card light mode fixes ─────────────────────────────── */
@@ -372,7 +417,7 @@ html.light .bg-cyan-500\/20   { background-color: #cffafe !important; }
 html.light .bg-green-500\/20  { background-color: #dcfce7 !important; }
 html.light .bg-red-500\/20    { background-color: #fee2e2 !important; }
 html.light .bg-yellow-500\/20 { background-color: #fef9c3 !important; }
-html.light .bg-orange-500\/5  { background-color: #F8F8FE !important; }
+html.light .bg-orange-500\/5  { background-color: color-mix(in srgb, var(--accent-50) 60%, #fff) !important; }
 
 /* Semantic -900 tint backgrounds not previously mapped */
 html.light .bg-sky-900\/30    { background-color: #e0f2fe !important; }
@@ -388,7 +433,7 @@ html.light .bg-green-900\/15  { background-color: #dcfce7 !important; }
 html.light .bg-green-900\/5   { background-color: #f0fdf4 !important; }
 html.light .bg-green-950\/60  { background-color: #dcfce7 !important; }
 html.light .bg-green-900\/60  { background-color: #bbf7d0 !important; }
-html.light .bg-orange-900\/15 { background-color: #F5F5FE !important; }
+html.light .bg-orange-900\/15 { background-color: var(--accent-50) !important; }
 
 /* Yellow draft-card tints (email history) */
 html.light .bg-yellow-500\/5  { background-color: #fefce8 !important; }
@@ -432,19 +477,19 @@ html.light .border-purple-700     { border-color: #B9B5F7 !important; }
 html.light .border-amber-700      { border-color: #fcd34d !important; }
 
 /* Orange (→ violet) borders not previously mapped */
-html.light .border-orange-700      { border-color: #B9B5F7 !important; }
-html.light .border-orange-700\/50  { border-color: #B9B5F7 !important; }
-html.light .border-orange-700\/25  { border-color: #DCDAF9 !important; }
-html.light .border-orange-600\/50  { border-color: #B9B5F7 !important; }
-html.light .border-orange-800\/30  { border-color: #DCDAF9 !important; }
+html.light .border-orange-700      { border-color: var(--accent-300) !important; }
+html.light .border-orange-700\/50  { border-color: var(--accent-300) !important; }
+html.light .border-orange-700\/25  { border-color: var(--accent-200) !important; }
+html.light .border-orange-600\/50  { border-color: var(--accent-300) !important; }
+html.light .border-orange-800\/30  { border-color: var(--accent-200) !important; }
 
 /* Gradient (close-deal header card) */
 html.light .from-orange-900\/15 {
-  --tw-gradient-from: #F5F5FE var(--tw-gradient-from-position) !important;
-  --tw-gradient-to: rgb(245 245 254 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-from: var(--accent-50) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: color-mix(in srgb, var(--accent-50) 0%, transparent) var(--tw-gradient-to-position) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
-html.light .to-orange-900\/5 { --tw-gradient-to: #FAFAFE var(--tw-gradient-to-position) !important; }
+html.light .to-orange-900\/5 { --tw-gradient-to: color-mix(in srgb, var(--accent-50) 40%, #fff) var(--tw-gradient-to-position) !important; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zoom-in-95 { from { transform: scale(0.95); } to { transform: scale(1); } }
