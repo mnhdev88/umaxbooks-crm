@@ -41,6 +41,10 @@ const DEFAULT_PALETTE: Palette = 'navy'
 const PALETTE_KEY = 'palette'
 const isPalette = (v: unknown): v is Palette => PALETTES.some(p => p.id === v)
 
+/** 3D depth (shadows, bevels, hover lift, tilt) — on unless the user turns it off. */
+const DEPTH_KEY = 'depth'
+const TILT_MAX_DEG = 4
+
 const ThemeContext = createContext<{
   /** Resolved theme currently applied — use this for rendering decisions. */
   theme: ResolvedTheme
@@ -53,6 +57,8 @@ const ThemeContext = createContext<{
   palette: Palette
   /** Switches the background theme and applies its suggested accent. */
   setPalette: (p: Palette) => void
+  depth: boolean
+  setDepth: (on: boolean) => void
 }>({
   theme: 'dark',
   preference: 'system',
@@ -62,6 +68,8 @@ const ThemeContext = createContext<{
   setAccent: () => {},
   palette: DEFAULT_PALETTE,
   setPalette: () => {},
+  depth: true,
+  setDepth: () => {},
 })
 
 export function useTheme() { return useContext(ThemeContext) }
@@ -99,6 +107,11 @@ function readPalette(): Palette {
   return DEFAULT_PALETTE
 }
 
+function readDepth(): boolean {
+  try { return localStorage.getItem(DEPTH_KEY) !== 'off' } catch {}
+  return true
+}
+
 // ── OS colour scheme (live, e.g. Windows/macOS auto dark mode at sunset) ───
 function subscribeSystem(cb: () => void) {
   const mq = window.matchMedia(LIGHT_QUERY)
@@ -118,6 +131,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Same storage + change event as the theme, so tabs stay in sync.
   const accent = useSyncExternalStore(subscribePreference, readAccent, () => DEFAULT_ACCENT)
   const palette = useSyncExternalStore(subscribePreference, readPalette, () => DEFAULT_PALETTE)
+  const depth = useSyncExternalStore(subscribePreference, readDepth, () => true)
 
   useEffect(() => {
     const root = document.documentElement
@@ -141,6 +155,50 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim()
     if (canvas) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', canvas))
   }, [palette, theme])
+
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-flat', !depth)
+  }, [depth])
+
+  // Pointer tilt for [data-tilt] tiles: one delegated listener, rAF-throttled.
+  // CSS ignores the vars when depth is off or the user prefers reduced motion.
+  useEffect(() => {
+    if (!depth) return
+    let active: HTMLElement | null = null
+    let frame = 0
+    const reset = (el: HTMLElement | null) => {
+      el?.style.removeProperty('--tilt-x')
+      el?.style.removeProperty('--tilt-y')
+    }
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return
+      const el = (e.target as Element | null)?.closest<HTMLElement>('[data-tilt]') ?? null
+      if (el !== active) { reset(active); active = el }
+      if (!el) return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect()
+        const px = (e.clientX - r.left) / r.width - 0.5
+        const py = (e.clientY - r.top) / r.height - 0.5
+        el.style.setProperty('--tilt-x', `${(-py * TILT_MAX_DEG * 2).toFixed(2)}deg`)
+        el.style.setProperty('--tilt-y', `${(px * TILT_MAX_DEG * 2).toFixed(2)}deg`)
+      })
+    }
+    const onLeave = () => { reset(active); active = null }
+    document.addEventListener('pointermove', onMove, { passive: true })
+    document.documentElement.addEventListener('pointerleave', onLeave)
+    return () => {
+      cancelAnimationFrame(frame)
+      reset(active)
+      document.removeEventListener('pointermove', onMove)
+      document.documentElement.removeEventListener('pointerleave', onLeave)
+    }
+  }, [depth])
+
+  const setDepth = useCallback((on: boolean) => {
+    try { localStorage.setItem(DEPTH_KEY, on ? 'on' : 'off') } catch {}
+    window.dispatchEvent(new Event(CHANGE_EVENT))
+  }, [])
 
   const setPalette = useCallback((p: Palette) => {
     const suggested = PALETTES.find(x => x.id === p)?.accent ?? DEFAULT_ACCENT
@@ -166,7 +224,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [preference, setPreference])
 
   return (
-    <ThemeContext.Provider value={{ theme, preference, setPreference, cycleTheme, accent, setAccent, palette, setPalette }}>
+    <ThemeContext.Provider value={{ theme, preference, setPreference, cycleTheme, accent, setAccent, palette, setPalette, depth, setDepth }}>
       {children}
     </ThemeContext.Provider>
   )

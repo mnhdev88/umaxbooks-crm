@@ -5,7 +5,7 @@ import { Profile } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ShieldCheck, AlertCircle, User, Lock, Palette } from 'lucide-react'
-import { AccentSwatches, ModeSwitch, PaletteSwatches } from '@/components/layout/AppearanceMenu'
+import { AccentSwatches, DepthSwitch, ModeSwitch, PaletteSwatches } from '@/components/layout/AppearanceMenu'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -93,6 +93,8 @@ export function ProfileSettings({ profile }: { profile: Profile }) {
 
         <p className="text-xs font-medium text-slate-300 mb-2">Accent colour</p>
         <AccentSwatches size="md" />
+
+        <div className="max-w-xs mt-5"><DepthSwitch /></div>
       </div>
 
       {/* Change Password */}

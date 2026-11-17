@@ -90,6 +90,31 @@ export function ModeSwitch() {
   )
 }
 
+/** On/off switch for the 3D depth effects (shadows, bevels, hover lift, tilt). */
+export function DepthSwitch() {
+  const { depth, setDepth } = useTheme()
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={depth}
+      onClick={() => setDepth(!depth)}
+      className="w-full flex items-center justify-between gap-3 cursor-pointer group"
+    >
+      <span className="text-left">
+        <span className="block text-[11px] font-semibold text-slate-300">3D depth</span>
+        <span className="block text-[11px] text-slate-500">Shadows, raised buttons, hover lift</span>
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${depth ? 'bg-orange-500' : 'bg-slate-700'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${depth ? 'translate-x-4' : ''}`} />
+      </span>
+    </button>
+  )
+}
+
 /** Header button next to the notification bell: mode, background theme and accent. */
 export function AppearanceMenu() {
   const { palette, accent } = useTheme()
@@ -144,6 +169,9 @@ export function AppearanceMenu() {
               <span className="text-[11px] text-slate-500">{accentLabel}</span>
             </div>
             <AccentSwatches />
+          </div>
+          <div className="pt-3 border-t border-slate-800">
+            <DepthSwitch />
           </div>
         </div>
       )}

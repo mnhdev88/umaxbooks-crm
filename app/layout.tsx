@@ -64,6 +64,7 @@ export default function RootLayout({
             if (a && a !== 'violet' && /^(blue|teal|emerald|fuchsia|sunset)$/.test(a)) document.documentElement.setAttribute('data-accent', a);
             var b = localStorage.getItem('palette');
             if (b && /^(charcoal|midnight|forest|plum)$/.test(b)) document.documentElement.setAttribute('data-palette', b);
+            if (localStorage.getItem('depth') === 'off') document.documentElement.setAttribute('data-flat', '');
           } catch(e) { document.documentElement.classList.add('dark'); }
         `}} />
       </head>

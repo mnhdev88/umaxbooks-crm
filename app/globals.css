@@ -154,13 +154,13 @@ html[data-palette="midnight"] {
   --n-500: oklch(55.4% 0.016 265);
   --n-600: oklch(44.6% 0.015 265);
   --n-700: oklch(37.2% 0.015 265);
-  --n-800: oklch(23.5% 0.014 265);
-  --n-900: oklch(16.5% 0.015 265);
+  --n-800: oklch(30.0% 0.014 265);  /* lifted so borders read on near-black */
+  --n-900: oklch(17.0% 0.015 265);
   --n-950: oklch(9.0% 0.015 265);
   --dk-canvas: #030407;
   --dk-surface: #080A10;
   --dk-surface-2: #101319;
-  --dk-border: #1E222A;
+  --dk-border: #2A2E35;
   --dk-foreground: #E4E6E9;
   --dk-scroll: #393E47;
   --ln-0: #FFFFFF;
@@ -727,3 +727,94 @@ html.light .to-orange-900\/5 { --tw-gradient-to: color-mix(in srgb, var(--accent
 html.light .text-cyan-400 { color: #0891B2 !important; }
 html.light .bg-cyan-900\/30 { background-color: #ECFEFF !important; }
 html.light .hover\:bg-green-900\/50:hover { background-color: #a7f3d0 !important; }
+
+/* ── 3D depth ────────────────────────────────────────────────────────────────
+   Soft, theme-aware elevation: cards get a light top edge + layered shadow,
+   solid buttons a bevel and a press-down, inputs look recessed, menus/modals
+   float. Clickable cards lift on hover; [data-tilt] tiles lean toward the
+   pointer (vars set in ThemeProvider). Everything is scoped to
+   html:not([data-flat]) so the Appearance "3D depth" switch turns it off. */
+:root {
+  --d-edge:   inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+  --d-card:   0 1px 2px rgb(0 0 0 / 0.30), 0 6px 16px -4px rgb(0 0 0 / 0.40);
+  --d-hover:  0 2px 4px rgb(0 0 0 / 0.30), 0 16px 32px -8px rgb(0 0 0 / 0.55);
+  --d-float:  0 4px 10px rgb(0 0 0 / 0.35), 0 24px 48px -12px rgb(0 0 0 / 0.65);
+  --d-inset:  inset 0 1px 2px rgb(0 0 0 / 0.35);
+  --d-sheen:  linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 45%);
+}
+html.light {
+  --d-edge:   inset 0 1px 0 0 rgb(255 255 255 / 0.9);
+  --d-card:   0 1px 2px rgb(30 35 60 / 0.06), 0 6px 16px -4px rgb(30 35 60 / 0.10);
+  --d-hover:  0 2px 4px rgb(30 35 60 / 0.06), 0 16px 32px -8px rgb(30 35 60 / 0.20);
+  --d-float:  0 4px 12px rgb(30 35 60 / 0.10), 0 24px 48px -12px rgb(30 35 60 / 0.28);
+  --d-inset:  inset 0 1px 2px rgb(30 35 60 / 0.07);
+  --d-sheen:  none;
+}
+
+/* Cards and panels */
+html:not([data-flat]) :is(.rounded-xl, .rounded-2xl).border:is(
+  .bg-slate-900, .bg-slate-800, .bg-surface, .bg-surface-2,
+  .bg-slate-900\/50, .bg-slate-900\/60, .bg-slate-800\/50
+):not(input, textarea, select, .shadow-xl, .shadow-2xl) {
+  box-shadow: var(--d-edge), var(--d-card) !important;
+  transition: box-shadow 200ms ease, translate 200ms ease, border-color 150ms ease;
+}
+/* Subtle top-lit sheen on dark surfaces (skipped where a gradient is already set) */
+html:not([data-flat]):not(.light) :is(.rounded-xl, .rounded-2xl).border:is(.bg-slate-900, .bg-surface):not([class*="bg-gradient"]) {
+  background-image: var(--d-sheen);
+}
+
+/* Clickable cards lift on hover */
+html:not([data-flat]) :is(a, button, [role="button"], .cursor-pointer, .cursor-grab, [data-tilt]):is(.rounded-xl, .rounded-2xl).border:is(
+  .bg-slate-900, .bg-slate-800, .bg-surface, .bg-surface-2, .bg-slate-900\/50, .bg-slate-800\/50
+):hover {
+  box-shadow: var(--d-edge), var(--d-hover) !important;
+  translate: 0 -2px;
+}
+
+/* Floating layers: menus, popovers, modals, drag previews */
+html:not([data-flat]) :is(.shadow-xl, .shadow-2xl) {
+  box-shadow: var(--d-edge), var(--d-float) !important;
+}
+
+/* Solid buttons: bevel, accent glow on hover, press-down on click */
+html:not([data-flat]) :is(button, a, [role="button"]):is(
+  .bg-orange-500, .bg-orange-600, .bg-red-500, .bg-red-600, .bg-green-600, .bg-emerald-600, .bg-blue-600
+):not([class*="bg-gradient"]):not(:disabled) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.10), rgb(0 0 0 / 0.08));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -1px 0 rgb(0 0 0 / 0.18), 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: box-shadow 150ms ease, translate 100ms ease, background-color 150ms ease;
+}
+html:not([data-flat]) :is(button, a, [role="button"]):is(.bg-orange-500, .bg-orange-600):not([class*="bg-gradient"]):not(:disabled):hover {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -1px 0 rgb(0 0 0 / 0.18),
+              0 6px 16px -6px color-mix(in srgb, var(--accent-500) 70%, transparent);
+}
+html:not([data-flat]) :is(button, a, [role="button"]):is(
+  .bg-orange-500, .bg-orange-600, .bg-red-500, .bg-red-600, .bg-green-600, .bg-emerald-600, .bg-blue-600
+):not([class*="bg-gradient"]):not(:disabled):active {
+  translate: 0 1px;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.25);
+}
+
+/* Inputs look set into the page (focus ring still wins) */
+html:not([data-flat]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select):not(:focus) {
+  box-shadow: var(--d-inset) !important;
+}
+
+/* Sticky page header casts a soft shadow over scrolling content */
+html:not([data-flat]) header.sticky {
+  box-shadow: 0 8px 20px -14px rgb(0 0 0 / 0.6);
+}
+
+/* Pointer tilt for [data-tilt] tiles (dashboard KPIs) */
+html:not([data-flat]) [data-tilt] {
+  transform: perspective(700px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 250ms ease-out, box-shadow 200ms ease, translate 200ms ease;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-flat]) [data-tilt] { transform: none; }
+  html:not([data-flat]) :is(.rounded-xl, .rounded-2xl, button, a):hover,
+  html:not([data-flat]) :is(button, a):active { translate: none !important; }
+}

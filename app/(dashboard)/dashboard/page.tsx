@@ -133,7 +133,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* KPI row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {kpis.map((kpi) => (
-            <div key={kpi.label} className={`relative overflow-hidden bg-gradient-to-br ${kpi.ring} bg-slate-900 border border-slate-800 rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-700`}>
+            <div key={kpi.label} data-tilt className={`relative overflow-hidden bg-gradient-to-br ${kpi.ring} bg-slate-900 border border-slate-800 rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-700`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">{kpi.label}</span>
                 <kpi.icon size={16} className={kpi.color} aria-hidden="true" />
