@@ -7,21 +7,16 @@ import Image from 'next/image'
 import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard, Users, Code2, BarChart3, Settings, LogOut,
-  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, Sun, Moon, Monitor, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature, Inbox, Search,
+  Activity, MonitorPlay, ClipboardList, Globe, X, Bell, Mail, UserCircle, LifeBuoy, Kanban, MailX, Hammer, ChevronDown, PhoneCall, UsersRound, Gauge, Briefcase, MessageSquare, MessageCircle, CalendarDays, Images, MessageSquarePlus, FileSignature, Inbox, Search,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useTheme } from '@/components/ThemeProvider'
 import { usePoll } from '@/lib/use-poll'
 import { EMAIL_UNREAD_EVENT } from '@/lib/email-events'
 import { RingVolumeControl } from '@/components/dialer/RingVolumeControl'
-import { AccentPicker } from '@/components/layout/AccentPicker'
 import { useSearchParams } from 'next/navigation'
 import { Profile } from '@/types'
 import { useEffect, useRef, useState } from 'react'
-
-const THEME_LABEL = { system: 'System', light: 'Light', dark: 'Dark' } as const
-const NEXT_THEME = { system: 'light', light: 'dark', dark: 'system' } as const
 
 interface NavItem    { href: string; label: string; icon: LucideIcon }
 // collapsible sections start closed (state remembered per browser) and open
@@ -188,7 +183,6 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
   const pathname     = usePathname()
   const searchParams = useSearchParams()
   const supabase = createClient()
-  const { preference, cycleTheme } = useTheme()
   const [pendingCount, setPendingCount] = useState(0)
   const [pendingNotes, setPendingNotes] = useState(0)
   const [unreadCount, setUnreadCount]   = useState(0)
@@ -481,21 +475,6 @@ export function Sidebar({ profile, isOpen, onClose }: SidebarProps) {
           {/* Ring volume lives here rather than only on the incoming-call popup —
               a call gives you ~15 seconds, which is no time to go looking. */}
           <div className="ml-auto flex items-center gap-0.5">
-            {/* Theme: cycles System → Light → Dark; icon shows the current choice */}
-            <button
-              type="button"
-              onClick={cycleTheme}
-              aria-label={`Theme: ${THEME_LABEL[preference]}. Switch to ${THEME_LABEL[NEXT_THEME[preference]]}`}
-              title={`Theme: ${THEME_LABEL[preference]} (click for ${THEME_LABEL[NEXT_THEME[preference]].toLowerCase()})`}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              {preference === 'system'
-                ? <Monitor size={15} aria-hidden="true" />
-                : preference === 'light'
-                  ? <Sun size={15} aria-hidden="true" />
-                  : <Moon size={15} aria-hidden="true" />}
-            </button>
-            <AccentPicker />
             <RingVolumeControl />
           </div>
         </div>

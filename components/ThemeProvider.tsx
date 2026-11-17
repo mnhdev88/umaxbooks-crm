@@ -26,6 +26,21 @@ const DEFAULT_ACCENT: Accent = 'violet'
 const ACCENT_KEY = 'accent'
 const isAccent = (v: unknown): v is Accent => ACCENTS.some(a => a.id === v)
 
+/** Background themes. Greys/surfaces live in app/globals.css (html[data-palette]).
+ *  `dark`/`light` are swatch colours; `accent` is applied when the theme is picked
+ *  (the user can still change the accent afterwards). */
+export const PALETTES = [
+  { id: 'navy',     label: 'Navy',     dark: '#141B2D', light: '#ECEEF4', accent: 'violet'  },
+  { id: 'charcoal', label: 'Charcoal', dark: '#1B1B1F', light: '#EEEEEF', accent: 'blue'    },
+  { id: 'midnight', label: 'Midnight', dark: '#080A10', light: '#EEEEEF', accent: 'violet'  },
+  { id: 'forest',   label: 'Forest',   dark: '#0F2017', light: '#EBEFED', accent: 'emerald' },
+  { id: 'plum',     label: 'Plum',     dark: '#231625', light: '#F0EDF1', accent: 'fuchsia' },
+] as const satisfies readonly { id: string; label: string; dark: string; light: string; accent: Accent }[]
+export type Palette = (typeof PALETTES)[number]['id']
+const DEFAULT_PALETTE: Palette = 'navy'
+const PALETTE_KEY = 'palette'
+const isPalette = (v: unknown): v is Palette => PALETTES.some(p => p.id === v)
+
 const ThemeContext = createContext<{
   /** Resolved theme currently applied — use this for rendering decisions. */
   theme: ResolvedTheme
@@ -35,6 +50,9 @@ const ThemeContext = createContext<{
   cycleTheme: () => void
   accent: Accent
   setAccent: (a: Accent) => void
+  palette: Palette
+  /** Switches the background theme and applies its suggested accent. */
+  setPalette: (p: Palette) => void
 }>({
   theme: 'dark',
   preference: 'system',
@@ -42,6 +60,8 @@ const ThemeContext = createContext<{
   cycleTheme: () => {},
   accent: DEFAULT_ACCENT,
   setAccent: () => {},
+  palette: DEFAULT_PALETTE,
+  setPalette: () => {},
 })
 
 export function useTheme() { return useContext(ThemeContext) }
@@ -71,6 +91,14 @@ function readAccent(): Accent {
   return DEFAULT_ACCENT
 }
 
+function readPalette(): Palette {
+  try {
+    const v = localStorage.getItem(PALETTE_KEY)
+    if (isPalette(v)) return v
+  } catch {}
+  return DEFAULT_PALETTE
+}
+
 // ── OS colour scheme (live, e.g. Windows/macOS auto dark mode at sunset) ───
 function subscribeSystem(cb: () => void) {
   const mq = window.matchMedia(LIGHT_QUERY)
@@ -89,6 +117,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme: ResolvedTheme = preference === 'system' ? system : preference
   // Same storage + change event as the theme, so tabs stay in sync.
   const accent = useSyncExternalStore(subscribePreference, readAccent, () => DEFAULT_ACCENT)
+  const palette = useSyncExternalStore(subscribePreference, readPalette, () => DEFAULT_PALETTE)
 
   useEffect(() => {
     const root = document.documentElement
@@ -102,6 +131,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (accent === DEFAULT_ACCENT) root.removeAttribute('data-accent')
     else root.setAttribute('data-accent', accent)
   }, [accent])
+
+  useEffect(() => {
+    // Navy is the base palette in :root, so it needs no attribute.
+    const root = document.documentElement
+    if (palette === DEFAULT_PALETTE) root.removeAttribute('data-palette')
+    else root.setAttribute('data-palette', palette)
+    // Match the mobile browser bar to the page background.
+    const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim()
+    if (canvas) document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', canvas))
+  }, [palette, theme])
+
+  const setPalette = useCallback((p: Palette) => {
+    const suggested = PALETTES.find(x => x.id === p)?.accent ?? DEFAULT_ACCENT
+    try {
+      localStorage.setItem(PALETTE_KEY, p)
+      localStorage.setItem(ACCENT_KEY, suggested)
+    } catch {}
+    window.dispatchEvent(new Event(CHANGE_EVENT))
+  }, [])
 
   const setAccent = useCallback((a: Accent) => {
     try { localStorage.setItem(ACCENT_KEY, a) } catch {}
@@ -118,7 +166,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [preference, setPreference])
 
   return (
-    <ThemeContext.Provider value={{ theme, preference, setPreference, cycleTheme, accent, setAccent }}>
+    <ThemeContext.Provider value={{ theme, preference, setPreference, cycleTheme, accent, setAccent, palette, setPalette }}>
       {children}
     </ThemeContext.Provider>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { NotificationBell } from './NotificationBell'
+import { AppearanceMenu } from './AppearanceMenu'
 import { Profile } from '@/types'
 import { useSidebar } from './DashboardShell'
 import { Menu } from 'lucide-react'
@@ -28,7 +29,10 @@ export function Header({ title, profile, actions }: HeaderProps) {
       </div>
       <div className="flex items-center gap-3">
         {actions}
-        <NotificationBell userId={profile.id} />
+        <div className="flex items-center gap-1">
+          <AppearanceMenu />
+          <NotificationBell userId={profile.id} />
+        </div>
       </div>
     </header>
   )

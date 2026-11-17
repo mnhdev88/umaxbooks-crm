@@ -8,12 +8,13 @@ import {
 import { useTheme } from '@/components/ThemeProvider'
 
 // Recharts renders inline SVG, so its colors can't ride the globals.css light
-// overrides — pick neutrals from the active theme instead.
+// overrides — use the active background theme's grey tokens instead (SVG
+// presentation attributes resolve CSS variables).
 function useChartTheme() {
   const { theme } = useTheme()
   return theme === 'light'
-    ? { axis: '#4A5070', track: '#ECEEF4', cursor: 'rgba(74,80,112,0.08)' }
-    : { axis: '#94a3b8', track: '#1B2338', cursor: 'rgba(148,163,184,0.08)' }
+    ? { axis: 'var(--ln-650)', track: 'var(--ln-150)', cursor: 'color-mix(in srgb, var(--ln-650) 8%, transparent)' }
+    : { axis: 'var(--n-400)', track: 'var(--surface-2)', cursor: 'color-mix(in srgb, var(--n-400) 8%, transparent)' }
 }
 
 export interface Slice { name: string; value: number; color: string }

@@ -10,12 +10,52 @@
    bg-surface / bg-surface-2 and get the right colour in either theme.
    Dark is the default; html.light switches the variables. */
 :root {
-  --canvas:     #0E1424;  /* page background — logo navy, slightly lifted */
-  --surface:    #141B2D;  /* cards, panels, modals */
-  --surface-2:  #1B2338;  /* raised / inset areas, menus */
-  --border:     #263049;
+  --canvas:     var(--dk-canvas);     /* page background */
+  --surface:    var(--dk-surface);    /* cards, panels, modals */
+  --surface-2:  var(--dk-surface-2);  /* raised / inset areas, menus */
+  --border:     var(--dk-border);
   --background: var(--canvas);
-  --foreground: #E2E6EF;  /* soft off-white, not pure #fff (less halation) */
+  --foreground: var(--dk-foreground); /* soft off-white, not pure #fff */
+
+  /* ── Background theme (user-selectable, html[data-palette]) ──────────────
+     Default = Navy. --n-* is the dark-mode grey scale behind every slate-*
+     utility (Navy = Tailwind's own slate, so nothing changes by default).
+     --dk-* are the dark surfaces, --ln-* the light-mode greys used by the
+     html.light overrides below. Other themes keep Navy's lightness steps and
+     only change hue/tint, so text contrast is the same in every theme. */
+  --n-50:  oklch(98.4% 0.003 247.858);
+  --n-100: oklch(96.8% 0.007 247.896);
+  --n-200: oklch(92.9% 0.013 255.508);
+  --n-300: oklch(86.9% 0.022 252.894);
+  --n-400: oklch(70.4% 0.04 256.788);
+  --n-500: oklch(55.4% 0.046 257.417);
+  --n-600: oklch(44.6% 0.043 257.281);
+  --n-700: oklch(37.2% 0.044 257.287);
+  --n-800: oklch(27.9% 0.041 260.031);
+  --n-900: oklch(20.8% 0.042 265.755);
+  --n-950: oklch(12.9% 0.042 264.695);
+  --dk-canvas: #0E1424;
+  --dk-surface: #141B2D;
+  --dk-surface-2: #1B2338;
+  --dk-border: #263049;
+  --dk-foreground: #E2E6EF;
+  --dk-scroll: var(--dk-scroll);
+  --ln-0: #FFFFFF;
+  --ln-50: #F2F3F8;
+  --ln-100: #F4F5F9;
+  --ln-150: #ECEEF4;
+  --ln-200: #E1E4EC;
+  --ln-300: #CDD2DE;
+  --ln-350: #C3C8D6;
+  --ln-400: #A9B0C2;
+  --ln-450: #94A3B8;
+  --ln-600: #5A6080;
+  --ln-650: #4A5070;
+  --ln-700: #3A4058;
+  --ln-750: #334155;
+  --ln-800: #2A2F45;
+  --ln-850: #1F2337;
+  --ln-900: #0F172A;
 
   --brand:       var(--accent-500);
   --brand-light: var(--accent-400);
@@ -70,12 +110,152 @@ html[data-accent="sunset"] {
 /* The deeper 500s that carry white button text are too dim as plain text on
    the navy surfaces, so in dark mode accent-500 text uses the lighter 400. */
 html[data-accent]:not(.light) .text-orange-500 { color: var(--accent-400); }
+html[data-palette="charcoal"] {
+  --n-50: oklch(98.4% 0.001 286);
+  --n-100: oklch(96.8% 0.002 286);
+  --n-200: oklch(92.9% 0.003 286);
+  --n-300: oklch(86.9% 0.005 286);
+  --n-400: oklch(70.4% 0.009 286);
+  --n-500: oklch(55.4% 0.010 286);
+  --n-600: oklch(44.6% 0.009 286);
+  --n-700: oklch(37.2% 0.010 286);
+  --n-800: oklch(27.9% 0.009 286);
+  --n-900: oklch(20.8% 0.009 286);
+  --n-950: oklch(12.9% 0.009 286);
+  --dk-canvas: #141418;
+  --dk-surface: #1B1B1F;
+  --dk-surface-2: #232328;
+  --dk-border: #303036;
+  --dk-foreground: #E6E6E8;
+  --dk-scroll: #45454B;
+  --ln-0: #FFFFFF;
+  --ln-50: #F3F3F4;
+  --ln-100: #F5F5F6;
+  --ln-150: #EEEEEF;
+  --ln-200: #E4E4E5;
+  --ln-300: #D2D2D4;
+  --ln-350: #C8C8CA;
+  --ln-400: #B0B0B3;
+  --ln-450: #A1A1A5;
+  --ln-600: #626267;
+  --ln-650: #525257;
+  --ln-700: #414145;
+  --ln-750: #404043;
+  --ln-800: #303033;
+  --ln-850: #242427;
+  --ln-900: #17171A;
+}
+html[data-palette="midnight"] {
+  --n-50: oklch(98.4% 0.001 265);
+  --n-100: oklch(96.8% 0.002 265);
+  --n-200: oklch(92.9% 0.005 265);
+  --n-300: oklch(86.9% 0.008 265);
+  --n-400: oklch(70.4% 0.014 265);
+  --n-500: oklch(55.4% 0.016 265);
+  --n-600: oklch(44.6% 0.015 265);
+  --n-700: oklch(37.2% 0.015 265);
+  --n-800: oklch(23.5% 0.014 265);
+  --n-900: oklch(16.5% 0.015 265);
+  --n-950: oklch(9.0% 0.015 265);
+  --dk-canvas: #030407;
+  --dk-surface: #080A10;
+  --dk-surface-2: #101319;
+  --dk-border: #1E222A;
+  --dk-foreground: #E4E6E9;
+  --dk-scroll: #393E47;
+  --ln-0: #FFFFFF;
+  --ln-50: #F3F3F4;
+  --ln-100: #F5F5F6;
+  --ln-150: #EEEEEF;
+  --ln-200: #E3E4E6;
+  --ln-300: #D1D2D4;
+  --ln-350: #C7C8CB;
+  --ln-400: #AEB0B4;
+  --ln-450: #9FA2A6;
+  --ln-600: #5F6268;
+  --ln-650: #4F5258;
+  --ln-700: #3F4146;
+  --ln-750: #3E4044;
+  --ln-800: #2E3035;
+  --ln-850: #232528;
+  --ln-900: #16181C;
+}
+html[data-palette="forest"] {
+  --n-50: oklch(98.4% 0.002 160);
+  --n-100: oklch(96.8% 0.006 160);
+  --n-200: oklch(92.9% 0.010 160);
+  --n-300: oklch(86.9% 0.018 160);
+  --n-400: oklch(70.4% 0.032 160);
+  --n-500: oklch(55.4% 0.037 160);
+  --n-600: oklch(44.6% 0.034 160);
+  --n-700: oklch(37.2% 0.035 160);
+  --n-800: oklch(27.9% 0.033 160);
+  --n-900: oklch(20.8% 0.034 160);
+  --n-950: oklch(12.9% 0.034 160);
+  --dk-canvas: #091810;
+  --dk-surface: #0F2017;
+  --dk-surface-2: #15291E;
+  --dk-border: #1F372A;
+  --dk-foreground: #E0E8E4;
+  --dk-scroll: #334C3F;
+  --ln-0: #FFFFFF;
+  --ln-50: #F1F4F2;
+  --ln-100: #F3F6F4;
+  --ln-150: #EBEFED;
+  --ln-200: #E0E6E2;
+  --ln-300: #CCD5CF;
+  --ln-350: #C1CBC5;
+  --ln-400: #A7B4AC;
+  --ln-450: #95A79C;
+  --ln-600: #51695B;
+  --ln-650: #40594B;
+  --ln-700: #34463C;
+  --ln-750: #34453B;
+  --ln-800: #24352C;
+  --ln-850: #192920;
+  --ln-900: #0C1C13;
+}
+html[data-palette="plum"] {
+  --n-50: oklch(98.4% 0.003 322);
+  --n-100: oklch(96.8% 0.007 322);
+  --n-200: oklch(92.9% 0.012 322);
+  --n-300: oklch(86.9% 0.021 322);
+  --n-400: oklch(70.4% 0.038 322);
+  --n-500: oklch(55.4% 0.044 322);
+  --n-600: oklch(44.6% 0.041 322);
+  --n-700: oklch(37.2% 0.042 322);
+  --n-800: oklch(27.9% 0.039 322);
+  --n-900: oklch(20.8% 0.040 322);
+  --n-950: oklch(12.9% 0.040 322);
+  --dk-canvas: #1B101D;
+  --dk-surface: #231625;
+  --dk-surface-2: #2D1D2F;
+  --dk-border: #3C293E;
+  --dk-foreground: #EAE3EB;
+  --dk-scroll: #513E54;
+  --ln-0: #FFFFFF;
+  --ln-50: #F5F2F5;
+  --ln-100: #F7F4F7;
+  --ln-150: #F0EDF1;
+  --ln-200: #E7E2E8;
+  --ln-300: #D6CFD7;
+  --ln-350: #CDC5CE;
+  --ln-400: #B7ACB8;
+  --ln-450: #AA9DAC;
+  --ln-600: #6D5B70;
+  --ln-650: #5D4B60;
+  --ln-700: #4A3C4B;
+  --ln-750: #483B4A;
+  --ln-800: #382B3A;
+  --ln-850: #2B202D;
+  --ln-900: #1E1320;
+}
 html.light {
-  --canvas:     #F2F3F8;  /* cool off-white page — less glare than #fff */
-  --surface:    #FFFFFF;
-  --surface-2:  #F4F5F9;
-  --border:     #E1E4EC;
-  --foreground: #1F2337;
+  --canvas:     var(--ln-50);   /* off-white page — less glare than #fff */
+  --surface:    var(--ln-0);
+  --surface-2:  var(--ln-100);
+  --border:     var(--ln-200);
+  --foreground: var(--ln-850);
 }
 
 @theme inline {
@@ -85,6 +265,17 @@ html.light {
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-brand: var(--brand);
+  --color-slate-50: var(--n-50);
+  --color-slate-100: var(--n-100);
+  --color-slate-200: var(--n-200);
+  --color-slate-300: var(--n-300);
+  --color-slate-400: var(--n-400);
+  --color-slate-500: var(--n-500);
+  --color-slate-600: var(--n-600);
+  --color-slate-700: var(--n-700);
+  --color-slate-800: var(--n-800);
+  --color-slate-900: var(--n-900);
+  --color-slate-950: var(--n-950);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
@@ -154,8 +345,8 @@ html:not(.light) select option {
   color: var(--foreground);
 }
 html.light select option {
-  background-color: #ffffff;
-  color: #0f172a;
+  background-color: var(--ln-0);
+  color: var(--ln-900);
 }
 
 html {
@@ -179,9 +370,9 @@ body {
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 /* Muted thumb: a bright brand-coloured scrollbar on every panel is visual noise */
-html { scrollbar-width: thin; scrollbar-color: #3A4560 var(--canvas); }
+html { scrollbar-width: thin; scrollbar-color: var(--dk-scroll) var(--canvas); }
 ::-webkit-scrollbar-track { background: var(--canvas); }
-::-webkit-scrollbar-thumb { background: #3A4560; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: var(--dk-scroll); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 
 /* ── Light theme overrides ───────────────────────────────────────────────── */
@@ -194,33 +385,33 @@ html.light body {
   color: var(--foreground) !important;
 }
 /* bg-canvas / bg-surface / bg-surface-2 switch via the CSS variables above. */
-html.light .bg-slate-900 { background-color: #ffffff !important; }
-html.light .bg-slate-800 { background-color: #F4F5F9 !important; }
-html.light .bg-slate-700 { background-color: #ECEEF4 !important; }
-html.light .bg-slate-800\/60 { background-color: rgba(244,245,249,0.7) !important; }
-html.light .bg-slate-800\/50 { background-color: rgba(244,245,249,0.6) !important; }
-html.light .bg-slate-800\/40 { background-color: rgba(244,245,249,0.5) !important; }
-html.light .bg-slate-900\/50 { background-color: rgba(255,255,255,0.6) !important; }
-html.light .bg-slate-900\/60 { background-color: rgba(255,255,255,0.7) !important; }
-html.light .bg-slate-900\/40 { background-color: rgba(255,255,255,0.5) !important; }
-html.light .border-slate-800 { border-color: #E1E4EC !important; }
-html.light .border-slate-700 { border-color: #CDD2DE !important; }
-html.light .border-slate-700\/50 { border-color: rgba(205,210,222,0.5) !important; }
-html.light .border-slate-700\/30 { border-color: rgba(205,210,222,0.3) !important; }
-html.light .border-slate-600 { border-color: #A9B0C2 !important; }
+html.light .bg-slate-900 { background-color: var(--ln-0) !important; }
+html.light .bg-slate-800 { background-color: var(--ln-100) !important; }
+html.light .bg-slate-700 { background-color: var(--ln-150) !important; }
+html.light .bg-slate-800\/60 { background-color: color-mix(in srgb, var(--ln-100) 70%, transparent) !important; }
+html.light .bg-slate-800\/50 { background-color: color-mix(in srgb, var(--ln-100) 60%, transparent) !important; }
+html.light .bg-slate-800\/40 { background-color: color-mix(in srgb, var(--ln-100) 50%, transparent) !important; }
+html.light .bg-slate-900\/50 { background-color: color-mix(in srgb, var(--ln-0) 60%, transparent) !important; }
+html.light .bg-slate-900\/60 { background-color: color-mix(in srgb, var(--ln-0) 70%, transparent) !important; }
+html.light .bg-slate-900\/40 { background-color: color-mix(in srgb, var(--ln-0) 50%, transparent) !important; }
+html.light .border-slate-800 { border-color: var(--ln-200) !important; }
+html.light .border-slate-700 { border-color: var(--ln-300) !important; }
+html.light .border-slate-700\/50 { border-color: color-mix(in srgb, var(--ln-300) 50%, transparent) !important; }
+html.light .border-slate-700\/30 { border-color: color-mix(in srgb, var(--ln-300) 30%, transparent) !important; }
+html.light .border-slate-600 { border-color: var(--ln-400) !important; }
 /* Softer, calibrated text scale — gentler than pure near-black, muted greys kept ≥AA */
-html.light .text-slate-100 { color: #1F2337 !important; }
-html.light .text-slate-200 { color: #2A2F45 !important; }
-html.light .text-slate-300 { color: #3A4058 !important; }
-html.light .text-slate-400 { color: #4A5070 !important; }
-html.light .text-slate-500 { color: #5A6080 !important; }
-html.light .text-slate-600 { color: #5A6080 !important; }
-html.light .hover\:bg-slate-800:hover { background-color: #ECEEF4 !important; }
-html.light .hover\:bg-slate-700:hover { background-color: #E1E4EC !important; }
-html.light .hover\:bg-slate-600:hover { background-color: #CDD2DE !important; }
-html.light .hover\:text-slate-100:hover { color: #0f172a !important; }
-html.light .hover\:text-slate-300:hover { color: #334155 !important; }
-html.light .hover\:border-slate-500:hover { border-color: #94a3b8 !important; }
+html.light .text-slate-100 { color: var(--ln-850) !important; }
+html.light .text-slate-200 { color: var(--ln-800) !important; }
+html.light .text-slate-300 { color: var(--ln-700) !important; }
+html.light .text-slate-400 { color: var(--ln-650) !important; }
+html.light .text-slate-500 { color: var(--ln-600) !important; }
+html.light .text-slate-600 { color: var(--ln-600) !important; }
+html.light .hover\:bg-slate-800:hover { background-color: var(--ln-150) !important; }
+html.light .hover\:bg-slate-700:hover { background-color: var(--ln-200) !important; }
+html.light .hover\:bg-slate-600:hover { background-color: var(--ln-300) !important; }
+html.light .hover\:text-slate-100:hover { color: var(--ln-900) !important; }
+html.light .hover\:text-slate-300:hover { color: var(--ln-750) !important; }
+html.light .hover\:border-slate-500:hover { border-color: var(--ln-450) !important; }
 html.light .hover\:bg-emerald-900\/30:hover { background-color: #a7f3d0 !important; }
 html.light .hover\:bg-orange-900\/30:hover  { background-color: var(--accent-100) !important; }
 html.light .hover\:bg-red-900\/30:hover     { background-color: #fecaca !important; }
@@ -230,18 +421,18 @@ html.light .hover\:text-red-300:hover       { color: #b91c1c !important; }
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light textarea,
 html.light select {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  background-color: var(--ln-0) !important;
+  color: var(--ln-900) !important;
+  border-color: var(--ln-300) !important;
 }
 /* Sonner toast — adapt to light theme (inline styles need !important) */
 html.light [data-sonner-toast] {
-  background: #ffffff !important;
+  background: var(--ln-0) !important;
   border-color: var(--accent-200) !important;
-  color: #1F2337 !important;
+  color: var(--ln-850) !important;
 }
-html.light { scrollbar-color: #C3C8D6 var(--canvas); }
-html.light ::-webkit-scrollbar-thumb { background: #C3C8D6; }
+html.light { scrollbar-color: var(--ln-350) var(--canvas); }
+html.light ::-webkit-scrollbar-thumb { background: var(--ln-350); }
 html.light ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
 
 /* Colored text — darken for light backgrounds */
@@ -314,16 +505,24 @@ html.light .border-green-800       { border-color: #4ade80 !important; }
 html.light .border-red-700         { border-color: #f87171 !important; }
 
 /* text-white / hover:text-white — override for light mode */
-html.light .text-white          { color: #1F2337 !important; }
-html.light .hover\:text-white:hover { color: #1F2337 !important; }
+html.light .text-white          { color: var(--ln-850) !important; }
+html.light .hover\:text-white:hover { color: var(--ln-850) !important; }
+/* …except on solid accent/status fills, where white is the readable colour
+   (every accent-500/600 carries white at ≥4.5:1; dark text would not). */
+:is(html.light .bg-orange-500, html.light .bg-orange-600, html.light .bg-orange-700,
+    html.light .bg-red-500, html.light .bg-red-600, html.light .bg-green-600,
+    html.light .bg-emerald-600, html.light .bg-blue-600) :is(.text-white, .hover\:text-white:hover),
+:is(html.light .bg-orange-500, html.light .bg-orange-600, html.light .bg-orange-700,
+    html.light .bg-red-500, html.light .bg-red-600, html.light .bg-green-600,
+    html.light .bg-emerald-600, html.light .bg-blue-600):is(.text-white, .hover\:text-white:hover) { color: #fff !important; }
 
 /* white/5 and white/10 backgrounds used in settings form inputs */
-html.light .bg-white\/5  { background-color: #f8fafc !important; }
-html.light .bg-white\/10 { background-color: #f1f5f9 !important; }
-html.light .border-white\/10 { border-color: #cbd5e1 !important; }
+html.light .bg-white\/5  { background-color: var(--ln-100) !important; }
+html.light .bg-white\/10 { background-color: var(--ln-150) !important; }
+html.light .border-white\/10 { border-color: var(--ln-300) !important; }
 
 /* Gradient backgrounds used in audit/AI sections */
-html.light .from-slate-800\/80     { --tw-gradient-from: #f1f5f9 !important; }
+html.light .from-slate-800\/80     { --tw-gradient-from: var(--ln-150) !important; }
 html.light .to-orange-950\/20      { --tw-gradient-to: var(--accent-100) !important; }
 html.light .border-orange-900\/30  { border-color: var(--accent-200) !important; }
 
@@ -340,7 +539,7 @@ html.light .border-orange-500\/20 { border-color: var(--accent-200) !important; 
 html.light .rounded-xl { box-shadow: 0 2px 8px rgba(30,35,60,0.07), 0 1px 2px rgba(30,35,60,0.04) !important; }
 
 /* Sidebar/panel borders in light mode */
-html.light .border-slate-800\/80 { border-color: #E4E6EE !important; }
+html.light .border-slate-800\/80 { border-color: var(--ln-200) !important; }
 
 /* orange-500/10 icon backgrounds */
 html.light .bg-orange-500\/10 { background-color: var(--accent-100) !important; }
@@ -367,39 +566,39 @@ html.light .text-cyan-300     { color: #0891B2 !important; }
 html.light .border-red-600\/50   { border-color: #F87171 !important; }
 html.light .border-amber-600\/50 { border-color: #FCD34D !important; }
 /* Column bg in light mode */
-html.light .bg-slate-900\/60  { background-color: rgba(255,255,255,0.75) !important; }
+html.light .bg-slate-900\/60  { background-color: color-mix(in srgb, var(--ln-0) 75%, transparent) !important; }
 /* Drop-zone hover */
-html.light .bg-slate-800\/80  { background-color: rgba(236,238,244,0.8) !important; }
+html.light .bg-slate-800\/80  { background-color: color-mix(in srgb, var(--ln-150) 80%, transparent) !important; }
 /* Dashed drop placeholder */
-html.light .border-slate-700\/50 { border-color: rgba(205,210,222,0.5) !important; }
+html.light .border-slate-700\/50 { border-color: color-mix(in srgb, var(--ln-300) 50%, transparent) !important; }
 
 /* ── Light theme — additional coverage (audit gap fixes) ─────────────────── */
 
 /* Full-page / panel backgrounds that weren't mapped */
-html.light .bg-slate-950    { background-color: #F2F3F8 !important; }
+html.light .bg-slate-950    { background-color: var(--ln-50) !important; }
 
 /* Slate background opacity variants */
-html.light .bg-slate-900\/30 { background-color: rgba(255,255,255,0.45) !important; }
-html.light .bg-slate-800\/70 { background-color: rgba(244,245,249,0.75) !important; }
-html.light .bg-slate-800\/30 { background-color: rgba(244,245,249,0.45) !important; }
-html.light .bg-slate-800\/20 { background-color: rgba(244,245,249,0.35) !important; }
-html.light .bg-slate-800\/10 { background-color: rgba(244,245,249,0.25) !important; }
-html.light .bg-slate-700\/60 { background-color: rgba(236,238,244,0.7) !important; }
-html.light .bg-slate-700\/40 { background-color: rgba(236,238,244,0.5) !important; }
-html.light .bg-slate-700\/30 { background-color: rgba(236,238,244,0.4) !important; }
-html.light .bg-slate-600\/30 { background-color: rgba(205,210,222,0.35) !important; }
-html.light .bg-slate-600     { background-color: #CDD2DE !important; }
-html.light .hover\:bg-slate-800\/70:hover { background-color: rgba(244,245,249,0.7) !important; }
+html.light .bg-slate-900\/30 { background-color: color-mix(in srgb, var(--ln-0) 45%, transparent) !important; }
+html.light .bg-slate-800\/70 { background-color: color-mix(in srgb, var(--ln-100) 75%, transparent) !important; }
+html.light .bg-slate-800\/30 { background-color: color-mix(in srgb, var(--ln-100) 45%, transparent) !important; }
+html.light .bg-slate-800\/20 { background-color: color-mix(in srgb, var(--ln-100) 35%, transparent) !important; }
+html.light .bg-slate-800\/10 { background-color: color-mix(in srgb, var(--ln-100) 25%, transparent) !important; }
+html.light .bg-slate-700\/60 { background-color: color-mix(in srgb, var(--ln-150) 70%, transparent) !important; }
+html.light .bg-slate-700\/40 { background-color: color-mix(in srgb, var(--ln-150) 50%, transparent) !important; }
+html.light .bg-slate-700\/30 { background-color: color-mix(in srgb, var(--ln-150) 40%, transparent) !important; }
+html.light .bg-slate-600\/30 { background-color: color-mix(in srgb, var(--ln-300) 35%, transparent) !important; }
+html.light .bg-slate-600     { background-color: var(--ln-300) !important; }
+html.light .hover\:bg-slate-800\/70:hover { background-color: color-mix(in srgb, var(--ln-100) 70%, transparent) !important; }
 
 /* Slate borders / dividers */
-html.light .border-slate-800\/60 { border-color: rgba(225,228,236,0.6) !important; }
-html.light .border-slate-700\/60 { border-color: rgba(205,210,222,0.6) !important; }
-html.light .border-slate-700\/40 { border-color: #E1E4EC !important; }
-html.light .border-slate-600\/40 { border-color: rgba(205,210,222,0.5) !important; }
-html.light .border-slate-500     { border-color: #94a3b8 !important; }
-html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: #E1E4EC !important; }
-html.light .divide-slate-700 > :not([hidden]) ~ :not([hidden])     { border-color: #E1E4EC !important; }
-html.light .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(205,210,222,0.6) !important; }
+html.light .border-slate-800\/60 { border-color: color-mix(in srgb, var(--ln-200) 60%, transparent) !important; }
+html.light .border-slate-700\/60 { border-color: color-mix(in srgb, var(--ln-300) 60%, transparent) !important; }
+html.light .border-slate-700\/40 { border-color: var(--ln-200) !important; }
+html.light .border-slate-600\/40 { border-color: color-mix(in srgb, var(--ln-300) 50%, transparent) !important; }
+html.light .border-slate-500     { border-color: var(--ln-450) !important; }
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: var(--ln-200) !important; }
+html.light .divide-slate-700 > :not([hidden]) ~ :not([hidden])     { border-color: var(--ln-200) !important; }
+html.light .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--ln-300) 60%, transparent) !important; }
 
 /* Semantic -500 tint backgrounds (badges, banners, icon chips) */
 html.light .bg-blue-500\/10   { background-color: #eff6ff !important; }
