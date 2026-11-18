@@ -63,19 +63,27 @@ export function NoteApprovalsClient({ initialApprovals, userId }: Props) {
 
     try {
       // 1. Mark the agent's request approved.
-      await supabase
+      const { error: reviewErr } = await supabase
         .from('audit_notes')
         .update({ approval_status: 'approved', reviewed_by: userId, reviewed_at: new Date().toISOString() })
         .eq('id', a.id)
+      if (reviewErr) {
+        setErrors(p => ({ ...p, [a.id]: `Could not approve: ${reviewErr.message}` }))
+        return
+      }
 
       // 2. Post the manager's own note — this is what the developer sees.
       //    The DB trigger stamps it 'approved' because the author is a manager.
-      await supabase.from('audit_notes').insert({
+      const { error: noteErr } = await supabase.from('audit_notes').insert({
         lead_id: a.lead_id,
         user_id: userId,
         note,
         source_note_id: a.id,
       })
+      if (noteErr) {
+        setErrors(p => ({ ...p, [a.id]: `Approved, but the developer note failed to save: ${noteErr.message}` }))
+        return
+      }
 
       const company = a.lead?.company_name || a.lead?.name || 'Lead'
       const preview = note.slice(0, 120) + (note.length > 120 ? '…' : '')

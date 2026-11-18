@@ -76,9 +76,19 @@ function hasDemoLink(lead: any): boolean {
   return (lead.demos || []).some((d: any) => !!d.temp_url)
 }
 
+// A manager note approved after the latest demo upload is new work for the
+// developer (a revision), even though the lead already has a demo link.
+function hasNoteAfterDemo(lead: any): boolean {
+  if (!lead.last_note_at) return false
+  const latestDemo = Math.max(0, ...(lead.demos || [])
+    .filter((d: any) => !!d.temp_url)
+    .map((d: any) => new Date(d.created_at).getTime()))
+  return new Date(lead.last_note_at).getTime() > latestDemo
+}
+
 function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[], resubmittedIds: string[]) {
   if (f === 'all')        return true
-  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && !hasDemoLink(lead) && !resubmittedIds.includes(lead.id)
+  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && (!hasDemoLink(lead) || hasNoteAfterDemo(lead)) && !resubmittedIds.includes(lead.id)
   if (f === 'demo-build') return resubmittedIds.includes(lead.id) || lead.status === 'Demo Scheduled' || (hasDemoLink(lead) && !declinedIds.includes(lead.id))
   if (f === 'submitted')  return lead.status === 'Demo Done'
   if (f === 'declined')   return declinedIds.includes(lead.id) && !approvedIds.includes(lead.id)

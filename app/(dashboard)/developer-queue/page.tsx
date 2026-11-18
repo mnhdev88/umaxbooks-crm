@@ -193,12 +193,25 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
         }
       }
 
+      // Newest approved note per lead. Approving a note doesn't touch the lead
+      // row, so without this a freshly briefed lead keeps its old updated_at and
+      // sinks to the bottom of the queue.
+      for (const lead of [...allLeads, ...agentNotesLeads]) {
+        const notes = notesByLead.get((lead as any).id)
+        if (notes?.length) (lead as any).last_note_at = notes[notes.length - 1].created_at
+      }
+
       // ALL leads with notes go into agentNotesLeadIds (badge + filter)
       agentNotesLeadIds = auditNotifiedIds.filter(id =>
         [...allLeads, ...agentNotesLeads].some((l: any) => l.id === id)
       )
     }
   } catch { /* audit_notes table not available */ }
+
+  const lastActivity = (l: any) => Math.max(
+    new Date(l.updated_at ?? l.created_at).getTime(),
+    l.last_note_at ? new Date(l.last_note_at).getTime() : 0,
+  )
 
   const seenIds = new Set<string>()
   const allQueueLeads = [...allLeads, ...agentNotesLeads, ...approvedLeads]
@@ -210,9 +223,7 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       seenIds.add(l.id)
       return true
     })
-    .sort((a: any, b: any) =>
-      new Date(b.updated_at ?? b.created_at).getTime() - new Date(a.updated_at ?? a.created_at).getTime()
-    )
+    .sort((a: any, b: any) => lastActivity(b) - lastActivity(a))
 
   // To Build = every lead where Save & Notify Developer was clicked, regardless of pipeline status
   const auditReadyLeadIds = auditNotifiedIds.filter(id =>
