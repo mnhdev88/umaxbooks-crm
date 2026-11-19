@@ -86,9 +86,19 @@ function hasNoteAfterDemo(lead: any): boolean {
   return new Date(lead.last_note_at).getTime() > latestDemo
 }
 
+// Admin approval closes the demo. A manager note approved after that approval
+// is a fresh instruction to build, so the lead counts as To Build again.
+function isToBuild(lead: any, auditReadyIds: string[], resubmittedIds: string[]): boolean {
+  if (!auditReadyIds.includes(lead.id) || resubmittedIds.includes(lead.id)) return false
+  if (lead.demo_approved_at) {
+    return !!lead.last_note_at && new Date(lead.last_note_at).getTime() > new Date(lead.demo_approved_at).getTime()
+  }
+  return !hasDemoLink(lead) || hasNoteAfterDemo(lead)
+}
+
 function matchesFilter(lead: any, f: Filter, declinedIds: string[], notesIds: string[], approvedIds: string[], auditReadyIds: string[], resubmittedIds: string[]) {
   if (f === 'all')        return true
-  if (f === 'to-build')   return auditReadyIds.includes(lead.id) && (!hasDemoLink(lead) || hasNoteAfterDemo(lead)) && !resubmittedIds.includes(lead.id)
+  if (f === 'to-build')   return isToBuild(lead, auditReadyIds, resubmittedIds)
   if (f === 'demo-build') return resubmittedIds.includes(lead.id) || lead.status === 'Demo Scheduled' || (hasDemoLink(lead) && !declinedIds.includes(lead.id))
   if (f === 'submitted')  return lead.status === 'Demo Done'
   if (f === 'declined')   return declinedIds.includes(lead.id) && !approvedIds.includes(lead.id)
@@ -262,7 +272,7 @@ export function DevQueueClient({ initialLeads, agents, profile, userId, declined
                       {lead.status}
                     </span>
                   )}
-                  {auditReadyLeadIds.includes(lead.id) && (
+                  {isToBuild(lead, auditReadyLeadIds, resubmittedLeadIds) && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-violet-900/40 text-violet-300 flex items-center gap-1">
                       <Code2 size={8} /> To Build
                     </span>
