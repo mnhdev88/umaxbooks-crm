@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { CallWindowBadge } from './CallWindowBadge'
 import { DialButton } from '@/components/dialer/DialButton'
 import { assignableAgents } from '@/lib/leads/assignable'
+import { US_TIMEZONES } from '@/lib/timezone'
 
 // ── Template download helpers ─────────────────────────────────────────────────
 function downloadCsv(filename: string, rows: string[][]) {
@@ -433,7 +434,7 @@ const CRM_FIELDS = [
 ]
 
 interface Stats { total: number; newCt: number; gmb: number; demo: number; closed: number; social: number }
-interface Filters { tab: string; q: string; src: string; status: string; assignee: string; state: string }
+interface Filters { tab: string; q: string; src: string; status: string; assignee: string; state: string; tz: string }
 
 interface Props {
   leads: Lead[]
@@ -503,10 +504,10 @@ export function LeadsPageClient({
   }
 
   const [showFilters, setShowFilters] = useState(false)
-  const activeFilterCount = [filters.src, filters.status, filters.assignee, filters.state, sortCallable].filter(Boolean).length
+  const activeFilterCount = [filters.src, filters.status, filters.assignee, filters.state, filters.tz, sortCallable].filter(Boolean).length
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage))
-  const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.state || (filters.tab && filters.tab !== 'all'))
+  const anyFilter = Boolean(searchInput || filters.src || filters.status || filters.assignee || filters.state || filters.tz || (filters.tab && filters.tab !== 'all'))
 
   // ── Tabs (counts come from server-side aggregates) ─────────────
   const tabs = [
@@ -915,6 +916,7 @@ export function LeadsPageClient({
           { key: 'status',   val: filters.status,   opts: STATUSES, placeholder: 'All Status' },
           { key: 'assignee', val: filters.assignee, opts: agents.map(a => a.id), labels: agents.map(a => a.full_name), placeholder: 'All Agents' },
           { key: 'state',    val: filters.state,    opts: states as string[], placeholder: 'All States' },
+          { key: 'tz',       val: filters.tz,       opts: [...US_TIMEZONES.map(t => t.tz), 'none'], labels: [...US_TIMEZONES.map(t => t.label), 'No Time Zone (ZIP unknown)'], placeholder: 'All Time Zones' },
         ].map((f, i) => (
           <select key={i} value={f.val} onChange={e => setParams({ [f.key]: e.target.value || null })}
             aria-label={f.placeholder}

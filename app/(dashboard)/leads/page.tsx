@@ -8,7 +8,7 @@ import { resolveRange } from '@/lib/report-range'
 interface PageProps {
   searchParams: Promise<{
     agent?: string; period?: string; from?: string; to?: string
-    q?: string; src?: string; status?: string; assignee?: string; state?: string
+    q?: string; src?: string; status?: string; assignee?: string; state?: string; tz?: string
     tab?: string; page?: string; sort?: string
   }>
 }
@@ -74,6 +74,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const statusF  = sp.status || ''
   const assignee = sp.assignee || ''
   const stateF   = sp.state || ''
+  const tzF      = sp.tz || ''
   const page     = Math.max(1, parseInt(sp.page || '1', 10) || 1)
   // "Call-ready first": order by which leads it's currently inside the local
   // calling window for (see leads_call_queue / lead_call_rank in migration 072).
@@ -115,6 +116,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     if (statusF)  q = q.eq('status', statusF)
     if (assignee) q = q.eq('assigned_agent_id', assignee)
     if (stateF)   q = q.eq('state', stateF)
+    // Lead's local time zone (generated from zip_code); 'none' = ZIP couldn't be mapped.
+    if (tzF === 'none') q = q.is('timezone', null)
+    else if (tzF)       q = q.eq('timezone', tzF)
     return q
   }
 
@@ -190,7 +194,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         totalCount={filteredCount}
         page={page}
         perPage={PER_PAGE}
-        filters={{ tab, q: sp.q || '', src: srcF, status: statusF, assignee, state: stateF }}
+        filters={{ tab, q: sp.q || '', src: srcF, status: statusF, assignee, state: stateF, tz: tzF }}
         agents={(agentsRes.data || []) as unknown as Profile[]}
         profile={profile as Profile}
         userId={user.id}
