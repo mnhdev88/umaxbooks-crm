@@ -117,16 +117,8 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
   // IDs of leads with an approved demo
   const { data: approvedApprovals } = await supabase
     .from('project_approvals')
-    .select('lead_id, approved_at, created_at')
+    .select('lead_id')
     .eq('status', 'approved')
-
-  // Latest admin approval per lead — a manager note approved after this is new
-  // work (To Build); anything before it is covered by the approval.
-  const approvedAtByLead = new Map<string, number>()
-  for (const a of approvedApprovals || []) {
-    const t = new Date((a as any).approved_at ?? (a as any).created_at).getTime()
-    if (t > (approvedAtByLead.get((a as any).lead_id) ?? 0)) approvedAtByLead.set((a as any).lead_id, t)
-  }
 
   const rawApprovedIds = [...new Set((approvedApprovals || []).map((a: any) => a.lead_id))]
   const newApprovedIds = rawApprovedIds.filter(id => !existingLeadIds.has(id))
@@ -232,11 +224,6 @@ export default async function DeveloperQueuePage({ searchParams }: PageProps) {
       return true
     })
     .sort((a: any, b: any) => lastActivity(b) - lastActivity(a))
-
-  for (const lead of allQueueLeads) {
-    const t = approvedAtByLead.get((lead as any).id)
-    if (t) (lead as any).demo_approved_at = new Date(t).toISOString()
-  }
 
   // To Build = every lead where Save & Notify Developer was clicked, regardless of pipeline status
   const auditReadyLeadIds = auditNotifiedIds.filter(id =>
